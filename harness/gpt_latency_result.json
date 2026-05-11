@@ -1,0 +1,9 @@
+{
+  "status": "SUCCESS",
+  "model_used": "claude-sonnet-4-6",
+  "stt_latency_ms": 1355.949878692627,
+  "translation_latency_ms": 1077.061653137207,
+  "total_latency_ms": 2433.011531829834,
+  "goal_ms": 800,
+  "result": "FAIL"
+}

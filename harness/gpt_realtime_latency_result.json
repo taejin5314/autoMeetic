@@ -1,0 +1,13 @@
+{
+  "status": "SUCCESS",
+  "reason": null,
+  "realtime_model_used": "gpt-4o-realtime-preview",
+  "translation_model_used": "claude-sonnet-4-6",
+  "stt_latency_ms": 839.8797999998351,
+  "translation_latency_ms": 2296.4897000001656,
+  "total_latency_ms": 3136.3695000000007,
+  "goal_ms": 800,
+  "result": "FAIL",
+  "stt_preview": "\u00a1Hola! \u00bfC\u00f3mo te va?",
+  "translation_preview": "Here is the translation to Korean:\n\n**\uc548\ub155\ud558\uc138\uc694! \uc5b4\ub5bb\uac8c \uc9c0\ub0b4\uc138\uc694?**\n\n(Annyeonghaseyo! Eotteoke jinaeseyo?)"
+}

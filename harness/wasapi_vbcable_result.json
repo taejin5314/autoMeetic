@@ -1,0 +1,12 @@
+﻿{
+    "timestamp":  "2026-05-11T14:27:43",
+    "vb_cable_detected":  false,
+    "slack_running":  true,
+    "chrome_running":  true,
+    "device_count":  6,
+    "vb_device_names":  [
+
+                        ],
+    "manual_validation_required":  true,
+    "status":  "BLOCKED_INSTALL_VB_CABLE"
+}
