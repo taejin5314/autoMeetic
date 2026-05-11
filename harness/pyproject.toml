@@ -1,0 +1,11 @@
+[project]
+name = "automeetic-harness"
+version = "0.1.0"
+description = "Meta-Harness evaluation + context pipeline for autoMeetic"
+requires-python = ">=3.10"
+dependencies = [
+    "rich>=13.0.0",
+]
+
+[tool.uv]
+dev-dependencies = []

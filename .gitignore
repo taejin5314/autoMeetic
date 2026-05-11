@@ -16,6 +16,13 @@ dist-ssr
 .omc/
 .vscode/*
 !.vscode/extensions.json
+
+# Harness artifacts
+harness/.venv/
+harness/last_context.md
+harness/runs.jsonl
+harness/__pycache__/
+harness/*.pyc
 .idea
 .DS_Store
 *.suo
