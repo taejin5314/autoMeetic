@@ -6,6 +6,60 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 
 ---
 
+## Coding Harness (Meta-Harness Principles)
+
+Source: https://github.com/stanford-iris-lab/meta-harness
+
+Before any non-trivial implementation, define a **domain spec** for the task. This prevents hidden assumptions, scope creep, and unmeasurable outcomes.
+
+### 1. Problem Framing (before writing code)
+
+Answer these before touching any file:
+
+- **What exactly is being improved?** State the specific behavior, not a vague goal.
+- **Unit of evaluation:** One component? One user flow? One API endpoint? One test suite?
+- **Fixed vs. changeable:** What is frozen (existing APIs, data shapes, routing) and what is allowed to change?
+- **Budget:** Estimated time, file count, or lines changed. If unknown, propose a conservative default and mark it explicitly.
+
+> Rule: If the unit of evaluation cannot be stated in one sentence, do not write code yet. Ask one focused question.
+
+### 2. Harness Definition (scope boundary)
+
+- Define the **interface** every implementation candidate must satisfy before choosing an approach.
+- State what is **explicitly out of scope** for this task.
+- If multiple approaches exist, list them and state the tradeoffs — do not pick silently.
+- Prefer the approach with the smallest blast radius (fewest files touched, fewest new dependencies).
+
+### 3. Evaluation Plan (success criteria)
+
+Before implementing, state:
+
+- **Primary metric:** What does passing look like? (`tsc --noEmit` clean, test passes, visual match, etc.)
+- **Secondary metrics:** Latency, bundle size, accessibility, mobile layout.
+- **Noise / leakage risk:** Could the fix accidentally break something adjacent? Name it.
+- **One candidate evaluation time:** How long does verifying this change take?
+
+> Rule: "Make it work" is not an evaluation plan. Restate as a verifiable check.
+
+### 4. Experience and Logging (learn from runs)
+
+- After each non-trivial change, note what was tried and what failed — do not silently discard dead ends.
+- If a pattern recurs (same bug, same type of component, same edge case), capture it as a project-level rule in this file.
+- Store the outcome of each significant decision so future sessions can inspect prior runs without re-investigating.
+
+### 5. Meta-Harness Fit Check
+
+Meta-Harness principles add the most value when:
+
+- The task is **long-horizon or multi-step** (more than one file, more than one concept).
+- The same type of task **repeats** across the codebase (forms, API calls, data display, etc.).
+- There are **recurring error patterns** that a structural change could address systematically.
+- A **measurable evaluation loop** exists before implementation begins.
+
+Skip the full spec for trivial one-liner changes. Apply it in full for features, refactors, and bug investigations.
+
+---
+
 ## gstack Sprint Workflow
 
 Source: https://github.com/garrytan/gstack
