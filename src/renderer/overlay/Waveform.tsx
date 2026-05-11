@@ -49,8 +49,6 @@ export function Waveform({ analyser, active }: WaveformProps) {
       }
     }
 
-    analyser.fftSize = 1024
-    analyser.smoothingTimeConstant = 0.85
     const data = new Uint8Array(analyser.fftSize)
 
     const draw = () => {

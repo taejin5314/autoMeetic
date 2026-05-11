@@ -20,7 +20,7 @@ function resample(
   input: Float32Array,
   fromRate: number,
   toRate: number,
-  carry: Float32Array,
+  carry: Float32Array
 ): { samples: Float32Array; carry: Float32Array } {
   const merged = new Float32Array(carry.length + input.length)
   merged.set(carry)
@@ -112,7 +112,7 @@ export class SystemAudioCaptureService {
     if (audioTracks.length === 0) {
       stream.getTracks().forEach((t) => t.stop())
       throw new Error(
-        'No audio track found. Select a browser tab/window and turn on "Share tab audio" (or "Share audio").',
+        'No audio track found. Select a browser tab/window and turn on "Share tab audio" (or "Share audio").'
       )
     }
 
@@ -179,7 +179,9 @@ export class SystemAudioCaptureService {
       this.analyserNode = undefined
     }
     if (this.audioCtx) {
-      this.audioCtx.close().catch(() => { /* ignore */ })
+      this.audioCtx.close().catch(() => {
+        /* ignore */
+      })
       this.audioCtx = undefined
     }
     if (this.stream) {

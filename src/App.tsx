@@ -12,17 +12,17 @@
  * - Resample from native rate to 24kHz (handled in capture.ts)
  * - Excalidraw whiteboard with AI agent (whiteboard mode)
  */
+import '@excalidraw/excalidraw/index.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
-import '@excalidraw/excalidraw/index.css'
 import { SystemAudioCaptureService } from './main/audio/capture'
 import { PipelineHealthStore } from './main/health/pipelineHealth'
 import { RealtimeSttClient } from './main/stt/realtimeClient'
 import { TranscriptBus } from './main/stt/transcriptBus'
+import type { ViewportCommand, WhiteboardElement } from './main/whiteboard/types'
 import { CaptionOverlay } from './renderer/overlay/CaptionOverlay'
 import { useCaptionStore } from './renderer/overlay/useCaptionStore'
 import { ExcalidrawCanvas } from './renderer/whiteboard/ExcalidrawCanvas'
-import type { WhiteboardElement, ViewportCommand } from './main/whiteboard/types'
 
 type AppMode = 'transcript' | 'whiteboard'
 
@@ -33,9 +33,20 @@ function statusClass(status: 'connected' | 'degraded' | 'disconnected'): string 
 }
 
 function App() {
+  const shellRef = useRef<HTMLElement | null>(null)
+  const resetTimeoutRef = useRef<number | null>(null)
   const [running, setRunning] = useState(false)
   const [starting, setStarting] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [expandedStatus, setExpandedStatus] = useState<string | null>(null)
+  const [resetConfirming, setResetConfirming] = useState(false)
+  const [healthTick, setHealthTick] = useState(0)
+  const [activeAudioMs, setActiveAudioMs] = useState(0)
+  const [sessionStartMs, setSessionStartMs] = useState<number | null>(null)
+  const [runStartMs, setRunStartMs] = useState<number | null>(null)
+  const [whiteboardConnected, setWhiteboardConnected] = useState(false)
+  const [clockMs, setClockMs] = useState(() => Date.now())
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null)
   const [mode, setMode] = useState<AppMode>('transcript')
   const { items, currentPartial, applyTranscript, clear } = useCaptionStore()
@@ -52,8 +63,17 @@ function App() {
   const sttClient = useMemo(() => new RealtimeSttClient(bus), [bus])
   const health = useMemo(() => new PipelineHealthStore(), [])
 
-  const captureRef = useRef(capture)
-  const sttRef = useRef(sttClient)
+  const updateHealth = useCallback(
+    (
+      stage: 'capture' | 'stt' | 'translation',
+      status: 'connected' | 'degraded' | 'disconnected',
+      message?: string
+    ) => {
+      health.update(stage, status, message)
+      setHealthTick((v) => v + 1)
+    },
+    [health]
+  )
 
   // Wire transcript bus → caption store, capture → STT client
   useEffect(() => {
@@ -63,8 +83,8 @@ function App() {
     return () => {
       offTranscript()
       offCapture()
-      captureRef.current.stop()
-      sttRef.current.disconnect()
+      capture.stop()
+      sttClient.disconnect()
     }
   }, [applyTranscript, bus, capture, sttClient])
 
@@ -82,6 +102,10 @@ function App() {
     const wsUrl = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/ws/whiteboard`
     const ws = new WebSocket(wsUrl)
     whiteboardWsRef.current = ws
+
+    ws.onopen = () => {
+      setWhiteboardConnected(true)
+    }
 
     ws.onmessage = (event) => {
       let msg: Record<string, unknown>
@@ -109,13 +133,48 @@ function App() {
 
     ws.onclose = () => {
       whiteboardWsRef.current = null
+      setWhiteboardConnected(false)
     }
 
     return () => {
       ws.close()
       whiteboardWsRef.current = null
+      setWhiteboardConnected(false)
     }
   }, [mode])
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(Boolean(document.fullscreenElement))
+    document.addEventListener('fullscreenchange', handler)
+    return () => document.removeEventListener('fullscreenchange', handler)
+  }, [])
+
+  useEffect(() => {
+    const id = window.setInterval(() => setClockMs(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  useEffect(
+    () => () => {
+      if (resetTimeoutRef.current !== null) {
+        window.clearTimeout(resetTimeoutRef.current)
+      }
+    },
+    []
+  )
+
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen()
+        return
+      }
+      const target = shellRef.current
+      if (target?.requestFullscreen) await target.requestFullscreen()
+    } catch {
+      // No-op: fullscreen is best-effort for sharing mode.
+    }
+  }, [])
 
   // ── Feed transcripts to whiteboard agent when in whiteboard mode ──────────
   useEffect(() => {
@@ -125,10 +184,12 @@ function App() {
       if (!segment.isFinal) return
       const ws = whiteboardWsRef.current
       if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'whiteboard:agent-run',
-          transcript: segment.text,
-        }))
+        ws.send(
+          JSON.stringify({
+            type: 'whiteboard:agent-run',
+            transcript: segment.text,
+          })
+        )
       }
     })
 
@@ -147,6 +208,28 @@ function App() {
   }, [])
 
   const snapshot = health.getSnapshot()
+  void healthTick
+
+  const transcriptCount = items.length
+  const sourceWordCount = useMemo(
+    () =>
+      items.reduce((total, item) => {
+        const words = item.sourceText.trim().split(/\s+/).filter(Boolean).length
+        return total + words
+      }, 0),
+    [items]
+  )
+  const sessionElapsedMs =
+    sessionStartMs === null ? 0 : Math.max(clockMs - sessionStartMs, 0)
+  const currentRunMs = running && runStartMs !== null ? Math.max(clockMs - runStartMs, 0) : 0
+  const totalAudioMs = activeAudioMs + currentRunMs
+
+  const formatDuration = useCallback((ms: number) => {
+    const seconds = Math.floor(ms / 1000)
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+  }, [])
 
   /**
    * Start listening — connect STT proxy, then start capture.
@@ -159,14 +242,16 @@ function App() {
 
     try {
       // 1. Connect to transcription proxy
-      health.update('stt', 'degraded', 'connecting...')
+      updateHealth('stt', 'degraded', 'connecting...')
       await sttClient.connect()
-      health.update('stt', 'connected', `OpenAI Realtime ready`)
+      updateHealth('stt', 'connected', 'OpenAI Realtime ready')
 
       // 2. Start system audio capture (prompts user to share tab/window)
-      health.update('capture', 'degraded', 'requesting display media...')
+      updateHealth('capture', 'degraded', 'requesting display media...')
       await capture.start()
-      health.update('capture', 'connected', 'system audio active')
+      updateHealth('capture', 'connected', 'system audio active')
+      if (sessionStartMs === null) setSessionStartMs(Date.now())
+      setRunStartMs(Date.now())
 
       // 3. Expose analyser for waveform visualization (autopreso pattern)
       setAnalyser(capture.analyser ?? null)
@@ -175,27 +260,69 @@ function App() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       setError(msg)
-      health.update('stt', 'disconnected', msg)
-      health.update('capture', 'disconnected', 'not started')
+      updateHealth('stt', 'disconnected', msg)
+      updateHealth('capture', 'disconnected', 'not started')
     } finally {
       setStarting(false)
     }
-  }, [capture, health, running, starting, sttClient])
+  }, [capture, running, sessionStartMs, starting, sttClient, updateHealth])
 
   /**
    * Stop listening — mirrors autopreso/public/app.js stopListening().
    */
   const onStop = useCallback(() => {
+    if (runStartMs !== null) {
+      const startedAt = runStartMs
+      setActiveAudioMs((ms) => ms + (Date.now() - startedAt))
+      setRunStartMs(null)
+    }
     capture.stop()
     sttClient.disconnect()
     setAnalyser(null)
-    health.update('capture', 'disconnected', 'stopped')
-    health.update('stt', 'disconnected', 'stopped')
+    updateHealth('capture', 'disconnected', 'stopped')
+    updateHealth('stt', 'disconnected', 'stopped')
     setRunning(false)
-  }, [capture, health, sttClient])
+  }, [capture, runStartMs, sttClient, updateHealth])
+
+  const resetSession = useCallback(() => {
+    if (!resetConfirming) {
+      setResetConfirming(true)
+      if (resetTimeoutRef.current !== null) window.clearTimeout(resetTimeoutRef.current)
+      resetTimeoutRef.current = window.setTimeout(() => {
+        setResetConfirming(false)
+        resetTimeoutRef.current = null
+      }, 2500)
+      return
+    }
+
+    if (resetTimeoutRef.current !== null) {
+      window.clearTimeout(resetTimeoutRef.current)
+      resetTimeoutRef.current = null
+    }
+
+    if (running) onStop()
+    clear()
+    setError(null)
+    setExpandedStatus(null)
+    setResetConfirming(false)
+    setWhiteboardElements([])
+    setViewportCommand(null)
+    setAgentStatus('idle')
+    setActiveAudioMs(0)
+    setRunStartMs(null)
+    setSessionStartMs(null)
+    updateHealth('capture', 'disconnected', 'session reset')
+    updateHealth('stt', 'disconnected', 'session reset')
+    updateHealth('translation', 'disconnected', 'not connected')
+
+    const ws = whiteboardWsRef.current
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'whiteboard:user-elements', elements: [] }))
+    }
+  }, [clear, onStop, resetConfirming, running, updateHealth])
 
   return (
-    <main className={`shell mode-${mode}`}>
+    <main className={`shell mode-${mode}`} ref={shellRef}>
       {/* Left side — waveform + captions OR whiteboard (like autopreso's canvas-wrap) */}
       <section className="canvas-wrap">
         {mode === 'transcript' ? (
@@ -222,51 +349,90 @@ function App() {
       {/* Right side — controls + status (like autopreso's panel) */}
       <aside className="panel">
         <div className="brand">
-          <h1>autoMeetic</h1>
-          <p>Live meeting transcription + whiteboard</p>
-        </div>
-
-        {/* Mode tabs (autopreso's staging/live pattern) */}
-        <div className="mode-tabs">
-          <button
-            type="button"
-            className={`mode-tab ${mode === 'transcript' ? 'active' : ''}`}
-            onClick={() => setMode('transcript')}
-          >
-            Transcript
-          </button>
-          <button
-            type="button"
-            className={`mode-tab ${mode === 'whiteboard' ? 'active' : ''}`}
-            onClick={() => setMode('whiteboard')}
-          >
-            Whiteboard
-          </button>
+          <div className="brand-row">
+            <h1>autoMeetic</h1>
+            <div
+              className={`mode-toggle mode-toggle-${mode}`}
+              role="group"
+              aria-label="Mode"
+            >
+              <button
+                type="button"
+                className={`mode-toggle-option ${mode === 'transcript' ? 'active' : ''}`}
+                onClick={() => setMode('transcript')}
+                aria-pressed={mode === 'transcript'}
+              >
+                Transcript
+              </button>
+              <button
+                type="button"
+                className={`mode-toggle-option ${mode === 'whiteboard' ? 'active' : ''}`}
+                onClick={() => setMode('whiteboard')}
+                aria-pressed={mode === 'whiteboard'}
+              >
+                Whiteboard
+              </button>
+            </div>
+          </div>
+          <p>
+            {mode === 'transcript'
+              ? 'Share tab audio and capture real-time captions.'
+              : 'Talk through ideas and let the whiteboard agent map them.'}
+          </p>
         </div>
 
         <div className="controls">
-          {/* Record toggle — ported from autopreso's record-toggle pattern */}
-          <button
-            className={`record-toggle ${running ? 'recording' : ''}`}
-            type="button"
-            onClick={() => { running ? onStop() : void onStart() }}
-            disabled={starting}
-          >
-            <span className="record-icon">{running ? '\u25A0' : '\u25CF'}</span>
-            {' '}
-            {running ? 'Stop Listening' : starting ? 'Starting...' : 'Start Listening'}
-          </button>
+          <div className="listen-row">
+            {/* Record toggle — ported from autopreso's record-toggle pattern */}
+            <button
+              className={`record-toggle ${running ? 'recording' : ''}`}
+              type="button"
+              onClick={() => {
+                if (running) onStop()
+                else void onStart()
+              }}
+              disabled={starting}
+            >
+              <span className="record-icon">{running ? '\u25A0' : '\u25CF'}</span>{' '}
+              {running ? 'Stop Listening' : starting ? 'Starting...' : 'Start Listening'}
+            </button>
+            <button
+              className="fullscreen-toggle"
+              type="button"
+              onClick={() => {
+                void toggleFullscreen()
+              }}
+              title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen for screen sharing'}
+              aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            >
+              {isFullscreen ? 'Exit' : 'Full'}
+            </button>
+          </div>
 
           {running && (
-            <button className="secondary" type="button" onClick={() => { clear() }}>
+            <button
+              className="secondary"
+              type="button"
+              onClick={() => {
+                clear()
+              }}
+            >
               Clear Feed
             </button>
           )}
+
+          <button
+            className={`reset-session ${resetConfirming ? 'confirming' : ''}`}
+            type="button"
+            onClick={resetSession}
+          >
+            {resetConfirming ? 'Click again to reset session' : 'Reset Session'}
+          </button>
         </div>
 
         {!running && !starting && !error && (
           <p className="hint-text">
-            Click Start, then select any tab or window (Slack, YouTube, Meet, Zoom) and enable "Share audio".
+            Click Start, then select any tab or window and enable "Share audio".
           </p>
         )}
 
@@ -274,28 +440,158 @@ function App() {
 
         {/* Status card — ported from autopreso's statusRow() pattern */}
         <div className="status-card">
-          <div className="status-row">
-            <span className={statusClass(snapshot.capture.status)} aria-hidden="true" />
-            <span className="label">Capture</span>
-            <span className="value">{snapshot.capture.message ?? snapshot.capture.status}</span>
+          <div className={`status-row-wrap ${expandedStatus === 'capture' ? 'expanded' : ''}`}>
+            <button
+              type="button"
+              className={`status-row clickable ${expandedStatus === 'capture' ? 'open' : ''}`}
+              onClick={() => setExpandedStatus((s) => (s === 'capture' ? null : 'capture'))}
+            >
+              <span className={statusClass(snapshot.capture.status)} aria-hidden="true" />
+              <span className="label">Capture</span>
+              <span className="value">{snapshot.capture.message ?? snapshot.capture.status}</span>
+              <span className="chevron" aria-hidden="true">
+                ›
+              </span>
+            </button>
+            {expandedStatus === 'capture' && (
+              <div className="status-details">
+                <div className="status-details-row">
+                  <span>Session</span>
+                  <strong>{formatDuration(sessionElapsedMs)}</strong>
+                </div>
+                <div className="status-details-row">
+                  <span>Audio active</span>
+                  <strong>{formatDuration(totalAudioMs)}</strong>
+                </div>
+              </div>
+            )}
           </div>
-          <div className="status-row">
-            <span className={statusClass(snapshot.stt.status)} aria-hidden="true" />
-            <span className="label">STT</span>
-            <span className="value">{snapshot.stt.message ?? snapshot.stt.status}</span>
+
+          <div className={`status-row-wrap ${expandedStatus === 'stt' ? 'expanded' : ''}`}>
+            <button
+              type="button"
+              className={`status-row clickable ${expandedStatus === 'stt' ? 'open' : ''}`}
+              onClick={() => setExpandedStatus((s) => (s === 'stt' ? null : 'stt'))}
+            >
+              <span className={statusClass(snapshot.stt.status)} aria-hidden="true" />
+              <span className="label">STT</span>
+              <span className="value">{snapshot.stt.message ?? snapshot.stt.status}</span>
+              <span className="chevron" aria-hidden="true">
+                ›
+              </span>
+            </button>
+            {expandedStatus === 'stt' && (
+              <div className="status-details">
+                <div className="status-details-row">
+                  <span>Committed captions</span>
+                  <strong>{transcriptCount}</strong>
+                </div>
+                <div className="status-details-row">
+                  <span>Total words</span>
+                  <strong>{sourceWordCount}</strong>
+                </div>
+              </div>
+            )}
           </div>
-          <div className="status-row">
-            <span className={statusClass(snapshot.translation.status)} aria-hidden="true" />
-            <span className="label">Translate</span>
-            <span className="value">{snapshot.translation.message ?? 'not connected'}</span>
+
+          <div className={`status-row-wrap ${expandedStatus === 'translation' ? 'expanded' : ''}`}>
+            <button
+              type="button"
+              className={`status-row clickable ${expandedStatus === 'translation' ? 'open' : ''}`}
+              onClick={() => setExpandedStatus((s) => (s === 'translation' ? null : 'translation'))}
+            >
+              <span className={statusClass(snapshot.translation.status)} aria-hidden="true" />
+              <span className="label">Translate</span>
+              <span className="value">{snapshot.translation.message ?? 'not connected'}</span>
+              <span className="chevron" aria-hidden="true">
+                ›
+              </span>
+            </button>
+            {expandedStatus === 'translation' && (
+              <div className="status-details">
+                <div className="status-details-row">
+                  <span>Current mode</span>
+                  <strong>{mode === 'transcript' ? 'Transcript' : 'Whiteboard'}</strong>
+                </div>
+                <div className="status-details-row">
+                  <span>Partial text</span>
+                  <strong>{currentPartial ? 'streaming' : 'idle'}</strong>
+                </div>
+              </div>
+            )}
           </div>
+
           {mode === 'whiteboard' && (
-            <div className="status-row">
-              <span className={agentStatus === 'thinking' ? 'dot active' : agentStatus === 'error' ? 'dot degraded' : 'dot'} aria-hidden="true" />
-              <span className="label">Agent</span>
-              <span className="value">{agentStatus === 'thinking' ? 'generating diagram...' : agentStatus === 'error' ? 'error' : 'idle'}</span>
+            <div className={`status-row-wrap ${expandedStatus === 'agent' ? 'expanded' : ''}`}>
+              <button
+                type="button"
+                className={`status-row clickable ${expandedStatus === 'agent' ? 'open' : ''}`}
+                onClick={() => setExpandedStatus((s) => (s === 'agent' ? null : 'agent'))}
+              >
+                <span
+                  className={
+                    agentStatus === 'thinking'
+                      ? 'dot active'
+                      : agentStatus === 'error'
+                        ? 'dot degraded'
+                        : 'dot'
+                  }
+                  aria-hidden="true"
+                />
+                <span className="label">Agent</span>
+                <span className="value">
+                  {agentStatus === 'thinking'
+                    ? 'generating diagram...'
+                    : agentStatus === 'error'
+                      ? 'error'
+                      : 'idle'}
+                </span>
+                <span className="chevron" aria-hidden="true">
+                  ›
+                </span>
+              </button>
+              {expandedStatus === 'agent' && (
+                <div className="status-details">
+                  <div className="status-details-row">
+                    <span>Canvas elements</span>
+                    <strong>{whiteboardElements.length}</strong>
+                  </div>
+                  <div className="status-details-row">
+                    <span>Realtime link</span>
+                    <strong>{whiteboardConnected ? 'connected' : 'disconnected'}</strong>
+                  </div>
+                </div>
+              )}
             </div>
           )}
+        </div>
+
+        <div className="cost-card">
+          <div className="cost-card-header">
+            <span className="cost-card-title">Session Metrics</span>
+            <strong className="cost-card-total">{formatDuration(sessionElapsedMs)}</strong>
+          </div>
+          <div className="cost-row">
+            <div className="cost-row-left">
+              <span className="cost-row-label">Active audio</span>
+              <span className="cost-row-sub">Time with capture running</span>
+            </div>
+            <span className="cost-row-value">{formatDuration(totalAudioMs)}</span>
+          </div>
+          <div className="cost-row">
+            <div className="cost-row-left">
+              <span className="cost-row-label">Captions</span>
+              <span className="cost-row-sub">Committed transcript lines</span>
+            </div>
+            <span className="cost-row-value">{transcriptCount}</span>
+          </div>
+          <div className="cost-row">
+            <div className="cost-row-left">
+              <span className="cost-row-label">Words</span>
+              <span className="cost-row-sub">Detected from source transcript</span>
+            </div>
+            <span className="cost-row-value">{sourceWordCount}</span>
+          </div>
         </div>
       </aside>
     </main>
