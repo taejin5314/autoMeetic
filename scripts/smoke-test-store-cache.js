@@ -62,9 +62,7 @@ async function callResponses(body) {
     buffer = events.pop() ?? ''
 
     for (const block of events) {
-      const dataLine = block
-        .split('\n')
-        .find((line) => line.startsWith('data: '))
+      const dataLine = block.split('\n').find((line) => line.startsWith('data: '))
       if (!dataLine) continue
       const json = dataLine.slice(6).trim()
       if (!json || json === '[DONE]') continue
@@ -88,9 +86,7 @@ function summarize(label, response) {
   const usage = response?.usage ?? {}
   const input = usage.input_tokens ?? usage.prompt_tokens ?? 0
   const cached =
-    usage.input_tokens_details?.cached_tokens ??
-    usage.prompt_tokens_details?.cached_tokens ??
-    0
+    usage.input_tokens_details?.cached_tokens ?? usage.prompt_tokens_details?.cached_tokens ?? 0
   const output = usage.output_tokens ?? 0
   const pct = input > 0 ? Math.round((cached / input) * 100) : 0
   return { label, input, cached, output, pct, id: response?.id }
@@ -127,7 +123,9 @@ async function runStoredMode() {
     rows.push(row)
     previousId = response.id
 
-    console.log(`turn${i}: input=${row.input} cached=${row.cached} (${row.pct}%) output=${row.output} id=${row.id}`)
+    console.log(
+      `turn${i}: input=${row.input} cached=${row.cached} (${row.pct}%) output=${row.output} id=${row.id}`
+    )
   }
 
   return rows
@@ -167,7 +165,9 @@ async function runStatelessMode() {
     const row = summarize(`turn${i}`, response)
     rows.push(row)
 
-    console.log(`turn${i}: input=${row.input} cached=${row.cached} (${row.pct}%) output=${row.output} id=${row.id}`)
+    console.log(
+      `turn${i}: input=${row.input} cached=${row.cached} (${row.pct}%) output=${row.output} id=${row.id}`
+    )
   }
 
   return rows
@@ -191,7 +191,9 @@ async function main() {
     const cachedSum = rows.reduce((acc, r) => acc + r.cached, 0)
     const inputSum = rows.reduce((acc, r) => acc + r.input, 0)
     const pct = inputSum > 0 ? Math.round((cachedSum / inputSum) * 100) : 0
-    console.log(`${label.padEnd(10)} cached=${cachedSum}/${inputSum} (${pct}%) across ${rows.length} turns`)
+    console.log(
+      `${label.padEnd(10)} cached=${cachedSum}/${inputSum} (${pct}%) across ${rows.length} turns`
+    )
   }
 }
 

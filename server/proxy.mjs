@@ -17,6 +17,16 @@ import { createServer } from 'http'
 import express from 'express'
 import { WebSocketServer, WebSocket } from 'ws'
 import Anthropic from '@anthropic-ai/sdk'
+import {
+  appendLayoutWarnings,
+  applyWhiteboardEditOperations,
+  buildWhiteboardAgentMessages,
+  createTranscriptTurnQueue,
+  formatLineNumberedWhiteboard,
+  isTrivialTranscript,
+  normalizeWhiteboardElements,
+  whiteboardSystemPrompt,
+} from './whiteboard-runtime.mjs'
 
 const app = express()
 app.use(express.json())
@@ -24,6 +34,16 @@ app.use(express.json())
 // ── Translation endpoint ─────────────────────────────────────────────────────
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+const TRANSLATION_MODEL = process.env.TRANSLATION_MODEL ?? 'claude-sonnet-4-6'
+const LANGUAGE_NAME_BY_CODE = new Map([
+  ['ko', 'Korean'],
+  ['en', 'English'],
+  ['ja', 'Japanese'],
+  ['zh', 'Chinese'],
+  ['es', 'Spanish'],
+  ['fr', 'French'],
+  ['de', 'German'],
+])
 
 app.post('/api/translate', async (req, res) => {
   const { text, targetLang = 'ko' } = req.body
@@ -33,13 +53,14 @@ app.post('/api/translate', async (req, res) => {
   }
 
   try {
+    const targetLanguage = LANGUAGE_NAME_BY_CODE.get(targetLang) ?? targetLang
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
+      model: TRANSLATION_MODEL,
+      max_tokens: Math.min(Math.max(Math.ceil(text.length * 1.8), 96), 512),
       messages: [
         {
           role: 'user',
-          content: `Translate the following text to ${targetLang === 'ko' ? 'Korean' : targetLang}. Return ONLY the translation with no explanation, no quotes, and no preamble:\n\n${text}`,
+          content: `Translate the following text to ${targetLanguage}. Return ONLY the translation. Do not explain, quote, identify languages, or add a preamble:\n\n${text}`,
         },
       ],
     })
@@ -98,8 +119,14 @@ app.post('/api/vocabulary', (req, res) => {
 // so server-VAD never auto-commits and completed never fires.
 
 const OPENAI_REALTIME_URL = 'wss://api.openai.com/v1/realtime?intent=transcription'
-const OPENAI_TRANSCRIPTION_MODEL = process.env.OPENAI_TRANSCRIPTION_MODEL ?? 'gpt-4o-transcribe'
-const DELTA_QUIET_MS = 1000
+const OPENAI_TRANSCRIPTION_MODEL = process.env.OPENAI_TRANSCRIPTION_MODEL ?? 'gpt-realtime-whisper'
+const OPENAI_TRANSCRIPTION_LANGUAGE = process.env.OPENAI_TRANSCRIPTION_LANGUAGE ?? 'auto'
+const DELTA_QUIET_MS = Number(process.env.STT_DELTA_QUIET_MS ?? 650)
+const TRANSCRIPT_MAX_CHARS = Number(process.env.STT_MAX_CHARS ?? 180)
+const TRANSCRIPT_MAX_MS = Number(process.env.STT_MAX_MS ?? 2200)
+const TRANSCRIPT_SENTENCE_END_RE = /[.!?。？！]\s*$/
+const DEFAULT_KOREAN_TRANSCRIPTION_PROMPT =
+  'The audio is Korean. Transcribe only in Korean Hangul. Do not output Japanese, Chinese, English, or romanized text unless those words are clearly spoken.'
 
 // Models that reject the `prompt` parameter. For these we silently skip
 // vocabulary biasing rather than failing the whole session.update.
@@ -110,10 +137,21 @@ const MODELS_WITHOUT_PROMPT_SUPPORT = new Set(['gpt-realtime-whisper'])
  * Build the transcription session config for OpenAI Realtime.
  * Ported from autopreso/src/openai-transcription.js buildTranscriptionSession()
  */
-function buildTranscriptionSession(model, vocabularyPrompt = '', { includeEmptyPrompt = false } = {}) {
+function buildTranscriptionSession(
+  model,
+  vocabularyPrompt = '',
+  { includeEmptyPrompt = false, language = OPENAI_TRANSCRIPTION_LANGUAGE } = {},
+) {
   const transcription = { model }
+  if (language && language !== 'auto') {
+    transcription.language = language
+  }
   if (!MODELS_WITHOUT_PROMPT_SUPPORT.has(model)) {
-    if (vocabularyPrompt) transcription.prompt = vocabularyPrompt
+    const promptParts = []
+    if (language === 'ko') promptParts.push(DEFAULT_KOREAN_TRANSCRIPTION_PROMPT)
+    if (vocabularyPrompt) promptParts.push(vocabularyPrompt)
+    const prompt = promptParts.join('\n')
+    if (prompt) transcription.prompt = prompt
     else if (includeEmptyPrompt) transcription.prompt = ''
   }
   return {
@@ -187,10 +225,43 @@ server.on('upgrade', (req, socket, head) => {
 const whiteboardState = {
   mode: 'live',
   elements: [],
+  agentHistory: [],
   agentBusy: false,
   latestScreenshot: null,
   canvasDirtyForAgent: false,
 }
+
+const whiteboardQueue = createTranscriptTurnQueue({
+  debounceMs: 0,
+  isReady: (text) => !isTrivialTranscript(text),
+  runTurn: async (transcript) => {
+    whiteboardState.agentBusy = true
+    broadcastWhiteboard({ type: 'whiteboard:agent-status', status: 'thinking' })
+    try {
+      const apiKey = process.env.ANTHROPIC_API_KEY
+      if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured')
+
+      const result = await runWhiteboardAgentProxy(transcript, apiKey)
+      if (result.elements) {
+        whiteboardState.elements = result.elements
+        broadcastWhiteboard({ type: 'whiteboard:update', elements: result.elements })
+      }
+      if (result.viewport) {
+        broadcastWhiteboard({ type: 'whiteboard:viewport', ...result.viewport })
+      }
+    } catch (err) {
+      console.error('[proxy] whiteboard agent error:', err.message)
+      broadcastWhiteboard({
+        type: 'whiteboard:agent-status',
+        status: 'error',
+        message: err.message,
+      })
+    } finally {
+      whiteboardState.agentBusy = false
+      broadcastWhiteboard({ type: 'whiteboard:agent-status', status: 'idle' })
+    }
+  },
+})
 
 function broadcastWhiteboard(message) {
   const serialized = JSON.stringify(message)
@@ -220,8 +291,17 @@ wssWhiteboard.on('connection', (clientWs) => {
 
     // User drew on the canvas — update server state (autopreso pattern)
     if (msg.type === 'whiteboard:user-elements' && Array.isArray(msg.elements)) {
-      whiteboardState.elements = msg.elements
+      whiteboardState.elements = normalizeWhiteboardElements(msg.elements)
       whiteboardState.canvasDirtyForAgent = true
+    }
+
+    if (msg.type === 'whiteboard:reset') {
+      whiteboardState.elements = []
+      whiteboardState.agentHistory = []
+      whiteboardState.latestScreenshot = null
+      whiteboardState.canvasDirtyForAgent = false
+      broadcastWhiteboard({ type: 'whiteboard:update', elements: [] })
+      broadcastWhiteboard({ type: 'whiteboard:agent-status', status: 'idle' })
     }
 
     // Screenshot from frontend for agent context (autopreso pattern)
@@ -231,37 +311,9 @@ wssWhiteboard.on('connection', (clientWs) => {
 
     // Run whiteboard agent on transcript chunk
     if (msg.type === 'whiteboard:agent-run' && typeof msg.transcript === 'string') {
-      if (whiteboardState.agentBusy) return
       const transcript = msg.transcript.trim()
       if (!transcript) return
-
-      whiteboardState.agentBusy = true
-      broadcastWhiteboard({ type: 'whiteboard:agent-status', status: 'thinking' })
-
-      try {
-        const apiKey = process.env.ANTHROPIC_API_KEY
-        if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured')
-
-        const result = await runWhiteboardAgentProxy(transcript, apiKey)
-
-        if (result.elements) {
-          whiteboardState.elements = result.elements
-          broadcastWhiteboard({ type: 'whiteboard:update', elements: result.elements })
-        }
-        if (result.viewport) {
-          broadcastWhiteboard({ type: 'whiteboard:viewport', ...result.viewport })
-        }
-      } catch (err) {
-        console.error('[proxy] whiteboard agent error:', err.message)
-        broadcastWhiteboard({
-          type: 'whiteboard:agent-status',
-          status: 'error',
-          message: err.message,
-        })
-      } finally {
-        whiteboardState.agentBusy = false
-        broadcastWhiteboard({ type: 'whiteboard:agent-status', status: 'idle' })
-      }
+      void whiteboardQueue.enqueue(transcript)
     }
   })
 
@@ -275,26 +327,26 @@ wssWhiteboard.on('connection', (clientWs) => {
  * Ported from autopreso/src/server.js runWhiteboardAgent()
  */
 async function runWhiteboardAgentProxy(transcript, apiKey) {
-  const systemPrompt = buildWhiteboardSystemPromptProxy()
-
-  // Build current canvas context
-  const canvasText = whiteboardState.elements.length === 0
-    ? '(empty whiteboard)'
-    : whiteboardState.elements
-        .map((el, i) => `${String(i + 1).padStart(3, '0')}: ${JSON.stringify(el)}`)
-        .join('\n')
-
-  const userMessage = `Current canvas:\n${canvasText}\n\nTranscript: ${transcript}`
+  const screenshotForAgent = whiteboardState.canvasDirtyForAgent ? whiteboardState.latestScreenshot : null
+  whiteboardState.canvasDirtyForAgent = false
+  const messages = buildWhiteboardAgentMessages({
+    elements: whiteboardState.elements,
+    agentHistory: whiteboardState.agentHistory,
+    latestScreenshot: screenshotForAgent,
+    transcript,
+  })
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 2048,
-    system: systemPrompt,
-    messages: [{ role: 'user', content: userMessage }],
+    max_tokens: 4096,
+    system: whiteboardSystemPrompt(),
+    messages,
+    tool_choice: whiteboardState.elements.length === 0 ? { type: 'any' } : { type: 'auto' },
     tools: [
       {
         name: 'whiteboard_apply',
-        description: 'Apply edits and/or move the viewport in a SINGLE call.',
+        description:
+          'Apply edits and/or move the viewport in a SINGLE call. Either operations, viewport, or both must be provided. For scroll_to_content, pass focus_ids.',
         input_schema: {
           type: 'object',
           properties: {
@@ -333,73 +385,58 @@ async function runWhiteboardAgentProxy(transcript, apiKey) {
   })
 
   const result = { elements: null, viewport: null }
+  const toolResults = []
+  let workingElements = whiteboardState.elements
 
   for (const block of response.content) {
     if (block.type !== 'tool_use') continue
 
     if (block.name === 'whiteboard_overwrite') {
-      result.elements = block.input.elements ?? []
+      const normalized = normalizeWhiteboardElements(block.input.elements ?? [])
+      workingElements = normalized
+      result.elements = normalized
+      const formatted = appendLayoutWarnings(formatLineNumberedWhiteboard(normalized), normalized)
+      toolResults.push(formatted)
     }
 
     if (block.name === 'whiteboard_apply') {
       const { operations, viewport } = block.input
+      let nextElements = workingElements
 
       // Apply edit operations
       if (Array.isArray(operations) && operations.length > 0) {
-        const nextElements = [...whiteboardState.elements]
-        for (const op of operations) {
-          if (op.type === 'replace' && op.line >= 1 && op.line <= nextElements.length) {
-            nextElements[op.line - 1] = op.element
-          } else if (op.type === 'insert_after' && op.line >= 0 && op.line <= nextElements.length) {
-            nextElements.splice(op.line, 0, op.element)
-          } else if (op.type === 'delete' && op.line >= 1 && op.line <= nextElements.length) {
-            nextElements.splice(op.line - 1, 1)
-          }
-        }
+        nextElements = applyWhiteboardEditOperations(workingElements, operations)
+        workingElements = nextElements
         result.elements = nextElements
       }
 
       if (viewport) {
         result.viewport = viewport
       }
+
+      const formatted = appendLayoutWarnings(formatLineNumberedWhiteboard(nextElements), nextElements)
+      toolResults.push(
+        result.viewport ? `${formatted}\n\nViewport: ${JSON.stringify(result.viewport)}` : formatted,
+      )
     }
   }
+
+  const assistantText = response.content
+    .filter((block) => block.type === 'text')
+    .map((block) => block.text)
+    .join('\n')
+    .trim()
+  whiteboardState.agentHistory.push({ role: 'user', content: `Speaker turn:\n${transcript}` })
+  whiteboardState.agentHistory.push({
+    role: 'assistant',
+    content: toolResults.length > 0 ? toolResults.join('\n\n') : assistantText || 'DONE',
+  })
+  whiteboardState.agentHistory = whiteboardState.agentHistory.slice(-10)
 
   return result
 }
 
-/**
- * System prompt for whiteboard agent (compact version for proxy).
- * Full prompt is in src/main/whiteboard/prompt.ts
- */
-function buildWhiteboardSystemPromptProxy() {
-  return `You are AutoMeetic, a real-time visual note-taking agent.
-
-You listen to transcript chunks and maintain a visual presentation that complements the speaker.
-Do not mirror the transcript. Create diagrams, concept maps, and visual structures.
-Extract core concepts and choose the best visual form.
-
-Drawing objects: type (rectangle/ellipse/diamond/arrow/text), id, x, y, width, height.
-Labels: use label: { text, fontSize } inside shapes.
-Color: max 2-3 colors. Use #e7f5ff, #a5d8ff, #f8f9fa.
-Layout: max 8-10 nodes, generous spacing (60px+), font >= 16.
-Arrows: short, between adjacent shapes only.
-
-Tools:
-- whiteboard_apply: incremental edits (replace/insert_after/delete by line number) + viewport
-- whiteboard_overwrite: full canvas replacement
-
-One tool call per turn. Combine all edits into one call.
-When done, respond with DONE.
-
-Examples:
-{"type":"rectangle","id":"n1","x":100,"y":100,"width":220,"height":80,"backgroundColor":"#a5d8ff","fillStyle":"solid","roundness":{"type":3},"label":{"text":"Main idea","fontSize":18}}
-{"type":"text","id":"title","x":100,"y":40,"text":"Overview","fontSize":28}
-{"type":"arrow","id":"a1","x":100,"y":180,"width":200,"height":0,"points":[[0,0],[200,0]]}
-`
-}
-
-wss.on('connection', (clientWs) => {
+wss.on('connection', (clientWs, req) => {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
     clientWs.send(JSON.stringify({ type: 'error', message: 'OPENAI_API_KEY not configured on server' }))
@@ -415,7 +452,11 @@ wss.on('connection', (clientWs) => {
   let lastQueuedText = ''
   let bufferedSinceCommit = false
   let deltaQuietTimer = null
+  let partialStartedAtMs = 0
   let activeSessionId = null
+  const requestedLanguage =
+    new URL(req.url ?? '', 'http://localhost').searchParams.get('language') ||
+    OPENAI_TRANSCRIPTION_LANGUAGE
 
   function cancelDeltaQuietTimer() {
     if (deltaQuietTimer) {
@@ -434,6 +475,7 @@ wss.on('connection', (clientWs) => {
     const text = partialText.trim()
     if (!text) return
     partialText = ''
+    partialStartedAtMs = 0
     lastQueuedText = text
     safeSend({ type: 'committed', text })
     // Commit OpenAI audio buffer to start fresh for next utterance
@@ -450,6 +492,20 @@ wss.on('connection', (clientWs) => {
       deltaQuietTimer = null
       flushPartialAsTurn()
     }, DELTA_QUIET_MS)
+  }
+
+  function shouldFlushPartialNow(text) {
+    if (!text) return false
+    const trimmed = text.trim()
+    if (trimmed.length >= TRANSCRIPT_MAX_CHARS) return true
+    if (
+      TRANSCRIPT_MAX_MS > 0 &&
+      partialStartedAtMs > 0 &&
+      Date.now() - partialStartedAtMs >= TRANSCRIPT_MAX_MS
+    ) {
+      return true
+    }
+    return trimmed.length >= 40 && TRANSCRIPT_SENTENCE_END_RE.test(trimmed)
   }
 
   function safeSend(payload) {
@@ -474,7 +530,9 @@ wss.on('connection', (clientWs) => {
     openaiWs.send(
       JSON.stringify({
         type: 'session.update',
-        session: buildTranscriptionSession(OPENAI_TRANSCRIPTION_MODEL, vocabPrompt),
+        session: buildTranscriptionSession(OPENAI_TRANSCRIPTION_MODEL, vocabPrompt, {
+          language: requestedLanguage,
+        }),
       }),
     )
     // Flush any audio that arrived before the socket was ready
@@ -509,8 +567,13 @@ wss.on('connection', (clientWs) => {
 
     // Streaming transcript delta
     if (msg.type === 'conversation.item.input_audio_transcription.delta') {
+      if (!partialStartedAtMs) partialStartedAtMs = Date.now()
       partialText += msg.delta ?? ''
       safeSend({ type: 'partial', text: partialText })
+      if (shouldFlushPartialNow(partialText)) {
+        flushPartialAsTurn()
+        return
+      }
       // Re-arm the quiet timer on every delta. When deltas stop arriving
       // for DELTA_QUIET_MS, flushPartialAsTurn fires. (autopreso pattern)
       if (partialText) scheduleDeltaQuiet()
@@ -621,4 +684,5 @@ server.listen(PORT, '127.0.0.1', () => {
   console.log(`  WebSocket transcription: ws://127.0.0.1:${PORT}/api/ws/transcribe`)
   console.log(`  Translation API:         http://127.0.0.1:${PORT}/api/translate`)
   console.log(`  OpenAI transcription model: ${OPENAI_TRANSCRIPTION_MODEL}`)
+  console.log(`  OpenAI transcription language: ${OPENAI_TRANSCRIPTION_LANGUAGE}`)
 })

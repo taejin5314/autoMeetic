@@ -2,8 +2,12 @@
   "name": "@automeetic/moonshine-darwin-x64",
   "version": "0.0.59",
   "private": true,
-  "os": ["darwin"],
-  "cpu": ["x64"],
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "x64"
+  ],
   "files": [
     "bin/autopreso-moonshine"
   ]

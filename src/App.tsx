@@ -10,7 +10,7 @@
  * - Caption pill with auto-truncation
  * - Delta-quiet flushing (handled server-side in proxy.mjs)
  * - Resample from native rate to 24kHz (handled in capture.ts)
- * - Excalidraw whiteboard with AI agent (whiteboard mode)
+ * - Excalidraw whiteboard with AI agent
  */
 import '@excalidraw/excalidraw/index.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -19,17 +19,120 @@ import { SystemAudioCaptureService } from './main/audio/capture'
 import { PipelineHealthStore } from './main/health/pipelineHealth'
 import { RealtimeSttClient } from './main/stt/realtimeClient'
 import { TranscriptBus } from './main/stt/transcriptBus'
+import type { TranscriptSegment, TranslationSegment } from './main/stt/types'
+import { log } from './main/telemetry/logger'
 import type { ViewportCommand, WhiteboardElement } from './main/whiteboard/types'
 import { CaptionOverlay } from './renderer/overlay/CaptionOverlay'
 import { useCaptionStore } from './renderer/overlay/useCaptionStore'
+import { Waveform } from './renderer/overlay/Waveform'
 import { ExcalidrawCanvas } from './renderer/whiteboard/ExcalidrawCanvas'
 
-type AppMode = 'transcript' | 'whiteboard'
+const LANGUAGE_OPTIONS = [
+  { code: 'auto', label: 'Auto detect' },
+  { code: 'ko', label: 'Korean' },
+  { code: 'en', label: 'English' },
+  { code: 'ja', label: 'Japanese' },
+  { code: 'zh', label: 'Chinese' },
+  { code: 'es', label: 'Spanish' },
+  { code: 'fr', label: 'French' },
+  { code: 'de', label: 'German' },
+]
+
+const LANGUAGE_LABEL_BY_CODE = new Map(LANGUAGE_OPTIONS.map((language) => [language.code, language.label]))
+const LOCKABLE_LANGUAGE_CODES = new Set(['ko', 'en', 'ja', 'zh'])
+const META_TRANSLATION_RE =
+  /\b(this text appears|let me translate|translation|translate it|appears to be a mix)\b/i
+const TRANSLATION_CONCURRENCY = 2
+const CLIENT_TRANSCRIPT_MAX_CHARS = 180
+
+type TranslationJob = {
+  segment: TranscriptSegment
+  targetLang: string
+  generation: number
+}
+
+type DetectedLanguage = {
+  code: string
+  confidence: number
+}
+
+function countMatches(text: string, pattern: RegExp): number {
+  return text.match(pattern)?.length ?? 0
+}
+
+function detectTranscriptLanguage(text: string): DetectedLanguage | null {
+  const hangul = countMatches(text, /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af]/g)
+  const kana = countMatches(text, /[\u3040-\u30ff]/g)
+  const han = countMatches(text, /[\u3400-\u4dbf\u4e00-\u9fff]/g)
+  const latin = countMatches(text, /[A-Za-z]/g)
+  const total = hangul + kana + han + latin
+  if (total < 2) return null
+
+  if (hangul >= 2 && hangul >= kana * 2) return { code: 'ko', confidence: hangul / total }
+  if (kana >= 2 && kana >= hangul) return { code: 'ja', confidence: kana / total }
+  if (han >= 2 && hangul === 0 && kana === 0) return { code: 'zh', confidence: han / total }
+  if (latin >= 8 && hangul === 0 && kana === 0 && han === 0) return { code: 'en', confidence: latin / total }
+  return null
+}
+
+function conflictsWithLockedLanguage(text: string, lockedLanguage: string): boolean {
+  const hangul = countMatches(text, /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af]/g)
+  const kana = countMatches(text, /[\u3040-\u30ff]/g)
+  const han = countMatches(text, /[\u3400-\u4dbf\u4e00-\u9fff]/g)
+  const latin = countMatches(text, /[A-Za-z]/g)
+
+  if (META_TRANSLATION_RE.test(text)) return true
+  if (lockedLanguage === 'ko') return kana >= 2 && hangul < 2
+  if (lockedLanguage === 'ja') return hangul >= 2 && kana < 2
+  if (lockedLanguage === 'zh') return (hangul >= 2 || kana >= 2) && han < 2
+  if (lockedLanguage === 'en') return hangul + kana + han >= 4 && latin < 8
+  return false
+}
+
+function splitTranscriptSegment(segment: TranscriptSegment): TranscriptSegment[] {
+  const text = segment.text.trim()
+  if (!segment.isFinal || text.length <= CLIENT_TRANSCRIPT_MAX_CHARS) return [{ ...segment, text }]
+
+  const pieces: string[] = []
+  const sentences = text.match(/[^.!?。？！]+[.!?。？！]?\s*/g) ?? [text]
+  let buffer = ''
+
+  for (const sentence of sentences) {
+    const next = `${buffer}${sentence}`.trim()
+    if (next.length <= CLIENT_TRANSCRIPT_MAX_CHARS) {
+      buffer = next
+      continue
+    }
+    if (buffer) pieces.push(buffer)
+    const trimmed = sentence.trim()
+    if (trimmed.length <= CLIENT_TRANSCRIPT_MAX_CHARS) {
+      buffer = trimmed
+      continue
+    }
+    for (let i = 0; i < trimmed.length; i += CLIENT_TRANSCRIPT_MAX_CHARS) {
+      pieces.push(trimmed.slice(i, i + CLIENT_TRANSCRIPT_MAX_CHARS).trim())
+    }
+    buffer = ''
+  }
+
+  if (buffer) pieces.push(buffer)
+  return pieces.filter(Boolean).map((piece, index) => ({
+    ...segment,
+    id: index === 0 ? segment.id : `${segment.id}-${index}`,
+    text: piece,
+  }))
+}
 
 function statusClass(status: 'connected' | 'degraded' | 'disconnected'): string {
   if (status === 'connected') return 'dot active'
   if (status === 'degraded') return 'dot degraded'
   return 'dot'
+}
+
+function isWhiteboardElement(value: unknown): value is WhiteboardElement {
+  if (!value || typeof value !== 'object') return false
+  const element = value as Partial<WhiteboardElement>
+  return typeof element.id === 'string' && typeof element.type === 'string'
 }
 
 function App() {
@@ -48,14 +151,27 @@ function App() {
   const [whiteboardConnected, setWhiteboardConnected] = useState(false)
   const [clockMs, setClockMs] = useState(() => Date.now())
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null)
-  const [mode, setMode] = useState<AppMode>('transcript')
-  const { items, currentPartial, applyTranscript, clear } = useCaptionStore()
+  const [sttLanguage, setSttLanguage] = useState('auto')
+  const [translationTarget, setTranslationTarget] = useState('off')
+  const [languageLock, setLanguageLock] = useState<string | null>(null)
+  const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null)
+  const [translatingCount, setTranslatingCount] = useState(0)
+  const { items, currentPartial, applyTranscript, applyTranslation, clearPartial, clear } = useCaptionStore()
 
   // ── Whiteboard state (autopreso pattern) ──────────────────────────────────
   const [whiteboardElements, setWhiteboardElements] = useState<WhiteboardElement[]>([])
   const [viewportCommand, setViewportCommand] = useState<ViewportCommand | null>(null)
   const [agentStatus, setAgentStatus] = useState<'idle' | 'thinking' | 'error'>('idle')
   const whiteboardWsRef = useRef<WebSocket | null>(null)
+  const languageVotesRef = useRef<Record<string, number>>({})
+  const lockedLanguageRef = useRef<string | null>(null)
+  const reconnectLanguageRef = useRef<string | null>(null)
+  const acceptedFinalTranscriptIdsRef = useRef<Set<string>>(new Set())
+  const rejectedFinalTranscriptIdsRef = useRef<Set<string>>(new Set())
+  const translationQueueRef = useRef<TranslationJob[]>([])
+  const translationActiveCountRef = useRef(0)
+  const translationTargetRef = useRef(translationTarget)
+  const translationGenerationRef = useRef(0)
 
   // Stable service instances — same lifecycle pattern as autopreso
   const bus = useMemo(() => new TranscriptBus(), [])
@@ -75,9 +191,153 @@ function App() {
     [health]
   )
 
-  // Wire transcript bus → caption store, capture → STT client
   useEffect(() => {
-    const offTranscript = bus.onTranscript((segment) => applyTranscript(segment))
+    translationTargetRef.current = translationTarget
+    translationGenerationRef.current += 1
+    if (translationTarget === 'off') {
+      translationQueueRef.current = []
+      setTranslatingCount(translationActiveCountRef.current)
+    }
+  }, [translationTarget])
+
+  const shouldAcceptTranscript = useCallback(
+    (segment: TranscriptSegment): boolean => {
+      if (segment.isFinal) {
+        if (acceptedFinalTranscriptIdsRef.current.has(segment.id)) return true
+        if (rejectedFinalTranscriptIdsRef.current.has(segment.id)) return false
+      }
+
+      const text = segment.text.trim()
+      const detected = detectTranscriptLanguage(text)
+      if (detected && LOCKABLE_LANGUAGE_CODES.has(detected.code)) {
+        setDetectedLanguage(detected.code)
+
+        if (segment.isFinal && sttLanguage === 'auto' && detected.confidence >= 0.35) {
+          const votes = languageVotesRef.current
+          votes[detected.code] = (votes[detected.code] ?? 0) + Math.max(detected.confidence, 0.5)
+          const best = Object.entries(votes).sort((a, b) => b[1] - a[1])[0]
+          if (best && best[1] >= 1.5 && lockedLanguageRef.current !== best[0]) {
+            lockedLanguageRef.current = best[0]
+            setLanguageLock(best[0])
+            updateHealth('stt', 'connected', `locked ${best[0]}`)
+          }
+        }
+      }
+
+      const preferredLanguage = sttLanguage === 'auto' ? lockedLanguageRef.current : sttLanguage
+      const accepted = !preferredLanguage || !conflictsWithLockedLanguage(text, preferredLanguage)
+      if (!accepted) {
+        log('warn', 'stt', 'filtered transcript that conflicts with locked language', {
+          lockedLanguage: preferredLanguage,
+          detectedLanguage: detected?.code ?? 'unknown',
+          text: text.slice(0, 120),
+        })
+        if (segment.isFinal) clearPartial()
+      }
+
+      if (segment.isFinal) {
+        const target = accepted ? acceptedFinalTranscriptIdsRef : rejectedFinalTranscriptIdsRef
+        target.current.add(segment.id)
+      }
+      return accepted
+    },
+    [clearPartial, sttLanguage, updateHealth]
+  )
+
+  // Wire transcript bus → caption store, capture → STT client
+  const updateTranslationQueueStatus = useCallback(() => {
+    setTranslatingCount(translationActiveCountRef.current + translationQueueRef.current.length)
+  }, [])
+
+  const drainTranslationQueue = useCallback(() => {
+    while (
+      translationActiveCountRef.current < TRANSLATION_CONCURRENCY &&
+      translationQueueRef.current.length > 0
+    ) {
+      const job = translationQueueRef.current.shift()
+      if (!job) return
+
+      translationActiveCountRef.current += 1
+      updateTranslationQueueStatus()
+      updateHealth(
+        'translation',
+        'degraded',
+        `translating ${translationActiveCountRef.current + translationQueueRef.current.length}`
+      )
+
+      void fetch('/api/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: job.segment.text, targetLang: job.targetLang }),
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`Translation API error: ${res.status}`)
+          return (await res.json()) as { translation: string }
+        })
+        .then((data) => {
+          if (
+            translationGenerationRef.current !== job.generation ||
+            translationTargetRef.current !== job.targetLang
+          ) {
+            return
+          }
+          const translation: TranslationSegment = {
+            segmentId: job.segment.id,
+            text: data.translation,
+            createdAtMs: Date.now(),
+            provider: 'anthropic-async',
+          }
+          applyTranslation(translation)
+        })
+        .catch((err) => {
+          updateHealth('translation', 'degraded', err instanceof Error ? err.message : String(err))
+        })
+        .finally(() => {
+          translationActiveCountRef.current = Math.max(translationActiveCountRef.current - 1, 0)
+          updateTranslationQueueStatus()
+          if (translationQueueRef.current.length > 0) {
+            drainTranslationQueue()
+          } else if (
+            translationGenerationRef.current === job.generation &&
+            translationActiveCountRef.current === 0 &&
+            translationTargetRef.current !== 'off'
+          ) {
+            updateHealth('translation', 'connected', `to ${translationTargetRef.current}`)
+          }
+        })
+    }
+  }, [applyTranslation, updateHealth, updateTranslationQueueStatus])
+
+  const enqueueTranslation = useCallback(
+    (segment: TranscriptSegment, targetLang: string) => {
+      if (!segment.isFinal || targetLang === 'off') return
+      translationQueueRef.current.push({
+        segment,
+        targetLang,
+        generation: translationGenerationRef.current,
+      })
+      updateTranslationQueueStatus()
+      drainTranslationQueue()
+    },
+    [drainTranslationQueue, updateTranslationQueueStatus]
+  )
+
+  useEffect(() => {
+    const offTranscript = bus.onTranscript((segment) => {
+      if (!shouldAcceptTranscript(segment)) return
+      const sourceLanguage = sttLanguage === 'auto' ? lockedLanguageRef.current : sttLanguage
+      const segments = splitTranscriptSegment(segment)
+      for (const nextSegment of segments) {
+        applyTranscript(nextSegment)
+        if (
+          nextSegment.isFinal &&
+          translationTarget !== 'off' &&
+          translationTarget !== sourceLanguage
+        ) {
+          enqueueTranslation(nextSegment, translationTarget)
+        }
+      }
+    })
     const offCapture = capture.subscribe((chunk) => sttClient.ingest(chunk))
 
     return () => {
@@ -86,62 +346,86 @@ function App() {
       capture.stop()
       sttClient.disconnect()
     }
-  }, [applyTranscript, bus, capture, sttClient])
+  }, [
+    applyTranscript,
+    bus,
+    capture,
+    enqueueTranslation,
+    shouldAcceptTranscript,
+    sttClient,
+    sttLanguage,
+    translationTarget,
+    updateHealth,
+  ])
+
+  useEffect(() => {
+    if (!running || sttLanguage !== 'auto' || !languageLock) return
+    if (reconnectLanguageRef.current === languageLock) return
+    reconnectLanguageRef.current = languageLock
+
+    updateHealth('stt', 'degraded', `reconnecting as ${languageLock}...`)
+    sttClient.disconnect()
+    void sttClient
+      .connect(languageLock)
+      .then(() => {
+        updateHealth('stt', 'connected', `locked ${languageLock}`)
+      })
+      .catch((err) => {
+        updateHealth('stt', 'degraded', err instanceof Error ? err.message : String(err))
+      })
+  }, [languageLock, running, sttClient, sttLanguage, updateHealth])
 
   // ── Whiteboard WebSocket connection (autopreso pattern) ───────────────────
   useEffect(() => {
-    if (mode !== 'whiteboard') {
-      // Not in whiteboard mode — close any existing connection
-      if (whiteboardWsRef.current) {
-        whiteboardWsRef.current.close()
+    let ws: WebSocket | null = null
+    const connectTimer = window.setTimeout(() => {
+      const wsUrl = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/ws/whiteboard`
+      ws = new WebSocket(wsUrl)
+      whiteboardWsRef.current = ws
+
+      ws.onopen = () => {
+        setWhiteboardConnected(true)
+      }
+
+      ws.onmessage = (event) => {
+        let msg: Record<string, unknown>
+        try {
+          msg = JSON.parse(event.data as string) as Record<string, unknown>
+        } catch {
+          return
+        }
+
+        if (msg.type === 'whiteboard:update' && Array.isArray(msg.elements)) {
+          setWhiteboardElements(msg.elements.filter(isWhiteboardElement))
+        }
+
+        if (msg.type === 'whiteboard:viewport') {
+          setViewportCommand(msg as unknown as ViewportCommand)
+        }
+
+        if (msg.type === 'whiteboard:agent-status') {
+          const status = msg.status as string
+          if (status === 'thinking') setAgentStatus('thinking')
+          else if (status === 'error') setAgentStatus('error')
+          else setAgentStatus('idle')
+        }
+      }
+
+      ws.onclose = () => {
         whiteboardWsRef.current = null
+        setWhiteboardConnected(false)
       }
-      return
-    }
-
-    const wsUrl = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/ws/whiteboard`
-    const ws = new WebSocket(wsUrl)
-    whiteboardWsRef.current = ws
-
-    ws.onopen = () => {
-      setWhiteboardConnected(true)
-    }
-
-    ws.onmessage = (event) => {
-      let msg: Record<string, unknown>
-      try {
-        msg = JSON.parse(event.data as string) as Record<string, unknown>
-      } catch {
-        return
-      }
-
-      if (msg.type === 'whiteboard:update' && Array.isArray(msg.elements)) {
-        setWhiteboardElements(msg.elements as WhiteboardElement[])
-      }
-
-      if (msg.type === 'whiteboard:viewport') {
-        setViewportCommand(msg as unknown as ViewportCommand)
-      }
-
-      if (msg.type === 'whiteboard:agent-status') {
-        const status = msg.status as string
-        if (status === 'thinking') setAgentStatus('thinking')
-        else if (status === 'error') setAgentStatus('error')
-        else setAgentStatus('idle')
-      }
-    }
-
-    ws.onclose = () => {
-      whiteboardWsRef.current = null
-      setWhiteboardConnected(false)
-    }
+    }, 0)
 
     return () => {
-      ws.close()
-      whiteboardWsRef.current = null
+      window.clearTimeout(connectTimer)
+      if (ws) {
+        ws.close()
+        whiteboardWsRef.current = null
+      }
       setWhiteboardConnected(false)
     }
-  }, [mode])
+  }, [])
 
   useEffect(() => {
     const handler = () => setIsFullscreen(Boolean(document.fullscreenElement))
@@ -176,25 +460,28 @@ function App() {
     }
   }, [])
 
-  // ── Feed transcripts to whiteboard agent when in whiteboard mode ──────────
+  // ── Feed transcripts to whiteboard agent ──────────────────────────────────
   useEffect(() => {
-    if (mode !== 'whiteboard' || !running) return
+    if (!running) return
 
     const offTranscript = bus.onTranscript((segment) => {
       if (!segment.isFinal) return
+      if (!shouldAcceptTranscript(segment)) return
       const ws = whiteboardWsRef.current
       if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(
-          JSON.stringify({
-            type: 'whiteboard:agent-run',
-            transcript: segment.text,
-          })
-        )
+        for (const nextSegment of splitTranscriptSegment(segment)) {
+          ws.send(
+            JSON.stringify({
+              type: 'whiteboard:agent-run',
+              transcript: nextSegment.text,
+            })
+          )
+        }
       }
     })
 
     return offTranscript
-  }, [mode, running, bus])
+  }, [running, bus, shouldAcceptTranscript])
 
   /**
    * Handle user edits on Excalidraw canvas — push to server.
@@ -204,6 +491,13 @@ function App() {
     const ws = whiteboardWsRef.current
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'whiteboard:user-elements', elements }))
+    }
+  }, [])
+
+  const handleWhiteboardScreenshot = useCallback((image: string) => {
+    const ws = whiteboardWsRef.current
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'whiteboard:screenshot', image }))
     }
   }, [])
 
@@ -219,8 +513,7 @@ function App() {
       }, 0),
     [items]
   )
-  const sessionElapsedMs =
-    sessionStartMs === null ? 0 : Math.max(clockMs - sessionStartMs, 0)
+  const sessionElapsedMs = sessionStartMs === null ? 0 : Math.max(clockMs - sessionStartMs, 0)
   const currentRunMs = running && runStartMs !== null ? Math.max(clockMs - runStartMs, 0) : 0
   const totalAudioMs = activeAudioMs + currentRunMs
 
@@ -243,8 +536,8 @@ function App() {
     try {
       // 1. Connect to transcription proxy
       updateHealth('stt', 'degraded', 'connecting...')
-      await sttClient.connect()
-      updateHealth('stt', 'connected', 'OpenAI Realtime ready')
+      await sttClient.connect(sttLanguage)
+      updateHealth('stt', 'connected', `OpenAI Realtime ready (${sttLanguage})`)
 
       // 2. Start system audio capture (prompts user to share tab/window)
       updateHealth('capture', 'degraded', 'requesting display media...')
@@ -265,7 +558,7 @@ function App() {
     } finally {
       setStarting(false)
     }
-  }, [capture, running, sessionStartMs, starting, sttClient, updateHealth])
+  }, [capture, running, sessionStartMs, starting, sttClient, sttLanguage, updateHealth])
 
   /**
    * Stop listening — mirrors autopreso/public/app.js stopListening().
@@ -308,6 +601,16 @@ function App() {
     setWhiteboardElements([])
     setViewportCommand(null)
     setAgentStatus('idle')
+    setLanguageLock(null)
+    setDetectedLanguage(null)
+    lockedLanguageRef.current = null
+    reconnectLanguageRef.current = null
+    languageVotesRef.current = {}
+    acceptedFinalTranscriptIdsRef.current.clear()
+    rejectedFinalTranscriptIdsRef.current.clear()
+    translationGenerationRef.current += 1
+    translationQueueRef.current = []
+    setTranslatingCount(translationActiveCountRef.current)
     setActiveAudioMs(0)
     setRunStartMs(null)
     setSessionStartMs(null)
@@ -317,68 +620,35 @@ function App() {
 
     const ws = whiteboardWsRef.current
     if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'whiteboard:user-elements', elements: [] }))
+      ws.send(JSON.stringify({ type: 'whiteboard:reset' }))
     }
   }, [clear, onStop, resetConfirming, running, updateHealth])
 
   return (
-    <main className={`shell mode-${mode}`} ref={shellRef}>
-      {/* Left side — waveform + captions OR whiteboard (like autopreso's canvas-wrap) */}
+    <main className="shell" ref={shellRef}>
+      {/* Left side — whiteboard with live captions overlaid */}
       <section className="canvas-wrap">
-        {mode === 'transcript' ? (
-          <CaptionOverlay
-            items={items}
-            currentPartial={currentPartial}
-            running={running}
-            analyser={analyser}
+        <div className="whiteboard-wrap">
+          <ExcalidrawCanvas
+            elements={whiteboardElements}
+            onElementsChange={handleWhiteboardChange}
+            onScreenshot={handleWhiteboardScreenshot}
+            viewportCommand={viewportCommand}
           />
-        ) : (
-          <div className="whiteboard-wrap">
-            <ExcalidrawCanvas
-              elements={whiteboardElements}
-              onElementsChange={handleWhiteboardChange}
-              viewportCommand={viewportCommand}
-            />
-            {agentStatus === 'thinking' && (
-              <div className="whiteboard-agent-badge">AI thinking...</div>
-            )}
-          </div>
-        )}
+          {agentStatus === 'thinking' && (
+            <div className="whiteboard-agent-badge">AI thinking...</div>
+          )}
+          <CaptionOverlay items={items} currentPartial={currentPartial} />
+        </div>
       </section>
 
       {/* Right side — controls + status (like autopreso's panel) */}
       <aside className="panel">
         <div className="brand">
           <div className="brand-row">
-            <h1>autoMeetic</h1>
-            <div
-              className={`mode-toggle mode-toggle-${mode}`}
-              role="group"
-              aria-label="Mode"
-            >
-              <button
-                type="button"
-                className={`mode-toggle-option ${mode === 'transcript' ? 'active' : ''}`}
-                onClick={() => setMode('transcript')}
-                aria-pressed={mode === 'transcript'}
-              >
-                Transcript
-              </button>
-              <button
-                type="button"
-                className={`mode-toggle-option ${mode === 'whiteboard' ? 'active' : ''}`}
-                onClick={() => setMode('whiteboard')}
-                aria-pressed={mode === 'whiteboard'}
-              >
-                Whiteboard
-              </button>
-            </div>
+            <h1>AutoMeetic</h1>
           </div>
-          <p>
-            {mode === 'transcript'
-              ? 'Share tab audio and capture real-time captions.'
-              : 'Talk through ideas and let the whiteboard agent map them.'}
-          </p>
+          <p>Share tab audio, capture captions, and let the whiteboard agent map ideas.</p>
         </div>
 
         <div className="controls">
@@ -428,6 +698,62 @@ function App() {
           >
             {resetConfirming ? 'Click again to reset session' : 'Reset Session'}
           </button>
+        </div>
+
+        <div className="language-card">
+          <label className="language-field">
+            <span>Input language</span>
+            <select
+              value={sttLanguage}
+              onChange={(event) => {
+                setSttLanguage(event.target.value)
+                setLanguageLock(null)
+                setDetectedLanguage(null)
+                lockedLanguageRef.current = null
+                reconnectLanguageRef.current = null
+                languageVotesRef.current = {}
+                acceptedFinalTranscriptIdsRef.current.clear()
+                rejectedFinalTranscriptIdsRef.current.clear()
+              }}
+              disabled={running || starting}
+            >
+              {LANGUAGE_OPTIONS.map((language) => (
+                <option key={language.code} value={language.code}>
+                  {language.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {(languageLock || detectedLanguage) && (
+            <div className="language-lock">
+              {languageLock
+                ? `Locked on ${LANGUAGE_LABEL_BY_CODE.get(languageLock) ?? languageLock}`
+                : `Detecting ${LANGUAGE_LABEL_BY_CODE.get(detectedLanguage ?? '') ?? detectedLanguage}`}
+            </div>
+          )}
+
+          <label className="language-field">
+            <span>Translate to</span>
+            <select
+              value={translationTarget}
+              onChange={(event) => {
+                const next = event.target.value
+                setTranslationTarget(next)
+                updateHealth(
+                  'translation',
+                  next === 'off' ? 'disconnected' : 'connected',
+                  next === 'off' ? 'not connected' : `to ${next}`
+                )
+              }}
+            >
+              <option value="off">Off</option>
+              {LANGUAGE_OPTIONS.filter((language) => language.code !== 'auto').map((language) => (
+                <option key={language.code} value={language.code}>
+                  {language.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
         {!running && !starting && !error && (
@@ -502,7 +828,11 @@ function App() {
             >
               <span className={statusClass(snapshot.translation.status)} aria-hidden="true" />
               <span className="label">Translate</span>
-              <span className="value">{snapshot.translation.message ?? 'not connected'}</span>
+              <span className="value">
+                {translatingCount > 0
+                  ? `translating ${translatingCount}`
+                  : snapshot.translation.message ?? 'not connected'}
+              </span>
               <span className="chevron" aria-hidden="true">
                 ›
               </span>
@@ -510,60 +840,66 @@ function App() {
             {expandedStatus === 'translation' && (
               <div className="status-details">
                 <div className="status-details-row">
-                  <span>Current mode</span>
-                  <strong>{mode === 'transcript' ? 'Transcript' : 'Whiteboard'}</strong>
+                  <span>Whiteboard</span>
+                  <strong>{whiteboardConnected ? 'connected' : 'disconnected'}</strong>
                 </div>
                 <div className="status-details-row">
                   <span>Partial text</span>
                   <strong>{currentPartial ? 'streaming' : 'idle'}</strong>
                 </div>
+                <div className="status-details-row">
+                  <span>Translation queue</span>
+                  <strong>{translatingCount}</strong>
+                </div>
               </div>
             )}
           </div>
 
-          {mode === 'whiteboard' && (
-            <div className={`status-row-wrap ${expandedStatus === 'agent' ? 'expanded' : ''}`}>
-              <button
-                type="button"
-                className={`status-row clickable ${expandedStatus === 'agent' ? 'open' : ''}`}
-                onClick={() => setExpandedStatus((s) => (s === 'agent' ? null : 'agent'))}
-              >
-                <span
-                  className={
-                    agentStatus === 'thinking'
-                      ? 'dot active'
-                      : agentStatus === 'error'
-                        ? 'dot degraded'
-                        : 'dot'
-                  }
-                  aria-hidden="true"
-                />
-                <span className="label">Agent</span>
-                <span className="value">
-                  {agentStatus === 'thinking'
-                    ? 'generating diagram...'
+          <div className={`status-row-wrap ${expandedStatus === 'agent' ? 'expanded' : ''}`}>
+            <button
+              type="button"
+              className={`status-row clickable ${expandedStatus === 'agent' ? 'open' : ''}`}
+              onClick={() => setExpandedStatus((s) => (s === 'agent' ? null : 'agent'))}
+            >
+              <span
+                className={
+                  agentStatus === 'thinking'
+                    ? 'dot active'
                     : agentStatus === 'error'
-                      ? 'error'
-                      : 'idle'}
-                </span>
-                <span className="chevron" aria-hidden="true">
-                  ›
-                </span>
-              </button>
-              {expandedStatus === 'agent' && (
-                <div className="status-details">
-                  <div className="status-details-row">
-                    <span>Canvas elements</span>
-                    <strong>{whiteboardElements.length}</strong>
-                  </div>
-                  <div className="status-details-row">
-                    <span>Realtime link</span>
-                    <strong>{whiteboardConnected ? 'connected' : 'disconnected'}</strong>
-                  </div>
+                      ? 'dot degraded'
+                      : whiteboardConnected
+                        ? 'dot active'
+                        : 'dot'
+                }
+                aria-hidden="true"
+              />
+              <span className="label">Agent</span>
+              <span className="value">
+                {agentStatus === 'thinking'
+                  ? 'generating diagram...'
+                  : agentStatus === 'error'
+                    ? 'error'
+                    : whiteboardConnected
+                      ? 'ready'
+                      : 'disconnected'}
+              </span>
+              <span className="chevron" aria-hidden="true">
+                ›
+              </span>
+            </button>
+            {expandedStatus === 'agent' && (
+              <div className="status-details">
+                <div className="status-details-row">
+                  <span>Canvas elements</span>
+                  <strong>{whiteboardElements.length}</strong>
                 </div>
-              )}
-            </div>
-          )}
+                <div className="status-details-row">
+                  <span>Realtime link</span>
+                  <strong>{whiteboardConnected ? 'connected' : 'disconnected'}</strong>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="cost-card">
@@ -593,6 +929,38 @@ function App() {
             <span className="cost-row-value">{sourceWordCount}</span>
           </div>
         </div>
+
+        <section className="caption-feed panel-feed" aria-label="caption feed">
+          <header className="caption-feed-header">
+            <strong>Live Feed</strong>
+            <span className={`caption-badge ${running ? 'active' : ''}`}>
+              {running ? 'LIVE' : 'IDLE'}
+            </span>
+          </header>
+
+          <div className="panel-feed-waveform" aria-hidden="true">
+            <Waveform analyser={analyser} active={running} />
+          </div>
+
+          <div className="caption-feed-list">
+            {currentPartial ? (
+              <article className="caption-item partial">
+                <div className="caption-source">{currentPartial}</div>
+              </article>
+            ) : null}
+            {[...items].reverse().map((item) => (
+              <article key={item.id} className="caption-item">
+                <div className="caption-source">{item.sourceText}</div>
+                {item.translatedText ? (
+                  <div className="caption-target">{item.translatedText}</div>
+                ) : null}
+              </article>
+            ))}
+            {items.length === 0 && !currentPartial && (
+              <p className="caption-empty">No transcript yet.</p>
+            )}
+          </div>
+        </section>
       </aside>
     </main>
   )

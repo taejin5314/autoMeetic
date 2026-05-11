@@ -38,7 +38,7 @@ export class RealtimeSttClient {
   }
 
   /** Connect to the transcription proxy WebSocket. */
-  connect(): Promise<void> {
+  connect(language = 'ko'): Promise<void> {
     if (this.ws && this.ready) return Promise.resolve()
     if (this.ws && !this.ready) {
       const ws = this.ws
@@ -61,27 +61,31 @@ export class RealtimeSttClient {
     }
 
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const url = `${protocol}//${location.host}/api/ws/transcribe`
-    this.ws = new WebSocket(url)
+    const params = new URLSearchParams({ language })
+    const url = `${protocol}//${location.host}/api/ws/transcribe?${params.toString()}`
+    const socket = new WebSocket(url)
+    this.ws = socket
     this.ready = false
 
     // Generate session ID (autopreso pattern: audio:start before streaming)
     this.sessionId = crypto.randomUUID()
+    const sessionId = this.sessionId
 
     return new Promise((resolve, reject) => {
       const readyTimeout = window.setTimeout(() => {
         reject(new Error('STT proxy did not become ready in time'))
       }, 10000)
 
-      this.ws!.onopen = () => {
+      socket.onopen = () => {
         log('info', 'stt', 'connected to transcription proxy', { url })
         // Send audio:start with session ID (autopreso pattern)
-        if (this.ws && this.sessionId) {
-          this.ws.send(JSON.stringify({ type: 'audio:start', sessionId: this.sessionId }))
+        if (this.ws === socket && sessionId) {
+          socket.send(JSON.stringify({ type: 'audio:start', sessionId }))
         }
       }
 
-      this.ws!.onmessage = (event: MessageEvent<string>) => {
+      socket.onmessage = (event: MessageEvent<string>) => {
+        if (this.ws !== socket) return
         let msg: ProxyMessage
         try {
           msg = JSON.parse(event.data) as ProxyMessage
@@ -94,9 +98,9 @@ export class RealtimeSttClient {
           window.clearTimeout(readyTimeout)
           resolve()
           // Flush pending audio (autopreso pattern)
-          if (this.ws && this.ws.readyState === WebSocket.OPEN && this.pendingAudio.length > 0) {
+          if (socket.readyState === WebSocket.OPEN && this.pendingAudio.length > 0) {
             for (const audio of this.pendingAudio) {
-              this.ws.send(JSON.stringify({ type: 'audio', sessionId: this.sessionId, data: audio }))
+              socket.send(JSON.stringify({ type: 'audio', sessionId, data: audio }))
             }
             this.pendingAudio = []
           }
@@ -130,14 +134,17 @@ export class RealtimeSttClient {
           }
         } else if (msg.type === 'closed') {
           log('info', 'stt', 'proxy closed connection')
-          this.ws = undefined
-          this.ready = false
-          this.sessionId = null
-          this.pendingAudio = []
+          if (this.ws === socket) {
+            this.ws = undefined
+            this.ready = false
+            this.sessionId = null
+            this.pendingAudio = []
+          }
         }
       }
 
-      this.ws!.onerror = () => {
+      socket.onerror = () => {
+        if (this.ws !== socket) return
         log('error', 'stt', 'WebSocket error — is the proxy server running?')
         if (!this.ready) {
           window.clearTimeout(readyTimeout)
@@ -145,7 +152,8 @@ export class RealtimeSttClient {
         }
       }
 
-      this.ws!.onclose = () => {
+      socket.onclose = () => {
+        if (this.ws !== socket) return
         log('info', 'stt', 'WebSocket closed')
         if (!this.ready) {
           window.clearTimeout(readyTimeout)

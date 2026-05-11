@@ -6,7 +6,12 @@
  * This component converts them into Excalidraw-native elements for rendering,
  * and converts user edits back into the simple format for the agent.
  */
-import { Excalidraw, MainMenu } from '@excalidraw/excalidraw'
+import {
+  convertToExcalidrawElements,
+  Excalidraw,
+  exportToBlob,
+  MainMenu,
+} from '@excalidraw/excalidraw'
 import React, { useCallback, useEffect, useRef } from 'react'
 import type { ViewportCommand, WhiteboardElement } from '../../main/whiteboard/types'
 
@@ -55,6 +60,8 @@ interface ExcalidrawCanvasProps {
   viewModeEnabled?: boolean
   /** Callback to expose the API ref upward */
   onApiReady?: (api: ExcalidrawImperativeAPI) => void
+  /** Downscaled canvas screenshot for the whiteboard agent */
+  onScreenshot?: (dataUrl: string) => void
 }
 
 /**
@@ -62,6 +69,12 @@ interface ExcalidrawCanvasProps {
  * Ported from autopreso: the agent produces simple objects and the frontend
  * converts them to the full Excalidraw element shape.
  */
+function isRenderableWhiteboardElement(el: unknown): el is WhiteboardElement {
+  if (!el || typeof el !== 'object') return false
+  const candidate = el as Partial<WhiteboardElement>
+  return typeof candidate.id === 'string' && typeof candidate.type === 'string'
+}
+
 function toExcalidrawElement(el: WhiteboardElement): Record<string, unknown> {
   const base: Record<string, unknown> = {
     id: el.id,
@@ -89,6 +102,10 @@ function toExcalidrawElement(el: WhiteboardElement): Record<string, unknown> {
     base.roundness = el.roundness
   }
 
+  if (el.label) {
+    base.label = el.label
+  }
+
   if (el.type === 'text') {
     base.text = el.text ?? ''
     base.fontSize = el.fontSize ?? 18
@@ -104,11 +121,6 @@ function toExcalidrawElement(el: WhiteboardElement): Record<string, unknown> {
       base.width = Math.ceil(longest * fontSize * 0.6)
       base.height = Math.ceil(lines.length * fontSize * 1.35)
     }
-  }
-
-  if (el.label) {
-    // Excalidraw uses bound text elements for labels
-    // We'll handle this through updateScene
   }
 
   if (el.type === 'arrow') {
@@ -127,60 +139,14 @@ function toExcalidrawElement(el: WhiteboardElement): Record<string, unknown> {
 }
 
 /**
- * Build renderable elements including bound text for labels.
- * Ported from autopreso: labels become bound text elements.
+ * Build renderable elements using Excalidraw's own converter.
+ * This matches autopreso/public/app.js applyScene().
  */
 function buildRenderableElements(elements: WhiteboardElement[]): Record<string, unknown>[] {
-  const result: Record<string, unknown>[] = []
-
-  for (const el of elements) {
-    const excalidrawEl = toExcalidrawElement(el)
-
-    if (el.label && el.type !== 'text') {
-      // Create a bound text element for the label
-      const textId = `${el.id}-label`
-      excalidrawEl.boundElements = [{ id: textId, type: 'text' }]
-
-      result.push(excalidrawEl)
-
-      // Add the bound text element
-      const fontSize = el.label.fontSize ?? 16
-      const lines = el.label.text.split('\n')
-      const longest = lines.reduce((max, line) => Math.max(max, line.length), 0)
-
-      result.push({
-        id: textId,
-        type: 'text',
-        x: el.x + (el.width ?? 0) / 2,
-        y: el.y + (el.height ?? 0) / 2,
-        width: Math.ceil(longest * fontSize * 0.6),
-        height: Math.ceil(lines.length * fontSize * 1.35),
-        text: el.label.text,
-        fontSize,
-        fontFamily: 3,
-        textAlign: 'center',
-        verticalAlign: 'middle',
-        containerId: el.id,
-        strokeColor: '#1e1e1e',
-        backgroundColor: 'transparent',
-        fillStyle: 'solid',
-        strokeWidth: 2,
-        roughness: 1,
-        opacity: 100,
-        isDeleted: false,
-        groupIds: [],
-        frameId: null,
-        boundElements: null,
-        link: null,
-        locked: false,
-        angle: 0,
-      })
-    } else {
-      result.push(excalidrawEl)
-    }
-  }
-
-  return result
+  const skeleton = elements.filter(isRenderableWhiteboardElement).map(toExcalidrawElement)
+  return convertToExcalidrawElements(skeleton as never, {
+    regenerateIds: false,
+  }) as Record<string, unknown>[]
 }
 
 /**
@@ -191,15 +157,18 @@ function buildRenderableElements(elements: WhiteboardElement[]): Record<string, 
 function toWhiteboardElements(nativeElements: readonly ExcalidrawElement[]): WhiteboardElement[] {
   const result: WhiteboardElement[] = []
   const boundTextIds = new Set<string>()
+  const validNativeElements = nativeElements.filter(
+    (el): el is ExcalidrawElement => Boolean(el && el.id)
+  )
 
   // First pass: identify bound text elements (they are labels)
-  for (const el of nativeElements) {
+  for (const el of validNativeElements) {
     if ((el as Record<string, unknown>).containerId) {
       boundTextIds.add(el.id)
     }
   }
 
-  for (const el of nativeElements) {
+  for (const el of validNativeElements) {
     if ((el as Record<string, unknown>).isDeleted) continue
     if (boundTextIds.has(el.id)) continue // Skip bound text, fold into parent
 
@@ -217,7 +186,7 @@ function toWhiteboardElements(nativeElements: readonly ExcalidrawElement[]): Whi
     if (Array.isArray(boundElements)) {
       for (const bound of boundElements) {
         if (bound.type === 'text') {
-          const textEl = nativeElements.find((e) => e.id === bound.id)
+          const textEl = validNativeElements.find((e) => e.id === bound.id)
           if (textEl) {
             const textRaw = textEl as unknown as Record<string, unknown>
             cleaned.label = {
@@ -244,10 +213,12 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({
   viewportCommand,
   viewModeEnabled = false,
   onApiReady,
+  onScreenshot,
 }) => {
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null)
   const lastSyncedHashRef = useRef<string>('')
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const screenshotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const setApi = useCallback(
     (api: ExcalidrawImperativeAPI | null) => {
@@ -257,6 +228,42 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({
     },
     [onApiReady]
   )
+
+  const scheduleScreenshot = useCallback(() => {
+    if (!onScreenshot) return
+    if (screenshotTimerRef.current) clearTimeout(screenshotTimerRef.current)
+    screenshotTimerRef.current = setTimeout(() => {
+      const api = apiRef.current
+      if (!api) return
+      const sceneElements = api.getSceneElements().filter((el) => !el.isDeleted)
+      if (sceneElements.length === 0) return
+      void exportToBlob({
+        elements: sceneElements,
+        appState: {
+          ...api.getAppState(),
+          exportBackground: true,
+          viewBackgroundColor: '#fffdf8',
+        },
+        files: null,
+        getDimensions: () => ({ width: 960, height: 540, scale: 0.5 }),
+      })
+        .then(
+          (blob: Blob) =>
+            new Promise<string>((resolve, reject) => {
+              const reader = new FileReader()
+              reader.onload = () => resolve(String(reader.result ?? ''))
+              reader.onerror = () => reject(reader.error)
+              reader.readAsDataURL(blob)
+            })
+        )
+        .then((dataUrl: string) => {
+          if (dataUrl) onScreenshot(dataUrl)
+        })
+        .catch(() => {
+          // Screenshot feedback is best-effort; drawing updates should never fail because of it.
+        })
+    }, 500)
+  }, [onScreenshot])
 
   // ── Sync agent elements → Excalidraw ──────────────────────────────────────
   useEffect(() => {
@@ -275,7 +282,8 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({
         api.scrollToContent(undefined, { animate: false })
       })
     }
-  }, [elements])
+    scheduleScreenshot()
+  }, [elements, scheduleScreenshot])
 
   // ── Handle viewport commands from agent ───────────────────────────────────
   useEffect(() => {
@@ -314,7 +322,8 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({
     if (action === 'reset_zoom') {
       api.updateScene({ appState: { zoom: { value: 1 } } })
     }
-  }, [viewportCommand])
+    scheduleScreenshot()
+  }, [scheduleScreenshot, viewportCommand])
 
   // ── Debounced change handler (user edits → parent) ────────────────────────
   const handleChange = useCallback(
@@ -334,9 +343,10 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({
       debounceTimerRef.current = setTimeout(() => {
         const converted = toWhiteboardElements(nativeElements)
         onElementsChange(converted)
+        scheduleScreenshot()
       }, 500)
     },
-    [onElementsChange]
+    [onElementsChange, scheduleScreenshot]
   )
 
   return (

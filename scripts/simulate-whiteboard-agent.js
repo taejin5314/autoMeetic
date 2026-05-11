@@ -43,7 +43,9 @@ async function main() {
   const chunkIntervalMs = Number(args['chunk-interval-ms'] ?? 500)
 
   if (!transcriptPath || !outDir) {
-    console.error('Usage: node scripts/simulate-whiteboard-agent.js --transcript=<path> --out=<dir> [--wsBase=ws://127.0.0.1:3211/api/ws/whiteboard] [--chunk-interval-ms=500]')
+    console.error(
+      'Usage: node scripts/simulate-whiteboard-agent.js --transcript=<path> --out=<dir> [--wsBase=ws://127.0.0.1:3211/api/ws/whiteboard] [--chunk-interval-ms=500]'
+    )
     process.exitCode = 1
     return
   }
@@ -81,7 +83,13 @@ async function main() {
     }
   })
 
-  record({ type: 'run:start', transcriptPath: path.resolve(transcriptPath), outDir, chunks: chunks.length, promptHash })
+  record({
+    type: 'run:start',
+    transcriptPath: path.resolve(transcriptPath),
+    outDir,
+    chunks: chunks.length,
+    promptHash,
+  })
 
   for (const [index, chunk] of chunks.entries()) {
     record({ type: 'transcript:chunk', index, text: chunk })
@@ -92,12 +100,20 @@ async function main() {
   await sleep(1500)
   ws.close()
 
-  await writeFile(path.join(outDir, 'trajectory.jsonl'), `${trajectory.map((item) => JSON.stringify(item)).join('\n')}\n`)
-  await writeFile(path.join(outDir, 'final-elements.json'), `${JSON.stringify(elements, null, 2)}\n`)
+  await writeFile(
+    path.join(outDir, 'trajectory.jsonl'),
+    `${trajectory.map((item) => JSON.stringify(item)).join('\n')}\n`
+  )
+  await writeFile(
+    path.join(outDir, 'final-elements.json'),
+    `${JSON.stringify(elements, null, 2)}\n`
+  )
 
   record({ type: 'run:end', elements: elements.length, screenshots: 0 })
 
-  console.log(`status: ok\nout: ${outDir}\nchunks: ${chunks.length}\nfinalElements: ${elements.length}\npromptHash: ${promptHash}`)
+  console.log(
+    `status: ok\nout: ${outDir}\nchunks: ${chunks.length}\nfinalElements: ${elements.length}\npromptHash: ${promptHash}`
+  )
 }
 
 main().catch((error) => {

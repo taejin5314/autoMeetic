@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import fs from 'node:fs'
 import { randomUUID } from 'node:crypto'
+import fs from 'node:fs'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { WebSocket } from 'ws'
 
@@ -35,7 +35,9 @@ async function connectProxy(url) {
 async function main() {
   if (!fs.existsSync(pcmPath)) {
     console.error(`PCM file not found: ${pcmPath}`)
-    console.error('Usage: node scripts/probe-openai-realtime.js --pcm=probe.pcm [--ws=ws://127.0.0.1:3211/api/ws/transcribe]')
+    console.error(
+      'Usage: node scripts/probe-openai-realtime.js --pcm=probe.pcm [--ws=ws://127.0.0.1:3211/api/ws/transcribe]'
+    )
     process.exitCode = 1
     return
   }
@@ -85,7 +87,7 @@ async function main() {
     return
   }
 
-  console.log(`streaming ${frames.length} frames (${pcm.length} bytes)`) 
+  console.log(`streaming ${frames.length} frames (${pcm.length} bytes)`)
   for (const frame of frames) {
     ws.send(
       JSON.stringify({
