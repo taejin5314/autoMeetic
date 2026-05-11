@@ -71,3 +71,75 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - Define success criteria before writing code
 - After each change, verify with typecheck (`tsc --noEmit`), lint (`eslint`), or manual QA
 - If requirements are ambiguous, document the assumption before implementing
+
+---
+
+## UI/Design Guidelines (taste-skill — Anti-Slop)
+
+Source: https://github.com/leonxlnx/taste-skill
+
+Active dials: DESIGN_VARIANCE=8 · MOTION_INTENSITY=6 · VISUAL_DENSITY=4
+
+### Architecture
+
+- Check `package.json` before importing any 3rd-party library. Output `npm install <pkg>` if missing.
+- Stack: React + Vite. Use local `useState`/`useReducer` for UI state.
+- Styling: Tailwind CSS v3. Check version before writing config.
+- Icons: `@phosphor-icons/react` or `@radix-ui/react-icons` only. Standardize `strokeWidth` to `1.5`.
+- No emojis anywhere — code, markup, alt text, content. Use icons or SVG primitives instead.
+- Full-height sections: always `min-h-[100dvh]`, never `h-screen`.
+- Layouts: CSS Grid (`grid grid-cols-1 md:grid-cols-3 gap-6`), never flex percentage math.
+- Page containers: `max-w-[1400px] mx-auto` or `max-w-7xl`.
+
+### Typography
+
+- Headlines: `text-4xl md:text-6xl tracking-tighter leading-none`
+- Body: `text-base text-gray-600 leading-relaxed max-w-[65ch]`
+- Fonts: `Geist`, `Satoshi`, or `Cabinet Grotesk` — **Inter is banned**.
+- No oversized H1s; control hierarchy with weight and color, not scale alone.
+- Serif fonts banned for dashboards/software UI.
+
+### Color
+
+- Max 1 accent color. Saturation < 80%.
+- Base: Zinc/Slate neutrals. Accents: Emerald, Electric Blue, or Deep Rose.
+- **AI Purple/Blue aesthetic is banned** — no purple glows, no neon gradients.
+- No pure `#000000`. Use Zinc-950 or off-black.
+- No oversaturated accents, no excessive gradient text on large headers.
+- Stay on one palette. Do not mix warm and cool grays in the same project.
+
+### Layout
+
+- Centered Hero/H1 is banned when DESIGN_VARIANCE > 4. Use Split Screen, Left-Aligned, or Asymmetric Whitespace.
+- No 3-column equal-card layouts. Use 2-col zig-zag, asymmetric grid, or horizontal scroll.
+- Cards only when elevation communicates hierarchy. Shadow must be tinted to background hue.
+- Mobile fallback (< 768px): always single-column `w-full px-4 py-8` for asymmetric layouts.
+
+### Motion
+
+- Interactive components with animation must be isolated `'use client'` leaf components.
+- Spring physics: `type: "spring", stiffness: 100, damping: 20` — no linear easing.
+- Magnetic hover: use Framer Motion `useMotionValue`/`useTransform` outside render cycle. Never `useState` for continuous animations.
+- Animate exclusively `transform` and `opacity`. Never `top`, `left`, `width`, or `height`.
+- Stagger list/grid reveals with `staggerChildren` or `animation-delay: calc(var(--index) * 100ms)`.
+- Perpetual animations must be memoized (`React.memo`) and isolated in their own Client Component.
+- Grain/noise overlays: fixed, `pointer-events-none` pseudo-elements only — never on scrolling containers.
+- No arbitrary `z-50` spam. Z-index only for systemic layers (navbars, modals, overlays).
+- Glassmorphism: add `border-white/10` inner border + `shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]`.
+
+### Interaction States (mandatory)
+
+- Loading: skeletal loaders matching layout shape — no generic circular spinners.
+- Empty state: composed empty state showing how to populate.
+- Error state: clear inline error reporting on forms.
+- Tactile feedback on `:active`: `scale-[0.98]` or `-translate-y-[1px]`.
+
+### Forbidden Patterns
+
+- No neon/outer glows (`box-shadow` glows banned).
+- No generic placeholder names: "John Doe", "Sarah Chan", "Acme", "Nexus", "SmartFlow".
+- No predictable fake numbers: use organic data (`47.2%`, `+1 (312) 847-1928`).
+- No Unsplash links. Use `https://picsum.photos/seed/{string}/800/600` or SVG avatars.
+- No filler copy: "Elevate", "Seamless", "Unleash", "Next-Gen" are banned.
+- No custom mouse cursors.
+- shadcn/ui allowed but never in its default state — customize radii, colors, shadows.
