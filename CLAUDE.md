@@ -4,6 +4,50 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
+---
+
+## gstack Sprint Workflow
+
+Source: https://github.com/garrytan/gstack
+
+Every non-trivial feature follows this order. Do not skip steps.
+
+```
+Think → Plan → Build → Review → Test → Ship → Reflect
+```
+
+### Step-by-step
+
+| Stage | What to do | gstack skill |
+|---|---|---|
+| **Think** | Run 6 forcing questions. Challenge the framing. Surface hidden assumptions before any code. | `/office-hours` |
+| **Plan (CEO)** | Rethink the problem. Find the simplest wedge. Four modes: Expansion / Hold / Reduction. | `/plan-ceo-review` |
+| **Plan (Eng)** | Lock architecture, data flow, edge cases, test plan. No hidden assumptions. | `/plan-eng-review` |
+| **Plan (Design)** | Rate each design dimension 0-10. Fix the plan before implementation. | `/plan-design-review` |
+| **Build** | Implement only what the plan says. Surgical changes. No speculative features. | — |
+| **Review** | Catch bugs that pass CI but blow up in production. Auto-fix obvious ones. | `/review` |
+| **Test** | Open a real browser. Find bugs, fix with atomic commits, re-verify. | `/qa` |
+| **Ship** | Sync main, run tests, push, open PR. | `/ship` |
+| **Reflect** | Weekly retro: what shipped, what slipped, growth areas. | `/retro` |
+
+### Review routing
+
+| Audience | Plan review | Live review |
+|---|---|---|
+| End users (UI, web app) | `/plan-design-review` | `/design-review` |
+| Architecture / perf / tests | `/plan-eng-review` | `/review` |
+| All of the above | `/autoplan` | — |
+
+### Hard rules from gstack
+
+- `/office-hours` runs **before** writing any code on a new feature. No exceptions.
+- `/review` runs on every branch with changes before merging.
+- `/investigate` before fixing any bug. Iron Law: no fixes without root cause.
+- `/careful` or `/guard` when touching production or running destructive commands.
+- Do not skip planning stages to move faster — skipped planning creates rewrites.
+
+---
+
 ## 1. Think Before Coding
 
 **Don't assume. Don't hide confusion. Surface tradeoffs.**
