@@ -510,20 +510,26 @@ function App() {
 
     const offTranscript = bus.onTranscript((segment) => {
       if (!segment.isFinal) return
-      if (!shouldAcceptTranscript(segment)) return
+      // Skip language-conflicting transcripts but do NOT re-check dedup
+      // (the feed handler already recorded the ID in acceptedFinalTranscriptIdsRef)
+      const text = segment.text.trim()
+      if (!text) return
+      const preferredLang = sttLanguage === 'auto' ? lockedLanguageRef.current : sttLanguage
+      if (preferredLang && conflictsWithLockedLanguage(text, preferredLang)) return
+
       const ws = whiteboardWsRef.current
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(
           JSON.stringify({
             type: 'whiteboard:agent-run',
-            transcript: segment.text,
+            transcript: text,
           })
         )
       }
     })
 
     return offTranscript
-  }, [running, bus, shouldAcceptTranscript])
+  }, [running, bus, sttLanguage])
 
   /**
    * Handle user edits on Excalidraw canvas — push to server.
