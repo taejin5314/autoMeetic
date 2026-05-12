@@ -84,6 +84,14 @@ export function createTranscriptTurnQueue({ runTurn, debounceMs = 150, isReady =
       }
       return current
     },
+    clear() {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer)
+        debounceTimer = null
+      }
+      pending = []
+      buffered = []
+    },
     async idle() {
       while (debounceTimer || running || buffered.length > 0 || pending.length > 0) {
         if (debounceTimer || pending.length > 0) {
@@ -117,7 +125,11 @@ export function normalizeWhiteboardElements(elements) {
     if (typeof next.label === 'string') {
       next.label = { text: next.label, fontSize: 18 }
     }
-    if (SHAPE_TYPES.has(next.type) && (!next.label || typeof next.label !== 'object') && typeof next.text === 'string') {
+    if (
+      SHAPE_TYPES.has(next.type) &&
+      (!next.label || typeof next.label !== 'object') &&
+      typeof next.text === 'string'
+    ) {
       next.label = { text: next.text, fontSize: next.fontSize ?? 18 }
       delete next.text
     }
@@ -136,7 +148,9 @@ export function formatLineNumberedWhiteboard(elements) {
   if (!Array.isArray(elements) || elements.length === 0) return '(empty whiteboard)'
   const width = Math.max(3, String(elements.length).length)
   return elements
-    .map((element, index) => `${String(index + 1).padStart(width, '0')}: ${JSON.stringify(element)}`)
+    .map(
+      (element, index) => `${String(index + 1).padStart(width, '0')}: ${JSON.stringify(element)}`
+    )
     .join('\n')
 }
 
@@ -151,12 +165,20 @@ export function applyWhiteboardEditOperations(elements, operations) {
     }
 
     if (operation.type === 'replace') {
-      assertLineInRange(operation.line, nextElements.length, `Cannot replace line ${operation.line}`)
+      assertLineInRange(
+        operation.line,
+        nextElements.length,
+        `Cannot replace line ${operation.line}`
+      )
       nextElements[operation.line - 1] = operation.element
       continue
     }
     if (operation.type === 'insert_after') {
-      assertLineInInsertRange(operation.line, nextElements.length, `Cannot insert after line ${operation.line}`)
+      assertLineInInsertRange(
+        operation.line,
+        nextElements.length,
+        `Cannot insert after line ${operation.line}`
+      )
       nextElements.splice(operation.line, 0, operation.element)
       continue
     }
@@ -195,7 +217,7 @@ function detectMalformedLayoutWarnings(elements) {
       if (typeof shape.width !== 'number' || typeof shape.height !== 'number') continue
       if (!rectanglesOverlap(textBox, shape)) continue
       warnings.push(
-        `Standalone text "${String(text.text ?? '').slice(0, 40)}" overlaps shape "${shape.id}". Use the shape label field instead of placing text on top of a shape.`,
+        `Standalone text "${String(text.text ?? '').slice(0, 40)}" overlaps shape "${shape.id}". Use the shape label field instead of placing text on top of a shape.`
       )
       break
     }
@@ -209,10 +231,14 @@ function detectMalformedLayoutWarnings(elements) {
     const minWidth = estimated.width + PADDING_PER_SIDE * 2
     const minHeight = estimated.height + PADDING_PER_SIDE * 2
     if (typeof shape.width === 'number' && shape.width < minWidth) {
-      warnings.push(`Shape "${shape.id}" is too narrow for label "${labelText.slice(0, 40)}"; widen it or shorten the label.`)
+      warnings.push(
+        `Shape "${shape.id}" is too narrow for label "${labelText.slice(0, 40)}"; widen it or shorten the label.`
+      )
     }
     if (typeof shape.height === 'number' && shape.height < minHeight) {
-      warnings.push(`Shape "${shape.id}" is too short for label "${labelText.slice(0, 40)}"; grow it or shorten the label.`)
+      warnings.push(
+        `Shape "${shape.id}" is too short for label "${labelText.slice(0, 40)}"; grow it or shorten the label.`
+      )
     }
   }
 
@@ -245,7 +271,12 @@ function assertLineInInsertRange(line, lineCount, message) {
   }
 }
 
-export function buildWhiteboardAgentMessages({ elements, agentHistory, latestScreenshot, transcript }) {
+export function buildWhiteboardAgentMessages({
+  elements,
+  agentHistory,
+  latestScreenshot,
+  transcript,
+}) {
   const messages = []
   for (const message of agentHistory.slice(-8)) {
     messages.push(message)
@@ -263,7 +294,14 @@ function formatCurrentCanvasTask(elements, latestScreenshot) {
   if (typeof latestScreenshot === 'string' && latestScreenshot) {
     return [
       { type: 'text', text },
-      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: latestScreenshot.split(',').pop() } },
+      {
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: 'image/png',
+          data: latestScreenshot.split(',').pop(),
+        },
+      },
     ]
   }
   return text

@@ -18,6 +18,7 @@ import type { ViewportCommand, WhiteboardElement } from '../../main/whiteboard/t
 // Excalidraw types — use inline types to avoid deep import path issues
 interface ExcalidrawImperativeAPI {
   updateScene: (opts: Record<string, unknown>) => void
+  resetScene: () => void
   getSceneElements: () => readonly ExcalidrawElement[]
   getAppState: () => { zoom?: { value?: number } } & Record<string, unknown>
   scrollToContent: (
@@ -269,6 +270,12 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({
   useEffect(() => {
     const api = apiRef.current
     if (!api) return
+
+    if (elements.length === 0) {
+      api.resetScene()
+      lastSyncedHashRef.current = ''
+      return
+    }
 
     const renderable = buildRenderableElements(elements)
     api.updateScene({

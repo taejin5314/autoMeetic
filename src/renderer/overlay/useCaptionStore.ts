@@ -29,7 +29,7 @@ const MAX_ITEMS = 50
 
 function reducer(state: CaptionState, action: CaptionAction): CaptionState {
   if (action.type === 'partial') {
-    return { ...state, currentPartial: action.text }
+    return { ...state, currentPartial: action.text.trim() }
   }
 
   if (action.type === 'committed') {

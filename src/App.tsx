@@ -38,12 +38,15 @@ const LANGUAGE_OPTIONS = [
   { code: 'de', label: 'German' },
 ]
 
-const LANGUAGE_LABEL_BY_CODE = new Map(LANGUAGE_OPTIONS.map((language) => [language.code, language.label]))
+const LANGUAGE_LABEL_BY_CODE = new Map(
+  LANGUAGE_OPTIONS.map((language) => [language.code, language.label])
+)
 const LOCKABLE_LANGUAGE_CODES = new Set(['ko', 'en', 'ja', 'zh'])
 const META_TRANSLATION_RE =
   /\b(this text appears|let me translate|translation|translate it|appears to be a mix)\b/i
 const TRANSLATION_CONCURRENCY = 2
-const CLIENT_TRANSCRIPT_MAX_CHARS = 180
+const FEED_MAX_WORDS = 15
+const FEED_SENTENCE_END_RE = /[.!?。？！]\s*$/
 
 type TranslationJob = {
   segment: TranscriptSegment
@@ -71,7 +74,8 @@ function detectTranscriptLanguage(text: string): DetectedLanguage | null {
   if (hangul >= 2 && hangul >= kana * 2) return { code: 'ko', confidence: hangul / total }
   if (kana >= 2 && kana >= hangul) return { code: 'ja', confidence: kana / total }
   if (han >= 2 && hangul === 0 && kana === 0) return { code: 'zh', confidence: han / total }
-  if (latin >= 8 && hangul === 0 && kana === 0 && han === 0) return { code: 'en', confidence: latin / total }
+  if (latin >= 8 && hangul === 0 && kana === 0 && han === 0)
+    return { code: 'en', confidence: latin / total }
   return null
 }
 
@@ -87,40 +91,6 @@ function conflictsWithLockedLanguage(text: string, lockedLanguage: string): bool
   if (lockedLanguage === 'zh') return (hangul >= 2 || kana >= 2) && han < 2
   if (lockedLanguage === 'en') return hangul + kana + han >= 4 && latin < 8
   return false
-}
-
-function splitTranscriptSegment(segment: TranscriptSegment): TranscriptSegment[] {
-  const text = segment.text.trim()
-  if (!segment.isFinal || text.length <= CLIENT_TRANSCRIPT_MAX_CHARS) return [{ ...segment, text }]
-
-  const pieces: string[] = []
-  const sentences = text.match(/[^.!?。？！]+[.!?。？！]?\s*/g) ?? [text]
-  let buffer = ''
-
-  for (const sentence of sentences) {
-    const next = `${buffer}${sentence}`.trim()
-    if (next.length <= CLIENT_TRANSCRIPT_MAX_CHARS) {
-      buffer = next
-      continue
-    }
-    if (buffer) pieces.push(buffer)
-    const trimmed = sentence.trim()
-    if (trimmed.length <= CLIENT_TRANSCRIPT_MAX_CHARS) {
-      buffer = trimmed
-      continue
-    }
-    for (let i = 0; i < trimmed.length; i += CLIENT_TRANSCRIPT_MAX_CHARS) {
-      pieces.push(trimmed.slice(i, i + CLIENT_TRANSCRIPT_MAX_CHARS).trim())
-    }
-    buffer = ''
-  }
-
-  if (buffer) pieces.push(buffer)
-  return pieces.filter(Boolean).map((piece, index) => ({
-    ...segment,
-    id: index === 0 ? segment.id : `${segment.id}-${index}`,
-    text: piece,
-  }))
 }
 
 function statusClass(status: 'connected' | 'degraded' | 'disconnected'): string {
@@ -141,6 +111,8 @@ function App() {
   const [running, setRunning] = useState(false)
   const [starting, setStarting] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [isLiveFeedExpanded, setIsLiveFeedExpanded] = useState(false)
+  const [canvasResetVersion, setCanvasResetVersion] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [expandedStatus, setExpandedStatus] = useState<string | null>(null)
   const [resetConfirming, setResetConfirming] = useState(false)
@@ -156,7 +128,8 @@ function App() {
   const [languageLock, setLanguageLock] = useState<string | null>(null)
   const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null)
   const [translatingCount, setTranslatingCount] = useState(0)
-  const { items, currentPartial, applyTranscript, applyTranslation, clearPartial, clear } = useCaptionStore()
+  const { items, currentPartial, applyTranscript, applyTranslation, clearPartial, clear } =
+    useCaptionStore()
 
   // ── Whiteboard state (autopreso pattern) ──────────────────────────────────
   const [whiteboardElements, setWhiteboardElements] = useState<WhiteboardElement[]>([])
@@ -172,6 +145,14 @@ function App() {
   const translationActiveCountRef = useRef(0)
   const translationTargetRef = useRef(translationTarget)
   const translationGenerationRef = useRef(0)
+
+  // ── Feed accumulation buffer ─────────────────────────────────────────────
+  // Accumulates short committed chunks until sentence boundary or 15 words,
+  // then flushes to the feed + translation. Whiteboard agent receives commits
+  // immediately (separate listener) so it stays fast.
+  const feedBufferRef = useRef<{ id: string; createdAtMs: number; text: string } | null>(null)
+  const [feedBufferText, setFeedBufferText] = useState('')
+  const feedEndRef = useRef<HTMLDivElement>(null)
 
   // Stable service instances — same lifecycle pattern as autopreso
   const bus = useMemo(() => new TranscriptBus(), [])
@@ -192,6 +173,17 @@ function App() {
   )
 
   useEffect(() => {
+    if (!isLiveFeedExpanded) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsLiveFeedExpanded(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [isLiveFeedExpanded])
+
+  useEffect(() => {
     translationTargetRef.current = translationTarget
     translationGenerationRef.current += 1
     if (translationTarget === 'off') {
@@ -203,7 +195,8 @@ function App() {
   const shouldAcceptTranscript = useCallback(
     (segment: TranscriptSegment): boolean => {
       if (segment.isFinal) {
-        if (acceptedFinalTranscriptIdsRef.current.has(segment.id)) return true
+        // Already processed — skip duplicate finals
+        if (acceptedFinalTranscriptIdsRef.current.has(segment.id)) return false
         if (rejectedFinalTranscriptIdsRef.current.has(segment.id)) return false
       }
 
@@ -232,7 +225,7 @@ function App() {
           detectedLanguage: detected?.code ?? 'unknown',
           text: text.slice(0, 120),
         })
-        if (segment.isFinal) clearPartial()
+        clearPartial()
       }
 
       if (segment.isFinal) {
@@ -250,62 +243,70 @@ function App() {
   }, [])
 
   const drainTranslationQueue = useCallback(() => {
-    while (
-      translationActiveCountRef.current < TRANSLATION_CONCURRENCY &&
-      translationQueueRef.current.length > 0
-    ) {
-      const job = translationQueueRef.current.shift()
-      if (!job) return
+    const pump = () => {
+      while (
+        translationActiveCountRef.current < TRANSLATION_CONCURRENCY &&
+        translationQueueRef.current.length > 0
+      ) {
+        const job = translationQueueRef.current.shift()
+        if (!job) return
 
-      translationActiveCountRef.current += 1
-      updateTranslationQueueStatus()
-      updateHealth(
-        'translation',
-        'degraded',
-        `translating ${translationActiveCountRef.current + translationQueueRef.current.length}`
-      )
+        translationActiveCountRef.current += 1
+        updateTranslationQueueStatus()
+        updateHealth(
+          'translation',
+          'degraded',
+          `translating ${translationActiveCountRef.current + translationQueueRef.current.length}`
+        )
 
-      void fetch('/api/translate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: job.segment.text, targetLang: job.targetLang }),
-      })
-        .then(async (res) => {
-          if (!res.ok) throw new Error(`Translation API error: ${res.status}`)
-          return (await res.json()) as { translation: string }
+        void fetch('/api/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: job.segment.text, targetLang: job.targetLang }),
         })
-        .then((data) => {
-          if (
-            translationGenerationRef.current !== job.generation ||
-            translationTargetRef.current !== job.targetLang
-          ) {
-            return
-          }
-          const translation: TranslationSegment = {
-            segmentId: job.segment.id,
-            text: data.translation,
-            createdAtMs: Date.now(),
-            provider: 'anthropic-async',
-          }
-          applyTranslation(translation)
-        })
-        .catch((err) => {
-          updateHealth('translation', 'degraded', err instanceof Error ? err.message : String(err))
-        })
-        .finally(() => {
-          translationActiveCountRef.current = Math.max(translationActiveCountRef.current - 1, 0)
-          updateTranslationQueueStatus()
-          if (translationQueueRef.current.length > 0) {
-            drainTranslationQueue()
-          } else if (
-            translationGenerationRef.current === job.generation &&
-            translationActiveCountRef.current === 0 &&
-            translationTargetRef.current !== 'off'
-          ) {
-            updateHealth('translation', 'connected', `to ${translationTargetRef.current}`)
-          }
-        })
+          .then(async (res) => {
+            if (!res.ok) throw new Error(`Translation API error: ${res.status}`)
+            return (await res.json()) as { translation: string }
+          })
+          .then((data) => {
+            if (
+              translationGenerationRef.current !== job.generation ||
+              translationTargetRef.current !== job.targetLang
+            ) {
+              return
+            }
+            const translation: TranslationSegment = {
+              segmentId: job.segment.id,
+              text: data.translation,
+              createdAtMs: Date.now(),
+              provider: 'openai-async',
+            }
+            applyTranslation(translation)
+          })
+          .catch((err) => {
+            updateHealth(
+              'translation',
+              'degraded',
+              err instanceof Error ? err.message : String(err)
+            )
+          })
+          .finally(() => {
+            translationActiveCountRef.current = Math.max(translationActiveCountRef.current - 1, 0)
+            updateTranslationQueueStatus()
+            if (translationQueueRef.current.length > 0) {
+              queueMicrotask(pump)
+            } else if (
+              translationGenerationRef.current === job.generation &&
+              translationActiveCountRef.current === 0 &&
+              translationTargetRef.current !== 'off'
+            ) {
+              updateHealth('translation', 'connected', `to ${translationTargetRef.current}`)
+            }
+          })
+      }
     }
+
+    pump()
   }, [applyTranslation, updateHealth, updateTranslationQueueStatus])
 
   const enqueueTranslation = useCallback(
@@ -322,21 +323,58 @@ function App() {
     [drainTranslationQueue, updateTranslationQueueStatus]
   )
 
+  /** Flush accumulated feed buffer → applyTranscript + enqueue translation. */
+  const flushFeedBuffer = useCallback(
+    (force = false) => {
+      const buf = feedBufferRef.current
+      if (!buf) return
+      const text = buf.text.trim()
+      if (!text) {
+        feedBufferRef.current = null
+        setFeedBufferText('')
+        return
+      }
+      const wordCount = text.split(/\s+/).filter(Boolean).length
+      if (!force && !FEED_SENTENCE_END_RE.test(text) && wordCount < FEED_MAX_WORDS) return
+
+      const merged: TranscriptSegment = {
+        id: buf.id,
+        text,
+        isFinal: true,
+        createdAtMs: buf.createdAtMs,
+        source: 'openai-realtime',
+      }
+      feedBufferRef.current = null
+      setFeedBufferText('')
+      applyTranscript(merged)
+      const sourceLanguage = sttLanguage === 'auto' ? lockedLanguageRef.current : sttLanguage
+      if (translationTargetRef.current !== 'off' && translationTargetRef.current !== sourceLanguage) {
+        enqueueTranslation(merged, translationTargetRef.current)
+      }
+    },
+    [applyTranscript, enqueueTranslation, sttLanguage]
+  )
+
   useEffect(() => {
     const offTranscript = bus.onTranscript((segment) => {
       if (!shouldAcceptTranscript(segment)) return
-      const sourceLanguage = sttLanguage === 'auto' ? lockedLanguageRef.current : sttLanguage
-      const segments = splitTranscriptSegment(segment)
-      for (const nextSegment of segments) {
-        applyTranscript(nextSegment)
-        if (
-          nextSegment.isFinal &&
-          translationTarget !== 'off' &&
-          translationTarget !== sourceLanguage
-        ) {
-          enqueueTranslation(nextSegment, translationTarget)
-        }
+
+      // Partials go straight to caption overlay (no accumulation)
+      if (!segment.isFinal) {
+        applyTranscript(segment)
+        return
       }
+
+      // Finals: accumulate in feed buffer
+      const text = segment.text.trim()
+      if (!text) return
+      if (!feedBufferRef.current) {
+        feedBufferRef.current = { id: segment.id, createdAtMs: segment.createdAtMs, text }
+      } else {
+        feedBufferRef.current.text += ' ' + text
+      }
+      setFeedBufferText(feedBufferRef.current.text)
+      flushFeedBuffer(false)
     })
     const offCapture = capture.subscribe((chunk) => sttClient.ingest(chunk))
 
@@ -350,13 +388,18 @@ function App() {
     applyTranscript,
     bus,
     capture,
-    enqueueTranslation,
+    flushFeedBuffer,
     shouldAcceptTranscript,
     sttClient,
     sttLanguage,
     translationTarget,
     updateHealth,
   ])
+
+  // Auto-scroll feed to bottom when content changes
+  useEffect(() => {
+    feedEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [items, feedBufferText, currentPartial])
 
   useEffect(() => {
     if (!running || sttLanguage !== 'auto' || !languageLock) return
@@ -396,7 +439,8 @@ function App() {
         }
 
         if (msg.type === 'whiteboard:update' && Array.isArray(msg.elements)) {
-          setWhiteboardElements(msg.elements.filter(isWhiteboardElement))
+          const filtered = msg.elements.filter(isWhiteboardElement) as WhiteboardElement[]
+          setWhiteboardElements(filtered)
         }
 
         if (msg.type === 'whiteboard:viewport') {
@@ -469,14 +513,12 @@ function App() {
       if (!shouldAcceptTranscript(segment)) return
       const ws = whiteboardWsRef.current
       if (ws && ws.readyState === WebSocket.OPEN) {
-        for (const nextSegment of splitTranscriptSegment(segment)) {
-          ws.send(
-            JSON.stringify({
-              type: 'whiteboard:agent-run',
-              transcript: nextSegment.text,
-            })
-          )
-        }
+        ws.send(
+          JSON.stringify({
+            type: 'whiteboard:agent-run',
+            transcript: segment.text,
+          })
+        )
       }
     })
 
@@ -571,11 +613,12 @@ function App() {
     }
     capture.stop()
     sttClient.disconnect()
+    flushFeedBuffer(true)
     setAnalyser(null)
     updateHealth('capture', 'disconnected', 'stopped')
     updateHealth('stt', 'disconnected', 'stopped')
     setRunning(false)
-  }, [capture, runStartMs, sttClient, updateHealth])
+  }, [capture, flushFeedBuffer, runStartMs, sttClient, updateHealth])
 
   const resetSession = useCallback(() => {
     if (!resetConfirming) {
@@ -598,6 +641,7 @@ function App() {
     setError(null)
     setExpandedStatus(null)
     setResetConfirming(false)
+    setCanvasResetVersion((v) => v + 1)
     setWhiteboardElements([])
     setViewportCommand(null)
     setAgentStatus('idle')
@@ -608,6 +652,8 @@ function App() {
     languageVotesRef.current = {}
     acceptedFinalTranscriptIdsRef.current.clear()
     rejectedFinalTranscriptIdsRef.current.clear()
+    feedBufferRef.current = null
+    setFeedBufferText('')
     translationGenerationRef.current += 1
     translationQueueRef.current = []
     setTranslatingCount(translationActiveCountRef.current)
@@ -630,6 +676,7 @@ function App() {
       <section className="canvas-wrap">
         <div className="whiteboard-wrap">
           <ExcalidrawCanvas
+            key={`canvas-${canvasResetVersion}`}
             elements={whiteboardElements}
             onElementsChange={handleWhiteboardChange}
             onScreenshot={handleWhiteboardScreenshot}
@@ -638,7 +685,7 @@ function App() {
           {agentStatus === 'thinking' && (
             <div className="whiteboard-agent-badge">AI thinking...</div>
           )}
-          <CaptionOverlay items={items} currentPartial={currentPartial} />
+          <CaptionOverlay currentPartial={currentPartial} />
         </div>
       </section>
 
@@ -685,6 +732,8 @@ function App() {
               type="button"
               onClick={() => {
                 clear()
+                feedBufferRef.current = null
+                setFeedBufferText('')
               }}
             >
               Clear Feed
@@ -831,7 +880,7 @@ function App() {
               <span className="value">
                 {translatingCount > 0
                   ? `translating ${translatingCount}`
-                  : snapshot.translation.message ?? 'not connected'}
+                  : (snapshot.translation.message ?? 'not connected')}
               </span>
               <span className="chevron" aria-hidden="true">
                 ›
@@ -930,12 +979,26 @@ function App() {
           </div>
         </div>
 
-        <section className="caption-feed panel-feed" aria-label="caption feed">
+        <section
+          className={`caption-feed panel-feed ${isLiveFeedExpanded ? 'expanded' : ''}`}
+          aria-label="caption feed"
+        >
           <header className="caption-feed-header">
             <strong>Live Feed</strong>
-            <span className={`caption-badge ${running ? 'active' : ''}`}>
-              {running ? 'LIVE' : 'IDLE'}
-            </span>
+            <div className="caption-feed-actions">
+              <button
+                type="button"
+                className="caption-expand-btn"
+                onClick={() => setIsLiveFeedExpanded((prev) => !prev)}
+                aria-pressed={isLiveFeedExpanded}
+                title={isLiveFeedExpanded ? 'Minimize live feed' : 'Expand live feed'}
+              >
+                {isLiveFeedExpanded ? 'Minimize' : 'Expand'}
+              </button>
+              <span className={`caption-badge ${running ? 'active' : ''}`}>
+                {running ? 'LIVE' : 'IDLE'}
+              </span>
+            </div>
           </header>
 
           <div className="panel-feed-waveform" aria-hidden="true">
@@ -943,12 +1006,10 @@ function App() {
           </div>
 
           <div className="caption-feed-list">
-            {currentPartial ? (
-              <article className="caption-item partial">
-                <div className="caption-source">{currentPartial}</div>
-              </article>
-            ) : null}
-            {[...items].reverse().map((item) => (
+            {items.length === 0 && !feedBufferText && (
+              <p className="caption-empty">No transcript yet.</p>
+            )}
+            {items.map((item) => (
               <article key={item.id} className="caption-item">
                 <div className="caption-source">{item.sourceText}</div>
                 {item.translatedText ? (
@@ -956,9 +1017,14 @@ function App() {
                 ) : null}
               </article>
             ))}
-            {items.length === 0 && !currentPartial && (
-              <p className="caption-empty">No transcript yet.</p>
-            )}
+            {feedBufferText ? (
+              <article className="caption-item partial">
+                <div className="caption-source">
+                  {feedBufferText}
+                </div>
+              </article>
+            ) : null}
+            <div ref={feedEndRef} />
           </div>
         </section>
       </aside>

@@ -215,6 +215,32 @@ body {
   flex-shrink: 0;
 }
 
+.caption-feed-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.caption-expand-btn {
+  border: 1px solid #d8d2c7;
+  background: #f7f3ea;
+  color: #524b40;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.caption-expand-btn:hover {
+  background: #eee7d8;
+}
+
+.caption-expand-btn:active {
+  transform: translateY(1px);
+}
+
 .caption-badge {
   border-radius: 999px;
   border: 1px solid #dedbd2;
@@ -237,6 +263,21 @@ body {
   display: grid;
   gap: 8px;
   flex: 1;
+  align-content: start;
+  grid-auto-rows: min-content;
+}
+
+.panel-feed.expanded {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  bottom: 20px;
+  width: min(760px, calc(100vw - 40px));
+  height: auto;
+  max-height: calc(100vh - 40px);
+  border-radius: 18px;
+  z-index: 40;
+  box-shadow: 0 24px 60px rgba(20, 18, 14, 0.22);
 }
 
 .caption-item {

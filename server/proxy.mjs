@@ -3,7 +3,7 @@
  *
  * Bridges the browser to:
  *   - OpenAI Realtime transcription WebSocket (keeps API key server-side)
- *   - Anthropic translation API
+ *   - OpenAI translation API
  *
  * Architecture ported from autopreso by Kun Chen (MIT License)
  * https://github.com/kunchenguid/autopreso
@@ -13,10 +13,9 @@
  */
 
 import 'dotenv/config'
-import { createServer } from 'http'
 import express from 'express'
-import { WebSocketServer, WebSocket } from 'ws'
-import Anthropic from '@anthropic-ai/sdk'
+import { createServer } from 'http'
+import { WebSocket, WebSocketServer } from 'ws'
 import {
   appendLayoutWarnings,
   applyWhiteboardEditOperations,
@@ -31,10 +30,11 @@ import {
 const app = express()
 app.use(express.json())
 
-// ── Translation endpoint ─────────────────────────────────────────────────────
+// ΓöÇΓöÇ Translation endpoint ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-const TRANSLATION_MODEL = process.env.TRANSLATION_MODEL ?? 'claude-sonnet-4-6'
+const TRANSLATION_MODEL = process.env.TRANSLATION_MODEL ?? 'o3'
+const WHITEBOARD_MODEL = process.env.WHITEBOARD_MODEL ?? 'gpt-4.1-mini'
+const OPENAI_TRANSLATION_URL = 'https://api.openai.com/v1/chat/completions'
 const LANGUAGE_NAME_BY_CODE = new Map([
   ['ko', 'Korean'],
   ['en', 'English'],
@@ -53,20 +53,53 @@ app.post('/api/translate', async (req, res) => {
   }
 
   try {
+    const openaiApiKey = process.env.OPENAI_API_KEY
+    if (!openaiApiKey) {
+      res.status(500).json({ error: 'OPENAI_API_KEY not configured on server' })
+      return
+    }
+
     const targetLanguage = LANGUAGE_NAME_BY_CODE.get(targetLang) ?? targetLang
-    const message = await anthropic.messages.create({
-      model: TRANSLATION_MODEL,
-      max_tokens: Math.min(Math.max(Math.ceil(text.length * 1.8), 96), 512),
-      messages: [
-        {
-          role: 'user',
-          content: `Translate the following text to ${targetLanguage}. Return ONLY the translation. Do not explain, quote, identify languages, or add a preamble:\n\n${text}`,
-        },
-      ],
+    const response = await fetch(OPENAI_TRANSLATION_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: TRANSLATION_MODEL,
+        temperature: 0,
+        max_completion_tokens: Math.min(Math.max(Math.ceil(text.length * 1.8), 96), 512),
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are a precise translation engine. Return only translated text with no quotes, labels, or explanations.',
+          },
+          {
+            role: 'user',
+            content: `Translate the following text to ${targetLanguage}. Return ONLY the translation. Do not explain, quote, identify languages, or add a preamble:\n\n${text}`,
+          },
+        ],
+      }),
     })
 
-    const block = message.content[0]
-    const translation = block.type === 'text' ? block.text : ''
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      const message = payload?.error?.message
+      throw new Error(
+        message ? `OpenAI translation error: ${message}` : 'OpenAI translation failed'
+      )
+    }
+
+    const translation =
+      typeof payload?.choices?.[0]?.message?.content === 'string'
+        ? payload.choices[0].message.content.trim()
+        : ''
+    if (!translation) {
+      throw new Error('OpenAI translation returned empty text')
+    }
+
     res.json({ translation })
   } catch (err) {
     console.error('[proxy] translation error:', err)
@@ -74,13 +107,13 @@ app.post('/api/translate', async (req, res) => {
   }
 })
 
-// ── Health check ─────────────────────────────────────────────────────────────
+// ΓöÇΓöÇ Health check ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', ts: Date.now() })
 })
 
-// ── Vocabulary endpoint (autopreso pattern: vocabulary biasing) ──────────────
+// ΓöÇΓöÇ Vocabulary endpoint (autopreso pattern: vocabulary biasing) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 let globalVocabulary = []
 
@@ -93,19 +126,19 @@ app.post('/api/vocabulary', (req, res) => {
   res.json({ ok: true, count: globalVocabulary.length })
 })
 
-// ── OpenAI Realtime transcription WebSocket bridge ───────────────────────────
+// ΓöÇΓöÇ OpenAI Realtime transcription WebSocket bridge ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 //
 // Browser connects to ws://localhost:5173/api/ws/transcribe (proxied here).
 // Each browser connection spawns one OpenAI Realtime WebSocket.
 //
 // Architecture ported from autopreso/src/openai-transcription.js (MIT)
 //
-// Browser → server messages:
+// Browser ΓåÆ server messages:
 //   { type: 'audio:start', sessionId: '...' }
 //   { type: 'audio', sessionId: '...', data: '<base64 pcm16 24kHz mono>' }
 //   { type: 'stop' }
 //
-// Server → browser messages:
+// Server ΓåÆ browser messages:
 //   { type: 'ready' }
 //   { type: 'partial', text: '...' }
 //   { type: 'committed', text: '...' }
@@ -114,17 +147,17 @@ app.post('/api/vocabulary', (req, res) => {
 //
 // Delta-quiet flushing (from autopreso): when no new delta arrives for
 // DELTA_QUIET_MS, the accumulated partial is committed as one transcript turn.
-// More reliable than waiting for transcription.completed — some models
+// More reliable than waiting for transcription.completed ΓÇö some models
 // (notably gpt-realtime-whisper) wipe turn_detection on every session.update,
 // so server-VAD never auto-commits and completed never fires.
 
 const OPENAI_REALTIME_URL = 'wss://api.openai.com/v1/realtime?intent=transcription'
 const OPENAI_TRANSCRIPTION_MODEL = process.env.OPENAI_TRANSCRIPTION_MODEL ?? 'gpt-realtime-whisper'
 const OPENAI_TRANSCRIPTION_LANGUAGE = process.env.OPENAI_TRANSCRIPTION_LANGUAGE ?? 'auto'
-const DELTA_QUIET_MS = Number(process.env.STT_DELTA_QUIET_MS ?? 650)
+const DELTA_QUIET_MS = Number(process.env.STT_DELTA_QUIET_MS ?? 1200)
 const TRANSCRIPT_MAX_CHARS = Number(process.env.STT_MAX_CHARS ?? 180)
 const TRANSCRIPT_MAX_MS = Number(process.env.STT_MAX_MS ?? 2200)
-const TRANSCRIPT_SENTENCE_END_RE = /[.!?。？！]\s*$/
+const TRANSCRIPT_SENTENCE_END_RE = /[.!?πÇé∩╝ƒ∩╝ü]\s*$/
 const DEFAULT_KOREAN_TRANSCRIPTION_PROMPT =
   'The audio is Korean. Transcribe only in Korean Hangul. Do not output Japanese, Chinese, English, or romanized text unless those words are clearly spoken.'
 
@@ -140,7 +173,7 @@ const MODELS_WITHOUT_PROMPT_SUPPORT = new Set(['gpt-realtime-whisper'])
 function buildTranscriptionSession(
   model,
   vocabularyPrompt = '',
-  { includeEmptyPrompt = false, language = OPENAI_TRANSCRIPTION_LANGUAGE } = {},
+  { includeEmptyPrompt = false, language = OPENAI_TRANSCRIPTION_LANGUAGE } = {}
 ) {
   const transcription = { model }
   if (language && language !== 'auto') {
@@ -186,26 +219,26 @@ function buildVocabularyPrompt(keywords, { maxChars = 500 } = {}) {
 const server = createServer(app)
 const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false })
 
-// ── Whiteboard agent WebSocket endpoint ──────────────────────────────────────
+// ΓöÇΓöÇ Whiteboard agent WebSocket endpoint ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 //
 // Browser connects to ws://localhost:5173/api/ws/whiteboard (proxied here).
 // Handles whiteboard:update and whiteboard:screenshot messages.
 //
 // Architecture ported from autopreso/src/server.js whiteboard agent (MIT)
 //
-// Browser → server messages:
+// Browser ΓåÆ server messages:
 //   { type: 'whiteboard:user-elements', elements: [...] }
 //   { type: 'whiteboard:screenshot', image: 'data:...' }
 //   { type: 'whiteboard:agent-run', transcript: '...' }
 //
-// Server → browser messages:
+// Server ΓåÆ browser messages:
 //   { type: 'whiteboard:update', elements: [...] }
 //   { type: 'whiteboard:viewport', action: '...', ... }
 //   { type: 'whiteboard:agent-status', status: '...' }
 
 const wssWhiteboard = new WebSocketServer({ noServer: true, perMessageDeflate: false })
 
-// Manual upgrade routing — required when multiple WebSocketServers share one HTTP server
+// Manual upgrade routing ΓÇö required when multiple WebSocketServers share one HTTP server
 server.on('upgrade', (req, socket, head) => {
   const pathname = new URL(req.url, 'http://localhost').pathname
   if (pathname === '/api/ws/transcribe') {
@@ -229,19 +262,28 @@ const whiteboardState = {
   agentBusy: false,
   latestScreenshot: null,
   canvasDirtyForAgent: false,
+  resetVersion: 0,
+  /** @type {AbortController | null} */
+  abortController: null,
 }
 
 const whiteboardQueue = createTranscriptTurnQueue({
   debounceMs: 0,
   isReady: (text) => !isTrivialTranscript(text),
   runTurn: async (transcript) => {
+    const turnResetVersion = whiteboardState.resetVersion
     whiteboardState.agentBusy = true
     broadcastWhiteboard({ type: 'whiteboard:agent-status', status: 'thinking' })
     try {
-      const apiKey = process.env.ANTHROPIC_API_KEY
-      if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured')
+      const apiKey = process.env.OPENAI_API_KEY
+      if (!apiKey) throw new Error('OPENAI_API_KEY not configured')
 
-      const result = await runWhiteboardAgentProxy(transcript, apiKey)
+      const result = await runWhiteboardAgentProxy(transcript, apiKey, turnResetVersion)
+      if (turnResetVersion !== whiteboardState.resetVersion) {
+        console.log('[proxy] runTurn: stale result discarded (turn version:', turnResetVersion, 'current:', whiteboardState.resetVersion, ')')
+        return
+      }
+      console.log('[proxy] runTurn: applying result — elements:', result.elements?.length ?? 0, 'viewport:', !!result.viewport)
       if (result.elements) {
         whiteboardState.elements = result.elements
         broadcastWhiteboard({ type: 'whiteboard:update', elements: result.elements })
@@ -250,6 +292,10 @@ const whiteboardQueue = createTranscriptTurnQueue({
         broadcastWhiteboard({ type: 'whiteboard:viewport', ...result.viewport })
       }
     } catch (err) {
+      if (err.name === 'AbortError') {
+        console.log('[proxy] whiteboard agent call aborted (reset)')
+        return
+      }
       console.error('[proxy] whiteboard agent error:', err.message)
       broadcastWhiteboard({
         type: 'whiteboard:agent-status',
@@ -276,10 +322,12 @@ wssWhiteboard.on('connection', (clientWs) => {
   console.log('[proxy] whiteboard client connected')
 
   // Send current state to new client
-  clientWs.send(JSON.stringify({
-    type: 'whiteboard:update',
-    elements: whiteboardState.elements,
-  }))
+  clientWs.send(
+    JSON.stringify({
+      type: 'whiteboard:update',
+      elements: whiteboardState.elements,
+    })
+  )
 
   clientWs.on('message', async (raw) => {
     let msg
@@ -288,20 +336,31 @@ wssWhiteboard.on('connection', (clientWs) => {
     } catch {
       return
     }
+    console.log('[proxy] whiteboard WS received:', msg.type)
 
-    // User drew on the canvas — update server state (autopreso pattern)
+    // User drew on the canvas ΓÇö update server state (autopreso pattern)
     if (msg.type === 'whiteboard:user-elements' && Array.isArray(msg.elements)) {
       whiteboardState.elements = normalizeWhiteboardElements(msg.elements)
       whiteboardState.canvasDirtyForAgent = true
     }
 
     if (msg.type === 'whiteboard:reset') {
+      console.log('[proxy] whiteboard:reset received, version:', whiteboardState.resetVersion, '->', whiteboardState.resetVersion + 1, 'agentBusy:', whiteboardState.agentBusy, 'abortController:', !!whiteboardState.abortController)
+      whiteboardState.resetVersion += 1
+      if (whiteboardState.abortController) {
+        whiteboardState.abortController.abort()
+        whiteboardState.abortController = null
+        console.log('[proxy] aborted in-flight whiteboard fetch')
+      }
+      whiteboardQueue.clear()
       whiteboardState.elements = []
       whiteboardState.agentHistory = []
       whiteboardState.latestScreenshot = null
       whiteboardState.canvasDirtyForAgent = false
+      whiteboardState.agentBusy = false
       broadcastWhiteboard({ type: 'whiteboard:update', elements: [] })
       broadcastWhiteboard({ type: 'whiteboard:agent-status', status: 'idle' })
+      console.log('[proxy] whiteboard state after reset — elements:', whiteboardState.elements.length, 'history:', whiteboardState.agentHistory.length)
     }
 
     // Screenshot from frontend for agent context (autopreso pattern)
@@ -323,11 +382,16 @@ wssWhiteboard.on('connection', (clientWs) => {
 })
 
 /**
- * Run the whiteboard agent via Anthropic API.
- * Ported from autopreso/src/server.js runWhiteboardAgent()
+ * Run the whiteboard agent via OpenAI API (gpt-4.1-mini).
  */
-async function runWhiteboardAgentProxy(transcript, apiKey) {
-  const screenshotForAgent = whiteboardState.canvasDirtyForAgent ? whiteboardState.latestScreenshot : null
+async function runWhiteboardAgentProxy(
+  transcript,
+  apiKey,
+  expectedResetVersion = whiteboardState.resetVersion
+) {
+  const screenshotForAgent = whiteboardState.canvasDirtyForAgent
+    ? whiteboardState.latestScreenshot
+    : null
   whiteboardState.canvasDirtyForAgent = false
   const messages = buildWhiteboardAgentMessages({
     elements: whiteboardState.elements,
@@ -336,18 +400,39 @@ async function runWhiteboardAgentProxy(transcript, apiKey) {
     transcript,
   })
 
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 4096,
-    system: whiteboardSystemPrompt(),
-    messages,
-    tool_choice: whiteboardState.elements.length === 0 ? { type: 'any' } : { type: 'auto' },
-    tools: [
-      {
+  // Convert messages to OpenAI format (system goes separately)
+  const openaiMessages = [
+    { role: 'system', content: whiteboardSystemPrompt() },
+    ...messages.map((m) => {
+      if (Array.isArray(m.content)) {
+        return {
+          role: m.role,
+          content: m.content.map((part) => {
+            if (part.type === 'text') return { type: 'text', text: part.text }
+            if (part.type === 'image') {
+              const base64 = part.source?.data ?? ''
+              const mediaType = part.source?.media_type ?? 'image/png'
+              return {
+                type: 'image_url',
+                image_url: { url: `data:${mediaType};base64,${base64}` },
+              }
+            }
+            return part
+          }),
+        }
+      }
+      return { role: m.role, content: m.content }
+    }),
+  ]
+
+  const tools = [
+    {
+      type: 'function',
+      function: {
         name: 'whiteboard_apply',
         description:
           'Apply edits and/or move the viewport in a SINGLE call. Either operations, viewport, or both must be provided. For scroll_to_content, pass focus_ids.',
-        input_schema: {
+        parameters: {
           type: 'object',
           properties: {
             operations: {
@@ -359,7 +444,10 @@ async function runWhiteboardAgentProxy(transcript, apiKey) {
               type: 'object',
               description: 'Viewport command applied AFTER edits',
               properties: {
-                action: { type: 'string', enum: ['scroll_to_content', 'set_zoom', 'zoom_in', 'zoom_out', 'reset_zoom'] },
+                action: {
+                  type: 'string',
+                  enum: ['scroll_to_content', 'set_zoom', 'zoom_in', 'zoom_out', 'reset_zoom'],
+                },
                 zoom: { type: 'number' },
                 focus_ids: { type: 'array', items: { type: 'string' } },
               },
@@ -367,10 +455,13 @@ async function runWhiteboardAgentProxy(transcript, apiKey) {
           },
         },
       },
-      {
+    },
+    {
+      type: 'function',
+      function: {
         name: 'whiteboard_overwrite',
         description: 'Replace entire whiteboard. Use only for clearing/resetting/starting fresh.',
-        input_schema: {
+        parameters: {
           type: 'object',
           properties: {
             elements: {
@@ -381,29 +472,77 @@ async function runWhiteboardAgentProxy(transcript, apiKey) {
           },
         },
       },
-    ],
+    },
+  ]
+
+  const body = {
+    model: WHITEBOARD_MODEL,
+    max_tokens: 4096,
+    messages: openaiMessages,
+    tools,
+    tool_choice:
+      whiteboardState.elements.length === 0
+        ? { type: 'function', function: { name: 'whiteboard_apply' } }
+        : 'auto',
+  }
+
+  const abortController = new AbortController()
+  whiteboardState.abortController = abortController
+
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(body),
+    signal: abortController.signal,
   })
+
+  if (!res.ok) {
+    const errText = await res.text()
+    throw new Error(`OpenAI whiteboard API error ${res.status}: ${errText}`)
+  }
+
+  const data = await res.json()
+
+  // Bail immediately if reset happened while waiting for the response
+  if (expectedResetVersion !== whiteboardState.resetVersion) {
+    return { elements: null, viewport: null }
+  }
+
+  const choice = data.choices?.[0]?.message
 
   const result = { elements: null, viewport: null }
   const toolResults = []
   let workingElements = whiteboardState.elements
 
-  for (const block of response.content) {
-    if (block.type !== 'tool_use') continue
+  const toolCalls = choice?.tool_calls ?? []
+  for (const call of toolCalls) {
+    // Check again inside the loop — reset can happen mid-processing
+    if (expectedResetVersion !== whiteboardState.resetVersion) {
+      return { elements: null, viewport: null }
+    }
+    if (call.type !== 'function') continue
+    let input
+    try {
+      input = JSON.parse(call.function.arguments)
+    } catch {
+      continue
+    }
 
-    if (block.name === 'whiteboard_overwrite') {
-      const normalized = normalizeWhiteboardElements(block.input.elements ?? [])
+    if (call.function.name === 'whiteboard_overwrite') {
+      const normalized = normalizeWhiteboardElements(input.elements ?? [])
       workingElements = normalized
       result.elements = normalized
       const formatted = appendLayoutWarnings(formatLineNumberedWhiteboard(normalized), normalized)
       toolResults.push(formatted)
     }
 
-    if (block.name === 'whiteboard_apply') {
-      const { operations, viewport } = block.input
+    if (call.function.name === 'whiteboard_apply') {
+      const { operations, viewport } = input
       let nextElements = workingElements
 
-      // Apply edit operations
       if (Array.isArray(operations) && operations.length > 0) {
         nextElements = applyWhiteboardEditOperations(workingElements, operations)
         workingElements = nextElements
@@ -414,18 +553,23 @@ async function runWhiteboardAgentProxy(transcript, apiKey) {
         result.viewport = viewport
       }
 
-      const formatted = appendLayoutWarnings(formatLineNumberedWhiteboard(nextElements), nextElements)
+      const formatted = appendLayoutWarnings(
+        formatLineNumberedWhiteboard(nextElements),
+        nextElements
+      )
       toolResults.push(
-        result.viewport ? `${formatted}\n\nViewport: ${JSON.stringify(result.viewport)}` : formatted,
+        result.viewport ? `${formatted}\n\nViewport: ${JSON.stringify(result.viewport)}` : formatted
       )
     }
   }
 
-  const assistantText = response.content
-    .filter((block) => block.type === 'text')
-    .map((block) => block.text)
-    .join('\n')
-    .trim()
+  const assistantText = choice?.content ?? ''
+
+  // Drop stale in-flight result if reset happened while this call was running.
+  if (expectedResetVersion !== whiteboardState.resetVersion) {
+    return { elements: null, viewport: null }
+  }
+
   whiteboardState.agentHistory.push({ role: 'user', content: `Speaker turn:\n${transcript}` })
   whiteboardState.agentHistory.push({
     role: 'assistant',
@@ -439,7 +583,9 @@ async function runWhiteboardAgentProxy(transcript, apiKey) {
 wss.on('connection', (clientWs, req) => {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
-    clientWs.send(JSON.stringify({ type: 'error', message: 'OPENAI_API_KEY not configured on server' }))
+    clientWs.send(
+      JSON.stringify({ type: 'error', message: 'OPENAI_API_KEY not configured on server' })
+    )
     clientWs.close()
     return
   }
@@ -514,7 +660,7 @@ wss.on('connection', (clientWs, req) => {
     }
   }
 
-  // ── Open OpenAI Realtime connection ──────────────────────────────────────
+  // ΓöÇΓöÇ Open OpenAI Realtime connection ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
   openaiWs = new WebSocket(OPENAI_REALTIME_URL, undefined, {
     headers: { Authorization: `Bearer ${apiKey}` },
@@ -533,7 +679,7 @@ wss.on('connection', (clientWs, req) => {
         session: buildTranscriptionSession(OPENAI_TRANSCRIPTION_MODEL, vocabPrompt, {
           language: requestedLanguage,
         }),
-      }),
+      })
     )
     // Flush any audio that arrived before the socket was ready
     for (const audio of pendingAudio) {
@@ -580,7 +726,7 @@ wss.on('connection', (clientWs, req) => {
       return
     }
 
-    // Transcription completed — fallback flush (autopreso pattern)
+    // Transcription completed ΓÇö fallback flush (autopreso pattern)
     // We do NOT use completed to drive turns. Delta-quiet does that.
     // completed is a fallback for the rare case where deltas stopped without
     // our quiet timer having fired (e.g., user clicked Stop).
@@ -594,13 +740,13 @@ wss.on('connection', (clientWs, req) => {
       return
     }
 
-    // Audio buffer committed — server VAD drained the buffer (autopreso pattern)
+    // Audio buffer committed ΓÇö server VAD drained the buffer (autopreso pattern)
     if (msg.type === 'input_audio_buffer.committed') {
       bufferedSinceCommit = false
       return
     }
 
-    // Errors — suppress benign race condition (autopreso pattern)
+    // Errors ΓÇö suppress benign race condition (autopreso pattern)
     if (msg.type === 'error') {
       // input_audio_buffer_commit_empty fires when server VAD already drained
       // the buffer before our manual commit landed. Safe to ignore.
@@ -622,7 +768,7 @@ wss.on('connection', (clientWs, req) => {
     safeSend({ type: 'closed' })
   })
 
-  // ── Handle messages from browser (autopreso protocol) ────────────────────
+  // ΓöÇΓöÇ Handle messages from browser (autopreso protocol) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
   clientWs.on('message', (raw) => {
     let msg
@@ -632,7 +778,7 @@ wss.on('connection', (clientWs, req) => {
       return
     }
 
-    // Session start — track active session ID (autopreso pattern)
+    // Session start ΓÇö track active session ID (autopreso pattern)
     if (msg.type === 'audio:start') {
       if (typeof msg.sessionId === 'string') {
         activeSessionId = msg.sessionId
@@ -653,7 +799,7 @@ wss.on('connection', (clientWs, req) => {
       openaiWs.send(JSON.stringify({ type: 'input_audio_buffer.append', audio }))
       bufferedSinceCommit = true
     } else if (msg.type === 'stop') {
-      // Stop is a hard signal — flush pending partial NOW (autopreso pattern)
+      // Stop is a hard signal ΓÇö flush pending partial NOW (autopreso pattern)
       flushPartialAsTurn()
       if (openaiWs && configured && bufferedSinceCommit) {
         openaiWs.send(JSON.stringify({ type: 'input_audio_buffer.commit' }))
@@ -676,7 +822,7 @@ wss.on('connection', (clientWs, req) => {
   })
 })
 
-// ── Start server ─────────────────────────────────────────────────────────────
+// ΓöÇΓöÇ Start server ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 const PORT = Number(process.env.PROXY_PORT ?? 3211)
 server.listen(PORT, '127.0.0.1', () => {
