@@ -1,6 +1,6 @@
-import { log } from '../telemetry/logger'
-import type { TranscriptSegment, TranslationSegment } from '../stt/types'
 import { TranscriptBus } from '../stt/transcriptBus'
+import type { TranscriptSegment, TranslationSegment } from '../stt/types'
+import { log } from '../telemetry/logger'
 import type { AsyncTranslator } from './translator'
 
 export class AsyncTranslationQueue {

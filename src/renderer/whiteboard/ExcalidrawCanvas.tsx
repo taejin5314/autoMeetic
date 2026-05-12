@@ -158,8 +158,8 @@ function buildRenderableElements(elements: WhiteboardElement[]): Record<string, 
 function toWhiteboardElements(nativeElements: readonly ExcalidrawElement[]): WhiteboardElement[] {
   const result: WhiteboardElement[] = []
   const boundTextIds = new Set<string>()
-  const validNativeElements = nativeElements.filter(
-    (el): el is ExcalidrawElement => Boolean(el && el.id)
+  const validNativeElements = nativeElements.filter((el): el is ExcalidrawElement =>
+    Boolean(el && el.id)
   )
 
   // First pass: identify bound text elements (they are labels)

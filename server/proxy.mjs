@@ -32,7 +32,7 @@ app.use(express.json())
 
 // ΓöÇΓöÇ Translation endpoint ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
-const TRANSLATION_MODEL = process.env.TRANSLATION_MODEL ?? 'o3'
+const TRANSLATION_MODEL = process.env.TRANSLATION_MODEL ?? 'gpt-4.1-mini'
 const WHITEBOARD_MODEL = process.env.WHITEBOARD_MODEL ?? 'gpt-4.1-mini'
 const OPENAI_TRANSLATION_URL = 'https://api.openai.com/v1/chat/completions'
 const LANGUAGE_NAME_BY_CODE = new Map([
@@ -60,29 +60,39 @@ app.post('/api/translate', async (req, res) => {
     }
 
     const targetLanguage = LANGUAGE_NAME_BY_CODE.get(targetLang) ?? targetLang
-    const response = await fetch(OPENAI_TRANSLATION_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: TRANSLATION_MODEL,
-        temperature: 0,
-        max_completion_tokens: Math.min(Math.max(Math.ceil(text.length * 1.8), 96), 512),
-        messages: [
-          {
-            role: 'system',
-            content:
-              'You are a precise translation engine. Return only translated text with no quotes, labels, or explanations.',
-          },
-          {
-            role: 'user',
-            content: `Translate the following text to ${targetLanguage}. Return ONLY the translation. Do not explain, quote, identify languages, or add a preamble:\n\n${text}`,
-          },
-        ],
-      }),
+    const translationBody = JSON.stringify({
+      model: TRANSLATION_MODEL,
+      max_tokens: Math.min(Math.max(Math.ceil(text.length * 1.8), 96), 512),
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are a precise translation engine. Return only translated text with no quotes, labels, or explanations.',
+        },
+        {
+          role: 'user',
+          content: `Translate the following text to ${targetLanguage}. Return ONLY the translation. Do not explain, quote, identify languages, or add a preamble:\n\n${text}`,
+        },
+      ],
     })
+
+    let response
+    for (let attempt = 0; attempt < 3; attempt++) {
+      response = await fetch(OPENAI_TRANSLATION_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${openaiApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: translationBody,
+      })
+      if (response.status === 429 && attempt < 2) {
+        const waitMs = Math.min(Math.max(parseFloat(response.headers.get('retry-after') || '3') * 1000, 1000), 10000)
+        await new Promise((r) => setTimeout(r, waitMs))
+        continue
+      }
+      break
+    }
 
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) {
@@ -268,7 +278,7 @@ const whiteboardState = {
 }
 
 const whiteboardQueue = createTranscriptTurnQueue({
-  debounceMs: 0,
+  debounceMs: 3000,
   isReady: (text) => !isTrivialTranscript(text),
   runTurn: async (transcript) => {
     const turnResetVersion = whiteboardState.resetVersion
@@ -280,10 +290,21 @@ const whiteboardQueue = createTranscriptTurnQueue({
 
       const result = await runWhiteboardAgentProxy(transcript, apiKey, turnResetVersion)
       if (turnResetVersion !== whiteboardState.resetVersion) {
-        console.log('[proxy] runTurn: stale result discarded (turn version:', turnResetVersion, 'current:', whiteboardState.resetVersion, ')')
+        console.log(
+          '[proxy] runTurn: stale result discarded (turn version:',
+          turnResetVersion,
+          'current:',
+          whiteboardState.resetVersion,
+          ')'
+        )
         return
       }
-      console.log('[proxy] runTurn: applying result — elements:', result.elements?.length ?? 0, 'viewport:', !!result.viewport)
+      console.log(
+        '[proxy] runTurn: applying result — elements:',
+        result.elements?.length ?? 0,
+        'viewport:',
+        !!result.viewport
+      )
       if (result.elements) {
         whiteboardState.elements = result.elements
         broadcastWhiteboard({ type: 'whiteboard:update', elements: result.elements })
@@ -345,7 +366,16 @@ wssWhiteboard.on('connection', (clientWs) => {
     }
 
     if (msg.type === 'whiteboard:reset') {
-      console.log('[proxy] whiteboard:reset received, version:', whiteboardState.resetVersion, '->', whiteboardState.resetVersion + 1, 'agentBusy:', whiteboardState.agentBusy, 'abortController:', !!whiteboardState.abortController)
+      console.log(
+        '[proxy] whiteboard:reset received, version:',
+        whiteboardState.resetVersion,
+        '->',
+        whiteboardState.resetVersion + 1,
+        'agentBusy:',
+        whiteboardState.agentBusy,
+        'abortController:',
+        !!whiteboardState.abortController
+      )
       whiteboardState.resetVersion += 1
       if (whiteboardState.abortController) {
         whiteboardState.abortController.abort()
@@ -360,7 +390,12 @@ wssWhiteboard.on('connection', (clientWs) => {
       whiteboardState.agentBusy = false
       broadcastWhiteboard({ type: 'whiteboard:update', elements: [] })
       broadcastWhiteboard({ type: 'whiteboard:agent-status', status: 'idle' })
-      console.log('[proxy] whiteboard state after reset — elements:', whiteboardState.elements.length, 'history:', whiteboardState.agentHistory.length)
+      console.log(
+        '[proxy] whiteboard state after reset — elements:',
+        whiteboardState.elements.length,
+        'history:',
+        whiteboardState.agentHistory.length
+      )
     }
 
     // Screenshot from frontend for agent context (autopreso pattern)
@@ -437,7 +472,7 @@ async function runWhiteboardAgentProxy(
           properties: {
             operations: {
               type: 'array',
-              description: 'Edit operations applied in order',
+              description: 'Edit operations. Each item is either a drawing element (type: rectangle/ellipse/diamond/arrow/text with id, x, y, width, height, label, etc.) or an edit command (type: replace/insert_after/delete with line number). Do NOT use type: create/update/add/unknown.',
               items: { type: 'object' },
             },
             viewport: {
@@ -489,15 +524,31 @@ async function runWhiteboardAgentProxy(
   const abortController = new AbortController()
   whiteboardState.abortController = abortController
 
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(body),
-    signal: abortController.signal,
-  })
+  // Retry loop for rate limits (429)
+  let res
+  for (let attempt = 0; attempt < 3; attempt++) {
+    res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+      signal: abortController.signal,
+    })
+
+    if (res.status === 429 && attempt < 2) {
+      const retryAfter = parseFloat(res.headers.get('retry-after') || '5')
+      const waitMs = Math.min(Math.max(retryAfter * 1000, 2000), 15000)
+      console.log(`[proxy] whiteboard 429, retrying in ${waitMs}ms (attempt ${attempt + 1})`)
+      await new Promise((r) => setTimeout(r, waitMs))
+      if (expectedResetVersion !== whiteboardState.resetVersion) {
+        return { elements: null, viewport: null }
+      }
+      continue
+    }
+    break
+  }
 
   if (!res.ok) {
     const errText = await res.text()

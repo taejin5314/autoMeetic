@@ -22,7 +22,7 @@ export class ProxyTranslator implements AsyncTranslator {
     if (!res.ok) {
       throw new Error(`Translation API error: ${res.status} ${res.statusText}`)
     }
-    const data = await res.json() as { translation: string }
+    const data = (await res.json()) as { translation: string }
     return data.translation
   }
 }

@@ -348,7 +348,10 @@ function App() {
       setFeedBufferText('')
       applyTranscript(merged)
       const sourceLanguage = sttLanguage === 'auto' ? lockedLanguageRef.current : sttLanguage
-      if (translationTargetRef.current !== 'off' && translationTargetRef.current !== sourceLanguage) {
+      if (
+        translationTargetRef.current !== 'off' &&
+        translationTargetRef.current !== sourceLanguage
+      ) {
         enqueueTranslation(merged, translationTargetRef.current)
       }
     },
@@ -1025,9 +1028,7 @@ function App() {
             ))}
             {feedBufferText ? (
               <article className="caption-item partial">
-                <div className="caption-source">
-                  {feedBufferText}
-                </div>
+                <div className="caption-source">{feedBufferText}</div>
               </article>
             ) : null}
             <div ref={feedEndRef} />

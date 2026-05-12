@@ -187,7 +187,8 @@ export function applyWhiteboardEditOperations(elements, operations) {
       nextElements.splice(operation.line - 1, 1)
       continue
     }
-    throw new Error(`Unknown whiteboard edit operation "${operation.type ?? 'unknown'}".`)
+    console.warn(`[whiteboard] skipping unknown edit operation "${operation.type ?? 'unknown'}"`)
+    continue
   }
   return normalizeWhiteboardElements(nextElements)
 }
