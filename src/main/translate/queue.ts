@@ -40,7 +40,7 @@ export class AsyncTranslationQueue {
           segmentId: segment.id,
           text: translated,
           createdAtMs: Date.now(),
-          provider: 'anthropic-async',
+          provider: 'openai-async',
         }
         this.bus.emitTranslation(output)
       } catch (error) {

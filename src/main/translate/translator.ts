@@ -3,10 +3,10 @@ export interface AsyncTranslator {
 }
 
 /**
- * Calls the proxy's /api/translate endpoint which proxies to Anthropic claude-sonnet.
+ * Calls the proxy's /api/translate endpoint (OpenAI o3).
  * Translates English (or any language) → Korean by default.
  */
-export class AnthropicTranslator implements AsyncTranslator {
+export class ProxyTranslator implements AsyncTranslator {
   private readonly endpoint: string
 
   constructor(endpoint = '/api/translate') {
