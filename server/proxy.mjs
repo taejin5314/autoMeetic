@@ -33,7 +33,14 @@ app.use(express.json())
 // ΓöÇΓöÇ Translation endpoint ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 const TRANSLATION_MODEL = process.env.TRANSLATION_MODEL ?? 'gpt-4.1-mini'
-const WHITEBOARD_MODEL = process.env.WHITEBOARD_MODEL ?? 'gpt-4.1-mini'
+const GATEKEEPER_MODEL = process.env.GATEKEEPER_MODEL ?? 'gpt-4.1-nano'
+const RENDERER_MODEL = process.env.RENDERER_MODEL ?? 'gpt-4.1-mini'
+const GATEKEEPER_ENABLED = process.env.GATEKEEPER_ENABLED !== 'false'
+const BUFFER_MAX_WORDS = Number(process.env.WB_BUFFER_MAX_WORDS ?? 200)
+const BUFFER_MAX_MS = Number(process.env.WB_BUFFER_MAX_MS ?? 30000)
+const BUFFER_MIN_WORDS = Number(process.env.WB_BUFFER_MIN_WORDS ?? 100)
+const GATEKEEPER_COOLDOWN_MS = Number(process.env.WB_GATEKEEPER_COOLDOWN_MS ?? 15000)
+const RENDERER_COOLDOWN_MS = Number(process.env.WB_RENDERER_COOLDOWN_MS ?? 30000)
 const OPENAI_TRANSLATION_URL = 'https://api.openai.com/v1/chat/completions'
 const LANGUAGE_NAME_BY_CODE = new Map([
   ['ko', 'Korean'],
@@ -279,6 +286,7 @@ const whiteboardState = {
 
 const whiteboardQueue = createTranscriptTurnQueue({
   debounceMs: 3000,
+  cooldownMs: 12000,
   isReady: (text) => !isTrivialTranscript(text),
   runTurn: async (transcript) => {
     const turnResetVersion = whiteboardState.resetVersion
@@ -449,7 +457,7 @@ async function runWhiteboardAgentProxy(
               const mediaType = part.source?.media_type ?? 'image/png'
               return {
                 type: 'image_url',
-                image_url: { url: `data:${mediaType};base64,${base64}` },
+                image_url: { url: `data:${mediaType};base64,${base64}`, detail: 'low' },
               }
             }
             return part
@@ -472,8 +480,39 @@ async function runWhiteboardAgentProxy(
           properties: {
             operations: {
               type: 'array',
-              description: 'Edit operations. Each item is either a drawing element (type: rectangle/ellipse/diamond/arrow/text with id, x, y, width, height, label, etc.) or an edit command (type: replace/insert_after/delete with line number). Do NOT use type: create/update/add/unknown.',
-              items: { type: 'object' },
+              description: 'Array of operations. Two kinds:\n' +
+                '1) Drawing element: type MUST be one of "rectangle","ellipse","diamond","arrow","text". Include id, x, y, width, height, and label (for shapes) or text (for text type).\n' +
+                '2) Edit command: type MUST be "replace" (with line + element), "insert_after" (with line + element), or "delete" (with line).\n' +
+                'INVALID types that will be rejected: create, update, add, modify, unknown, move.',
+              items: {
+                type: 'object',
+                properties: {
+                  type: {
+                    type: 'string',
+                    enum: ['rectangle', 'ellipse', 'diamond', 'arrow', 'text', 'replace', 'insert_after', 'delete'],
+                    description: 'MUST be one of the listed values. Never use create/update/add/modify.',
+                  },
+                  id: { type: 'string', description: 'Unique element ID (for drawing elements)' },
+                  x: { type: 'number' },
+                  y: { type: 'number' },
+                  width: { type: 'number' },
+                  height: { type: 'number' },
+                  label: {
+                    type: 'object',
+                    properties: {
+                      text: { type: 'string' },
+                      fontSize: { type: 'number' },
+                    },
+                    description: 'Label inside a shape (rectangle/ellipse/diamond)',
+                  },
+                  text: { type: 'string', description: 'Text content (for type "text" only)' },
+                  backgroundColor: { type: 'string' },
+                  fillStyle: { type: 'string' },
+                  line: { type: 'integer', description: 'Line number (for replace/insert_after/delete)' },
+                  element: { type: 'object', description: 'Replacement element (for replace/insert_after)' },
+                },
+                required: ['type'],
+              },
             },
             viewport: {
               type: 'object',
@@ -511,8 +550,8 @@ async function runWhiteboardAgentProxy(
   ]
 
   const body = {
-    model: WHITEBOARD_MODEL,
-    max_tokens: 4096,
+    model: RENDERER_MODEL,
+    max_tokens: 2048,
     messages: openaiMessages,
     tools,
     tool_choice:
@@ -882,4 +921,6 @@ server.listen(PORT, '127.0.0.1', () => {
   console.log(`  Translation API:         http://127.0.0.1:${PORT}/api/translate`)
   console.log(`  OpenAI transcription model: ${OPENAI_TRANSCRIPTION_MODEL}`)
   console.log(`  OpenAI transcription language: ${OPENAI_TRANSCRIPTION_LANGUAGE}`)
+  console.log(`  Whiteboard gatekeeper: ${GATEKEEPER_ENABLED ? GATEKEEPER_MODEL : 'disabled'}`)
+  console.log(`  Whiteboard renderer:   ${RENDERER_MODEL}`)
 })
