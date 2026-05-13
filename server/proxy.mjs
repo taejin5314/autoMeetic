@@ -425,6 +425,103 @@ wssWhiteboard.on('connection', (clientWs) => {
 })
 
 /**
+ * Stage 1: Gatekeeper — evaluate whether transcript contains visualizable key points.
+ * Uses gpt-4.1-nano with structured JSON output.
+ * Returns { action: 'update', key_points, diagram_hint } or { action: 'skip', reason }.
+ */
+async function runGatekeeper(transcript, apiKey, existingConcepts) {
+  const systemPrompt = `You are a content filter for a real-time whiteboard agent.
+Your job: decide whether the transcript chunk contains NEW key points worth visualizing.
+
+Rules:
+- In a 5-minute meeting, the final canvas should have only 3-5 nodes. Be extremely selective.
+- Skip if the transcript only contains filler, self-corrections, repetition, or trivial commentary.
+- Skip if the key concepts are already on the canvas (see existing_concepts list).
+- Extract only concepts with concrete meaning: named entities, decisions, comparisons, causal relationships, concrete numbers or dates.
+- Each key_point must have: concept (short label), relation (verb describing relationship), target (what it relates to).
+- diagram_hint: choose the best visualization type for this content.
+
+Respond with JSON only.`
+
+  const userContent = `Existing concepts on canvas: ${JSON.stringify(existingConcepts)}
+
+Transcript chunk:
+${transcript}`
+
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: GATEKEEPER_MODEL,
+      max_tokens: 512,
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'gatekeeper_decision',
+          strict: true,
+          schema: {
+            type: 'object',
+            properties: {
+              action: { type: 'string', enum: ['update', 'skip'] },
+              reason: { type: 'string' },
+              key_points: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    concept: { type: 'string' },
+                    relation: { type: 'string' },
+                    target: { type: 'string' },
+                  },
+                  required: ['concept', 'relation', 'target'],
+                  additionalProperties: false,
+                },
+              },
+              diagram_hint: {
+                type: 'string',
+                enum: ['comparison', 'flow', 'timeline', 'concept-map', 'hierarchy'],
+              },
+            },
+            required: ['action', 'reason', 'key_points', 'diagram_hint'],
+            additionalProperties: false,
+          },
+        },
+      },
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userContent },
+      ],
+    }),
+  })
+
+  if (!res.ok) {
+    const errText = await res.text()
+    throw new Error(`Gatekeeper API error ${res.status}: ${errText}`)
+  }
+
+  const data = await res.json()
+  const content = data.choices?.[0]?.message?.content
+  if (!content) throw new Error('Gatekeeper returned empty content')
+
+  return JSON.parse(content)
+}
+
+/**
+ * Extract concept labels from current whiteboard elements for dedup.
+ */
+function extractExistingConcepts(elements) {
+  const concepts = []
+  for (const el of elements) {
+    if (el?.label?.text) concepts.push(el.label.text)
+    if (el?.type === 'text' && el?.text) concepts.push(el.text)
+  }
+  return concepts
+}
+
+/**
  * Run the whiteboard agent via OpenAI API (gpt-4.1-mini).
  */
 async function runWhiteboardAgentProxy(
