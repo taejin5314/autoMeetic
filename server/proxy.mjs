@@ -284,59 +284,168 @@ const whiteboardState = {
   abortController: null,
 }
 
-const whiteboardQueue = createTranscriptTurnQueue({
-  debounceMs: 3000,
-  cooldownMs: 12000,
-  isReady: (text) => !isTrivialTranscript(text),
-  runTurn: async (transcript) => {
-    const turnResetVersion = whiteboardState.resetVersion
-    whiteboardState.agentBusy = true
-    broadcastWhiteboard({ type: 'whiteboard:agent-status', status: 'thinking' })
-    try {
-      const apiKey = process.env.OPENAI_API_KEY
-      if (!apiKey) throw new Error('OPENAI_API_KEY not configured')
+// ── 2-stage whiteboard pipeline: accumulation buffer → gatekeeper → renderer ──
 
-      const result = await runWhiteboardAgentProxy(transcript, apiKey, turnResetVersion)
-      if (turnResetVersion !== whiteboardState.resetVersion) {
-        console.log(
-          '[proxy] runTurn: stale result discarded (turn version:',
-          turnResetVersion,
-          'current:',
-          whiteboardState.resetVersion,
-          ')'
-        )
+const whiteboardBuffer = {
+  text: '',
+  wordCount: 0,
+  lastGatekeeperMs: 0,
+  lastRendererMs: 0,
+  flushTimer: null,
+}
+
+function countWords(text) {
+  return text.split(/\s+/).filter(Boolean).length
+}
+
+function shouldFlushBuffer() {
+  const now = Date.now()
+  const sinceGatekeeper = now - whiteboardBuffer.lastGatekeeperMs
+  if (whiteboardBuffer.wordCount === 0) return false
+  // Volume trigger: >= 200 words
+  if (whiteboardBuffer.wordCount >= BUFFER_MAX_WORDS) return true
+  // Time trigger: >= 30s since last gatekeeper + buffer has text
+  if (sinceGatekeeper >= BUFFER_MAX_MS && whiteboardBuffer.wordCount > 0) return true
+  // Sentence-complete trigger: >= 100 words + sentence ending
+  if (whiteboardBuffer.wordCount >= BUFFER_MIN_WORDS && /[.!?。？！]\s*$/.test(whiteboardBuffer.text)) return true
+  return false
+}
+
+function scheduleBufferCheck() {
+  if (whiteboardBuffer.flushTimer) return
+  whiteboardBuffer.flushTimer = setTimeout(() => {
+    whiteboardBuffer.flushTimer = null
+    if (shouldFlushBuffer()) {
+      void flushWhiteboardBuffer()
+    } else if (whiteboardBuffer.wordCount > 0) {
+      scheduleBufferCheck()
+    }
+  }, 5000)
+}
+
+async function flushWhiteboardBuffer() {
+  const now = Date.now()
+  // Gatekeeper cooldown check
+  if (now - whiteboardBuffer.lastGatekeeperMs < GATEKEEPER_COOLDOWN_MS) {
+    scheduleBufferCheck()
+    return
+  }
+
+  const transcript = whiteboardBuffer.text.trim()
+  whiteboardBuffer.text = ''
+  whiteboardBuffer.wordCount = 0
+  whiteboardBuffer.lastGatekeeperMs = now
+
+  if (!transcript || isTrivialTranscript(transcript)) return
+
+  const turnResetVersion = whiteboardState.resetVersion
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) return
+
+  try {
+    // Stage 1: Gatekeeper
+    if (GATEKEEPER_ENABLED) {
+      const existingConcepts = extractExistingConcepts(whiteboardState.elements)
+      console.log(`[proxy] gatekeeper: evaluating ${countWords(transcript)} words, ${existingConcepts.length} existing concepts`)
+      const decision = await runGatekeeper(transcript, apiKey, existingConcepts)
+
+      if (turnResetVersion !== whiteboardState.resetVersion) return
+
+      if (decision.action === 'skip') {
+        console.log(`[proxy] gatekeeper: SKIP — ${decision.reason}`)
         return
       }
-      console.log(
-        '[proxy] runTurn: applying result — elements:',
-        result.elements?.length ?? 0,
-        'viewport:',
-        !!result.viewport
-      )
-      if (result.elements) {
-        whiteboardState.elements = result.elements
-        broadcastWhiteboard({ type: 'whiteboard:update', elements: result.elements })
-      }
-      if (result.viewport) {
-        broadcastWhiteboard({ type: 'whiteboard:viewport', ...result.viewport })
-      }
-    } catch (err) {
-      if (err.name === 'AbortError') {
-        console.log('[proxy] whiteboard agent call aborted (reset)')
+
+      console.log(`[proxy] gatekeeper: UPDATE — ${decision.key_points.length} key points, hint: ${decision.diagram_hint}`)
+
+      // Renderer cooldown check
+      const sinceRenderer = Date.now() - whiteboardBuffer.lastRendererMs
+      if (sinceRenderer < RENDERER_COOLDOWN_MS) {
+        console.log(`[proxy] renderer cooldown: ${RENDERER_COOLDOWN_MS - sinceRenderer}ms remaining, deferring`)
+        // Put key points back conceptually — re-buffer a summary
+        whiteboardBuffer.text = decision.key_points.map(kp => `${kp.concept} ${kp.relation} ${kp.target}`).join('. ')
+        whiteboardBuffer.wordCount = countWords(whiteboardBuffer.text)
+        scheduleBufferCheck()
         return
       }
-      console.error('[proxy] whiteboard agent error:', err.message)
-      broadcastWhiteboard({
-        type: 'whiteboard:agent-status',
-        status: 'error',
-        message: err.message,
-      })
-    } finally {
-      whiteboardState.agentBusy = false
-      broadcastWhiteboard({ type: 'whiteboard:agent-status', status: 'idle' })
+
+      // Stage 2: Renderer
+      whiteboardBuffer.lastRendererMs = Date.now()
+      whiteboardState.agentBusy = true
+      broadcastWhiteboard({ type: 'whiteboard:agent-status', status: 'thinking' })
+
+      try {
+        const result = await runWhiteboardAgentProxy(decision.key_points, decision.diagram_hint, apiKey, turnResetVersion)
+        if (turnResetVersion !== whiteboardState.resetVersion) return
+
+        console.log('[proxy] renderer: applying result — elements:', result.elements?.length ?? 0, 'viewport:', !!result.viewport)
+        if (result.elements) {
+          whiteboardState.elements = result.elements
+          broadcastWhiteboard({ type: 'whiteboard:update', elements: result.elements })
+        }
+        if (result.viewport) {
+          broadcastWhiteboard({ type: 'whiteboard:viewport', ...result.viewport })
+        }
+      } finally {
+        whiteboardState.agentBusy = false
+        broadcastWhiteboard({ type: 'whiteboard:agent-status', status: 'idle' })
+      }
+    } else {
+      // Gatekeeper disabled — pass transcript directly to renderer (rollback mode)
+      whiteboardBuffer.lastRendererMs = Date.now()
+      whiteboardState.agentBusy = true
+      broadcastWhiteboard({ type: 'whiteboard:agent-status', status: 'thinking' })
+
+      try {
+        const result = await runWhiteboardAgentProxy(null, null, apiKey, turnResetVersion, transcript)
+        if (turnResetVersion !== whiteboardState.resetVersion) return
+
+        if (result.elements) {
+          whiteboardState.elements = result.elements
+          broadcastWhiteboard({ type: 'whiteboard:update', elements: result.elements })
+        }
+        if (result.viewport) {
+          broadcastWhiteboard({ type: 'whiteboard:viewport', ...result.viewport })
+        }
+      } finally {
+        whiteboardState.agentBusy = false
+        broadcastWhiteboard({ type: 'whiteboard:agent-status', status: 'idle' })
+      }
+    }
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      console.log('[proxy] whiteboard pipeline call aborted (reset)')
+      return
+    }
+    console.error('[proxy] whiteboard pipeline error:', err.message)
+    broadcastWhiteboard({ type: 'whiteboard:agent-status', status: 'error', message: err.message })
+    whiteboardState.agentBusy = false
+    broadcastWhiteboard({ type: 'whiteboard:agent-status', status: 'idle' })
+  }
+}
+
+// Compatibility shim: whiteboardQueue.enqueue and .clear used by WS message handlers
+const whiteboardQueue = {
+  enqueue(text) {
+    const trimmed = String(text ?? '').trim()
+    if (!trimmed) return
+    whiteboardBuffer.text += (whiteboardBuffer.text ? ' ' : '') + trimmed
+    whiteboardBuffer.wordCount = countWords(whiteboardBuffer.text)
+    if (shouldFlushBuffer()) {
+      void flushWhiteboardBuffer()
+    } else {
+      scheduleBufferCheck()
     }
   },
-})
+  clear() {
+    whiteboardBuffer.text = ''
+    whiteboardBuffer.wordCount = 0
+    if (whiteboardBuffer.flushTimer) {
+      clearTimeout(whiteboardBuffer.flushTimer)
+      whiteboardBuffer.flushTimer = null
+    }
+  },
+}
 
 function broadcastWhiteboard(message) {
   const serialized = JSON.stringify(message)
@@ -391,6 +500,8 @@ wssWhiteboard.on('connection', (clientWs) => {
         console.log('[proxy] aborted in-flight whiteboard fetch')
       }
       whiteboardQueue.clear()
+      whiteboardBuffer.lastGatekeeperMs = 0
+      whiteboardBuffer.lastRendererMs = 0
       whiteboardState.elements = []
       whiteboardState.agentHistory = []
       whiteboardState.latestScreenshot = null
@@ -522,12 +633,15 @@ function extractExistingConcepts(elements) {
 }
 
 /**
- * Run the whiteboard agent via OpenAI API (gpt-4.1-mini).
+ * Stage 2: Renderer — update the whiteboard canvas based on gatekeeper key points.
+ * When gatekeeper is disabled, rawTranscript is passed instead.
  */
 async function runWhiteboardAgentProxy(
-  transcript,
+  keyPoints,
+  diagramHint,
   apiKey,
-  expectedResetVersion = whiteboardState.resetVersion
+  expectedResetVersion = whiteboardState.resetVersion,
+  rawTranscript = null,
 ) {
   const screenshotForAgent = whiteboardState.canvasDirtyForAgent
     ? whiteboardState.latestScreenshot
@@ -537,7 +651,9 @@ async function runWhiteboardAgentProxy(
     elements: whiteboardState.elements,
     agentHistory: whiteboardState.agentHistory,
     latestScreenshot: screenshotForAgent,
-    transcript,
+    keyPoints,
+    diagramHint,
+    rawTranscript,
   })
 
   // Convert messages to OpenAI format (system goes separately)
@@ -757,12 +873,15 @@ async function runWhiteboardAgentProxy(
     return { elements: null, viewport: null }
   }
 
-  whiteboardState.agentHistory.push({ role: 'user', content: `Speaker turn:\n${transcript}` })
+  const turnSummary = rawTranscript
+    ? `Speaker turn:\n${rawTranscript}`
+    : `Key points:\n${JSON.stringify(keyPoints)}\nDiagram hint: ${diagramHint}`
+  whiteboardState.agentHistory.push({ role: 'user', content: turnSummary })
   whiteboardState.agentHistory.push({
     role: 'assistant',
     content: toolResults.length > 0 ? toolResults.join('\n\n') : assistantText || 'DONE',
   })
-  whiteboardState.agentHistory = whiteboardState.agentHistory.slice(-10)
+  whiteboardState.agentHistory = whiteboardState.agentHistory.slice(-4)
 
   return result
 }
