@@ -63,6 +63,13 @@ interface ExcalidrawCanvasProps {
   onApiReady?: (api: ExcalidrawImperativeAPI) => void
   /** Downscaled canvas screenshot for the whiteboard agent */
   onScreenshot?: (dataUrl: string) => void
+  /**
+   * Compact preview mode: view-only, no chrome, auto-fit to content, and a
+   * full-canvas click target that calls onMaximize.
+   */
+  compact?: boolean
+  /** Called when the compact-mode click overlay is clicked. */
+  onMaximize?: () => void
 }
 
 /**
@@ -215,11 +222,15 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({
   viewModeEnabled = false,
   onApiReady,
   onScreenshot,
+  compact = false,
+  onMaximize,
 }) => {
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null)
   const lastSyncedHashRef = useRef<string>('')
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const screenshotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const wrapperRef = useRef<HTMLDivElement>(null)
+  const autoFitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const setApi = useCallback(
     (api: ExcalidrawImperativeAPI | null) => {
@@ -280,17 +291,61 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({
     const renderable = buildRenderableElements(elements)
     api.updateScene({
       elements: renderable as ExcalidrawElement[],
-      appState: { viewBackgroundColor: '#fffdf8' },
+      appState: { viewBackgroundColor: '#fbf8f1' },
     })
 
-    // Fit to content when elements appear for the first time
-    if (renderable.length > 0) {
+    // Full-mode: scroll-to-content only on first appearance.
+    // Compact mode handles its own continuous auto-fit via a separate effect.
+    if (!compact && renderable.length > 0 && lastSyncedHashRef.current === '') {
       requestAnimationFrame(() => {
         api.scrollToContent(undefined, { animate: false })
       })
     }
+    if (renderable.length > 0) {
+      // Mark that we've synced at least once so the first-time fit above
+      // doesn't fire again. Use sorted IDs to keep behavior aligned with
+      // handleChange's hash dedup.
+      lastSyncedHashRef.current = JSON.stringify(renderable.map((el) => el.id).sort())
+    }
     scheduleScreenshot()
-  }, [elements, scheduleScreenshot])
+  }, [compact, elements, scheduleScreenshot])
+
+  // ── Compact mode: auto-fit on every element change ────────────────────────
+  useEffect(() => {
+    if (!compact) return
+    if (elements.length === 0) return
+    const api = apiRef.current
+    if (!api) return
+    if (autoFitTimerRef.current) clearTimeout(autoFitTimerRef.current)
+    autoFitTimerRef.current = setTimeout(() => {
+      api.scrollToContent(undefined, {
+        animate: false,
+        fitToContent: true,
+        viewportZoomFactor: 0.85,
+      })
+    }, 150)
+    return () => {
+      if (autoFitTimerRef.current) clearTimeout(autoFitTimerRef.current)
+    }
+  }, [compact, elements])
+
+  // ── Compact mode: re-fit on wrapper resize ────────────────────────────────
+  useEffect(() => {
+    if (!compact) return
+    const wrapper = wrapperRef.current
+    if (!wrapper || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => {
+      const api = apiRef.current
+      if (!api || elements.length === 0) return
+      api.scrollToContent(undefined, {
+        animate: false,
+        fitToContent: true,
+        viewportZoomFactor: 0.85,
+      })
+    })
+    ro.observe(wrapper)
+    return () => ro.disconnect()
+  }, [compact, elements])
 
   // ── Handle viewport commands from agent ───────────────────────────────────
   useEffect(() => {
@@ -356,26 +411,56 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({
     [onElementsChange, scheduleScreenshot]
   )
 
+  const isCompact = compact
+  const compactUIOptions = {
+    canvasActions: {
+      loadScene: false,
+      export: false as const,
+      saveToActiveFile: false,
+      toggleTheme: false,
+      clearCanvas: false,
+      changeViewBackgroundColor: false,
+    },
+    welcomeScreen: false,
+    tools: { image: false },
+    dockedSidebarBreakpoint: 0,
+  }
+  const fullUIOptions = {
+    canvasActions: {
+      loadScene: false,
+      export: false as const,
+      saveToActiveFile: false,
+    },
+  }
+
   return (
-    <div className="excalidraw-wrapper">
+    <div
+      className={`excalidraw-wrapper${isCompact ? ' excalidraw-wrapper-compact' : ''}`}
+      ref={wrapperRef}
+    >
       <Excalidraw
         excalidrawAPI={(api) => setApi(api as ExcalidrawImperativeAPI | null)}
-        onChange={handleChange}
-        viewModeEnabled={viewModeEnabled}
-        UIOptions={{
-          canvasActions: {
-            loadScene: false,
-            export: false,
-            saveToActiveFile: false,
-          },
-        }}
+        onChange={isCompact ? undefined : handleChange}
+        viewModeEnabled={isCompact ? true : viewModeEnabled}
+        UIOptions={isCompact ? compactUIOptions : fullUIOptions}
         theme="light"
       >
-        <MainMenu>
-          <MainMenu.DefaultItems.ClearCanvas />
-          <MainMenu.DefaultItems.ChangeCanvasBackground />
-        </MainMenu>
+        {!isCompact && (
+          <MainMenu>
+            <MainMenu.DefaultItems.ClearCanvas />
+            <MainMenu.DefaultItems.ChangeCanvasBackground />
+          </MainMenu>
+        )}
       </Excalidraw>
+      {isCompact && onMaximize && (
+        <button
+          type="button"
+          className="excal-compact-click"
+          onClick={onMaximize}
+          aria-label="Expand whiteboard"
+          title="Expand whiteboard"
+        />
+      )}
     </div>
   )
 }
