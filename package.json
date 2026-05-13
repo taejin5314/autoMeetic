@@ -3,8 +3,11 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "main": "./out/main/index.js",
   "scripts": {
     "dev": "concurrently -n proxy,vite -c cyan,green \"npm run server\" \"npm run dev:ui\"",
+    "dev:web": "concurrently -n proxy,vite -c cyan,green \"npm run server\" \"npm run dev:ui\"",
+    "dev:electron": "electron-vite dev",
     "dev:ui": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
@@ -17,6 +20,10 @@
     "smoke:store-cache": "node scripts/smoke-test-store-cache.js",
     "build:moonshine-sidecars": "node scripts/build-moonshine-sidecars.js",
     "prepare:release-packages": "node scripts/prepare-release-packages.js",
+    "build:electron": "electron-vite build",
+    "preview:electron": "electron-vite preview",
+    "build:win": "electron-vite build && electron-builder --win",
+    "build:mac": "electron-vite build && electron-builder --mac",
     "preview": "vite preview",
     "server": "node server/proxy.mjs",
     "start": "npm run dev"
@@ -35,6 +42,7 @@
     "@automeetic/moonshine-darwin-x64": "0.0.59"
   },
   "devDependencies": {
+    "@electron-toolkit/utils": "^4.0.0",
     "@eslint/js": "^10.0.1",
     "@types/express": "^5.0.6",
     "@types/node": "^24.12.3",
@@ -42,6 +50,9 @@
     "@types/react-dom": "^19.2.3",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^6.0.1",
+    "electron": "^41.5.2",
+    "electron-builder": "^26.8.1",
+    "electron-vite": "^6.0.0-beta.1",
     "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",

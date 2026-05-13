@@ -1,0 +1,29 @@
+appId: com.automeetic.app
+productName: AutoMeetic
+directories:
+  buildResources: build
+  output: release
+files:
+  - '!server/*'
+  - '!harness/*'
+  - '!docs/*'
+  - '!scripts/*'
+  - '!src/*'
+  - '!*.config.*'
+  - '!tsconfig*'
+  - '!CLAUDE.md'
+  - '!.env'
+  - '!.instructions/*'
+asarUnpack:
+  - resources/**
+win:
+  target: nsis
+  executableName: AutoMeetic
+nsis:
+  artifactName: ${name}-${version}-setup.${ext}
+  shortcutName: AutoMeetic
+  uninstallDisplayName: AutoMeetic
+mac:
+  target: dmg
+dmg:
+  artifactName: ${name}-${version}.${ext}
