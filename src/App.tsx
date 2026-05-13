@@ -26,6 +26,8 @@ import { CaptionOverlay } from './renderer/overlay/CaptionOverlay'
 import { useCaptionStore } from './renderer/overlay/useCaptionStore'
 import { Waveform } from './renderer/overlay/Waveform'
 import { ExcalidrawCanvas } from './renderer/whiteboard/ExcalidrawCanvas'
+import { AnswerAssistCard } from './renderer/answer-assist/AnswerAssistCard'
+import { useAnswerAssistStore } from './renderer/answer-assist/useAnswerAssistStore'
 
 const LANGUAGE_OPTIONS = [
   { code: 'auto', label: 'Auto detect' },
@@ -128,8 +130,9 @@ function App() {
   const [languageLock, setLanguageLock] = useState<string | null>(null)
   const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null)
   const [translatingCount, setTranslatingCount] = useState(0)
-  const { items, currentPartial, applyTranscript, applyTranslation, clearPartial, clear } =
+  const { items, currentPartial, applyTranscript, applyTranslation, clearPartial, clear, getRecentTranscript } =
     useCaptionStore()
+  const answerAssist = useAnswerAssistStore()
 
   // ── Whiteboard state (autopreso pattern) ──────────────────────────────────
   const [whiteboardElements, setWhiteboardElements] = useState<WhiteboardElement[]>([])
@@ -679,6 +682,25 @@ function App() {
     }
   }, [clear, onStop, resetConfirming, running, updateHealth])
 
+  const triggerAnswerAssist = useCallback(() => {
+    if (answerAssist.status === 'loading' || answerAssist.status === 'streaming') return
+    const transcript = getRecentTranscript(180_000)
+    if (!transcript) return
+    const sourceLang = sttLanguage === 'auto' ? (lockedLanguageRef.current ?? 'en') : sttLanguage
+    void answerAssist.requestAnswer(transcript, sourceLang)
+  }, [answerAssist, getRecentTranscript, sttLanguage])
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'A') {
+        e.preventDefault()
+        triggerAnswerAssist()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [triggerAnswerAssist])
+
   return (
     <main className="shell" ref={shellRef}>
       {/* Left side — whiteboard with live captions overlaid */}
@@ -1035,6 +1057,30 @@ function App() {
           </div>
         </section>
       </aside>
+      {/* Answer Assist — floating trigger + card */}
+      {running && (
+        <button
+          type="button"
+          className={`answer-assist-trigger ${answerAssist.status === 'loading' || answerAssist.status === 'streaming' ? 'busy' : ''}`}
+          onClick={triggerAnswerAssist}
+          title="AI Answer Assist (Ctrl+Shift+A)"
+        >
+          {answerAssist.status === 'loading' || answerAssist.status === 'streaming'
+            ? 'Thinking...'
+            : 'Answer Assist'}
+        </button>
+      )}
+      {answerAssist.status !== 'idle' && (
+        <AnswerAssistCard
+          status={answerAssist.status}
+          searchQuery={answerAssist.searchQuery}
+          answer={answerAssist.answer}
+          answerKo={answerAssist.answerKo}
+          errorMessage={answerAssist.errorMessage}
+          onDismiss={answerAssist.dismiss}
+          onCopy={answerAssist.copyAnswer}
+        />
+      )}
     </main>
   )
 }
