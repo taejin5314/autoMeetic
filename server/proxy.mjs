@@ -38,7 +38,7 @@ const RENDERER_MODEL = process.env.RENDERER_MODEL ?? 'gpt-4.1-mini'
 const GATEKEEPER_ENABLED = process.env.GATEKEEPER_ENABLED !== 'false'
 const BUFFER_MAX_WORDS = Number(process.env.WB_BUFFER_MAX_WORDS ?? 200)
 const BUFFER_MAX_MS = Number(process.env.WB_BUFFER_MAX_MS ?? 30000)
-const BUFFER_MIN_WORDS = Number(process.env.WB_BUFFER_MIN_WORDS ?? 100)
+const BUFFER_MIN_WORDS = Number(process.env.WB_BUFFER_MIN_WORDS ?? 40)
 const GATEKEEPER_COOLDOWN_MS = Number(process.env.WB_GATEKEEPER_COOLDOWN_MS ?? 15000)
 const RENDERER_COOLDOWN_MS = Number(process.env.WB_RENDERER_COOLDOWN_MS ?? 30000)
 const OPENAI_TRANSLATION_URL = 'https://api.openai.com/v1/chat/completions'
@@ -289,7 +289,7 @@ const whiteboardState = {
 const whiteboardBuffer = {
   text: '',
   wordCount: 0,
-  lastGatekeeperMs: 0,
+  lastGatekeeperMs: Date.now(),
   lastRendererMs: 0,
   flushTimer: null,
 }
@@ -304,8 +304,8 @@ function shouldFlushBuffer() {
   if (whiteboardBuffer.wordCount === 0) return false
   // Volume trigger: >= 200 words
   if (whiteboardBuffer.wordCount >= BUFFER_MAX_WORDS) return true
-  // Time trigger: >= 30s since last gatekeeper + buffer has text
-  if (sinceGatekeeper >= BUFFER_MAX_MS && whiteboardBuffer.wordCount > 0) return true
+  // Time trigger: >= 30s since last gatekeeper + enough words accumulated
+  if (sinceGatekeeper >= BUFFER_MAX_MS && whiteboardBuffer.wordCount >= BUFFER_MIN_WORDS) return true
   // Sentence-complete trigger: >= 100 words + sentence ending
   if (whiteboardBuffer.wordCount >= BUFFER_MIN_WORDS && /[.!?。？！]\s*$/.test(whiteboardBuffer.text)) return true
   return false
@@ -343,8 +343,11 @@ async function flushWhiteboardBuffer() {
   if (!apiKey) return
 
   try {
-    // Stage 1: Gatekeeper
-    if (GATEKEEPER_ENABLED) {
+    // Empty canvas bypass: skip gatekeeper and send directly to renderer
+    const canvasEmpty = whiteboardState.elements.length === 0
+
+    // Stage 1: Gatekeeper (skip when canvas is empty — always render the first diagram)
+    if (GATEKEEPER_ENABLED && !canvasEmpty) {
       const existingConcepts = extractExistingConcepts(whiteboardState.elements)
       console.log(`[proxy] gatekeeper: evaluating ${countWords(transcript)} words, ${existingConcepts.length} existing concepts`)
       const decision = await runGatekeeper(transcript, apiKey, existingConcepts)
@@ -369,7 +372,7 @@ async function flushWhiteboardBuffer() {
         return
       }
 
-      // Stage 2: Renderer
+      // Stage 2: Renderer (with gatekeeper key points)
       whiteboardBuffer.lastRendererMs = Date.now()
       whiteboardState.agentBusy = true
       broadcastWhiteboard({ type: 'whiteboard:agent-status', status: 'thinking' })
@@ -390,7 +393,9 @@ async function flushWhiteboardBuffer() {
         whiteboardState.agentBusy = false
         broadcastWhiteboard({ type: 'whiteboard:agent-status', status: 'idle' })
       }
-    } else {
+    } else if (!GATEKEEPER_ENABLED || canvasEmpty) {
+      // Gatekeeper disabled OR canvas is empty — pass transcript directly to renderer
+      if (canvasEmpty) console.log(`[proxy] canvas empty: bypassing gatekeeper, sending ${countWords(transcript)} words directly to renderer`)
       // Gatekeeper disabled — pass transcript directly to renderer (rollback mode)
       whiteboardBuffer.lastRendererMs = Date.now()
       whiteboardState.agentBusy = true
@@ -542,17 +547,24 @@ wssWhiteboard.on('connection', (clientWs) => {
  */
 async function runGatekeeper(transcript, apiKey, existingConcepts) {
   const systemPrompt = `You are a content filter for a real-time whiteboard agent.
-Your job: decide whether the transcript chunk contains NEW key points worth visualizing.
+Your job: decide whether the transcript chunk contains ANY topic worth visualizing.
 
-Rules:
-- In a 5-minute meeting, the final canvas should have only 3-5 nodes. Be extremely selective.
-- Skip if the transcript only contains filler, self-corrections, repetition, or trivial commentary.
-- Skip if the key concepts are already on the canvas (see existing_concepts list).
-- Extract only concepts with concrete meaning: named entities, decisions, comparisons, causal relationships, concrete numbers or dates.
-- Each key_point must have: concept (short label), relation (verb describing relationship), target (what it relates to).
-- diagram_hint: choose the best visualization type for this content.
+When to UPDATE (action: "update"):
+- The speaker introduces a topic, person, concept, or idea — even casually.
+- There are names, roles, comparisons, opinions, plans, or any discussable subject.
+- Self-introductions count: extract name + role/context.
+- ANY substantive content that a viewer might want to see summarized.
 
-Respond with JSON only.`
+When to SKIP (action: "skip"):
+- The transcript is ONLY filler words (uh, um, yeah, ok) with zero topical content.
+- The transcript is exact repetition of what is already on the canvas.
+
+Key point extraction:
+- Each key_point: concept (short label), relation (verb), target (what it relates to).
+- Be generous — extract 1-3 key points if there is any real content.
+- diagram_hint: choose the best visualization type.
+
+Bias toward UPDATE. When in doubt, update.`
 
   const userContent = `Existing concepts on canvas: ${JSON.stringify(existingConcepts)}
 
