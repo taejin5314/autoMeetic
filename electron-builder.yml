@@ -19,6 +19,7 @@ asarUnpack:
 win:
   target: nsis
   executableName: AutoMeetic
+  signAndEditExecutable: false
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: AutoMeetic
