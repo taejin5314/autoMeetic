@@ -74,27 +74,7 @@
 
 ### 현재 상태
 
-사전점검 결과:
-
-- 실행 스크립트: `tools/test-b2-wasapi-vbcable.ps1`
-- 결과 파일: `harness/wasapi_vbcable_result.json`
-- `status`: `BLOCKED_INSTALL_VB_CABLE`
-- `vb_cable_detected`: `false`
-- `slack_running`: `true`
-- `chrome_running`: `true`
-
-즉시 액션:
-
-1. VB-Cable 설치 (`https://vb-audio.com/Cable/`)
-2. 재부팅(필요 시)
-3. 아래 명령 재실행
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\test-b2-wasapi-vbcable.ps1
-Get-Content .\harness\wasapi_vbcable_result.json
-```
-
-수동 검증 체크리스트: `harness/B2_WASAPI_CHECKLIST.md`
+⏳ **아직 실행 안 함** — 이것은 사용자가 수행해야 할 작업
 
 ---
 
@@ -212,27 +192,6 @@ Get-Content harness/gpt_latency_result.json
 
 ---
 
-## 제품 결정 (2026-05-11)
-
-### 결정 사항
-
-1. **MVP 기본 경로는 전체 시스템 오디오 캡처**로 진행
-2. **Slack 앱 단독 캡처(앱별 오디오 분리)는 고급/프로 기능으로 후순위**
-
-### 이유
-
-1. Slack 공개 API로 huddle 오디오 스트림 직접 수신이 불가
-2. MVP 목표는 설치/검증 속도와 실제 사용성 확보
-3. 앱별 분리는 품질 향상에는 유리하지만 구현/온보딩 복잡도가 높음
-
-### 구현 원칙
-
-1. 기본 모드: 시스템 오디오 캡처 + 비동기 번역 폴백
-2. 고급 모드(후속): VB-Cable/BlackHole 기반 앱별 오디오 분리
-3. UI에서는 모드를 명확히 분리해 사용자 기대치를 관리
-
----
-
 ## 타임라인 (금요일까지)
 
 | 시간 | 작업 | 담당 | 상태 |
@@ -275,21 +234,4 @@ Get-Content harness/gpt_latency_result.json
 - 확인: Realtime WebSocket 경로는 실제 사용됨
 - 실패 원인: `input_audio_buffer_commit_empty`
 - 액션: 오디오 입력 버퍼 이벤트 포맷 정합성 확인 후 True Realtime 재측정
-
-### 2026-05-11 16:30
-
-- True Realtime 재측정 성공 (`harness/test_gpt_realtime_latency.py`)
-- 결과: STT `839.88ms`, 번역 `2296.49ms`, 총 `3136.37ms`
-- 최종 판정: 목표 `<800ms` 미달 (`FAIL`)
-
-### 2026-05-11 16:50
-
-- B2 사전점검 스크립트 추가: `tools/test-b2-wasapi-vbcable.ps1`
-- 체크리스트 추가: `harness/B2_WASAPI_CHECKLIST.md`
-- 사전점검 결과: VB-Cable 미설치 (`BLOCKED_INSTALL_VB_CABLE`)
-
-### 2026-05-11 17:05
-
-- 제품 방향 확정: 당장은 전체 시스템 오디오 캡처를 기본 경로로 채택
-- Slack 앱 단독 캡처는 고급/프로 기능으로 백로그 이동
 

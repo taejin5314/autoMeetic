@@ -47,12 +47,14 @@ Transcript → [accumulation buffer ~30s / 200 words]
 **Model:** `gpt-4.1-nano`
 
 **Input:**
+
 - Accumulated transcript text (~30s worth)
 - List of concepts already on the canvas (string array, for dedup)
 
 **Output (structured JSON via `response_format`):**
 
 Update case:
+
 ```json
 {
   "action": "update",
@@ -65,6 +67,7 @@ Update case:
 ```
 
 Skip case:
+
 ```json
 {
   "action": "skip",
@@ -73,6 +76,7 @@ Skip case:
 ```
 
 **Prompt guidelines:**
+
 - "In a 5-minute meeting, the final canvas should have 3-5 nodes. Be extremely selective."
 - "Skip if the transcript only contains filler, self-corrections, repetition of existing points, or trivial commentary."
 - "Extract only concepts with concrete meaning — named entities, decisions, comparisons, causal relationships."
@@ -87,12 +91,14 @@ Skip case:
 **Model:** `gpt-4.1-mini` (downgraded from `gpt-4.1`)
 
 **Input (changes from current):**
+
 - ~~Raw transcript~~ → Gatekeeper's `key_points` array + `diagram_hint`
 - Current canvas state (line-numbered, unchanged)
 - Screenshot (when available, unchanged)
 - History: reduced from last 4 turns to last 2 turns
 
 **System prompt changes:**
+
 - **Remove:** All transcript judgment/filtering instructions (gatekeeper handles this)
 - **Keep:** Shape specs, layout rules, color rules, arrow rules
 - **Add:** `diagram_hint` usage — "If hint is comparison, use 2-column layout; if flow, use left-to-right; if timeline, use horizontal timeline"
@@ -105,15 +111,18 @@ Skip case:
 ## Accumulation Buffer
 
 **Trigger conditions (OR):**
+
 1. **Time-based:** 30 seconds since last gatekeeper call + buffer has text
 2. **Volume-based:** Buffer has >= 200 words
 3. **Sentence-complete:** Buffer has >= 100 words + sentence-ending punctuation detected
 
 **Cooldowns:**
+
 - Gatekeeper calls: minimum 15s apart
 - Renderer calls: minimum 30s apart
 
 **Implementation:**
+
 - New `createGatekeeperQueue` wrapper function in `server/proxy.mjs`
 - Handles buffer accumulation + trigger logic
 - On trigger: calls gatekeeper → if "update", calls renderer
@@ -123,12 +132,13 @@ Skip case:
 
 ## File Changes
 
-| File | Change |
-|---|---|
-| `server/proxy.mjs` | Add gatekeeper call function, refactor `runWhiteboardAgentProxy` into 2-stage pipeline, replace buffer/queue, update model constants |
+| File                            | Change                                                                                                                                                                          |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `server/proxy.mjs`              | Add gatekeeper call function, refactor `runWhiteboardAgentProxy` into 2-stage pipeline, replace buffer/queue, update model constants                                            |
 | `server/whiteboard-runtime.mjs` | Simplify `whiteboardSystemPrompt()` (remove transcript judgment, add diagram_hint, tighten node limit), update `buildWhiteboardAgentMessages()` input format (key_points based) |
 
 **No changes to:**
+
 - `src/` (frontend unchanged — server message format identical)
 - Existing utils: `applyWhiteboardEditOperations`, `normalizeWhiteboardElements`, `formatLineNumberedWhiteboard`
 

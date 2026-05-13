@@ -60,45 +60,27 @@ Skip the full spec for trivial one-liner changes. Apply it in full for features,
 
 ---
 
-## gstack Sprint Workflow
+## Superpowers Development Methodology
 
-Source: https://github.com/garrytan/gstack
+Source: https://github.com/obra/superpowers
 
-Every non-trivial feature follows this order. Do not skip steps.
+Superpowers is a complete software development methodology built on composable skills that auto-trigger at the right moments.
 
-```
-Think → Plan → Build → Review → Test → Ship → Reflect
-```
+### Core Workflow
 
-### Step-by-step
+1. **Brainstorming** — Refine rough ideas through questions, explore alternatives, present design in sections for validation. Saves design document.
+2. **Planning** — Break work into bite-sized tasks (2-5 min each) with exact file paths, complete code, and verification steps.
+3. **Execution** — Dispatch subagents per task with two-stage review (spec compliance, then code quality), or execute in batches with human checkpoints.
+4. **TDD** — Enforce RED-GREEN-REFACTOR: write failing test, watch it fail, write minimal code, watch it pass, commit.
+5. **Code Review** — Review against plan, report issues by severity. Critical issues block progress.
+6. **Verification** — Ensure it's actually fixed before declaring success.
 
-| Stage | What to do | gstack skill |
-|---|---|---|
-| **Think** | Run 6 forcing questions. Challenge the framing. Surface hidden assumptions before any code. | `/office-hours` |
-| **Plan (CEO)** | Rethink the problem. Find the simplest wedge. Four modes: Expansion / Hold / Reduction. | `/plan-ceo-review` |
-| **Plan (Eng)** | Lock architecture, data flow, edge cases, test plan. No hidden assumptions. | `/plan-eng-review` |
-| **Plan (Design)** | Rate each design dimension 0-10. Fix the plan before implementation. | `/plan-design-review` |
-| **Build** | Implement only what the plan says. Surgical changes. No speculative features. | — |
-| **Review** | Catch bugs that pass CI but blow up in production. Auto-fix obvious ones. | `/review` |
-| **Test** | Open a real browser. Find bugs, fix with atomic commits, re-verify. | `/qa` |
-| **Ship** | Sync main, run tests, push, open PR. | `/ship` |
-| **Reflect** | Weekly retro: what shipped, what slipped, growth areas. | `/retro` |
+### Philosophy
 
-### Review routing
-
-| Audience | Plan review | Live review |
-|---|---|---|
-| End users (UI, web app) | `/plan-design-review` | `/design-review` |
-| Architecture / perf / tests | `/plan-eng-review` | `/review` |
-| All of the above | `/autoplan` | — |
-
-### Hard rules from gstack
-
-- `/office-hours` runs **before** writing any code on a new feature. No exceptions.
-- `/review` runs on every branch with changes before merging.
-- `/investigate` before fixing any bug. Iron Law: no fixes without root cause.
-- `/careful` or `/guard` when touching production or running destructive commands.
-- Do not skip planning stages to move faster — skipped planning creates rewrites.
+- **Test-Driven Development** — Write tests first, always
+- **Systematic over ad-hoc** — Process over guessing
+- **Complexity reduction** — Simplicity as primary goal
+- **Evidence over claims** — Verify before declaring success
 
 ---
 
@@ -107,6 +89,7 @@ Think → Plan → Build → Review → Test → Ship → Reflect
 **Don't assume. Don't hide confusion. Surface tradeoffs.**
 
 Before implementing:
+
 - State your assumptions explicitly. If uncertain, ask.
 - If multiple interpretations exist, present them - don't pick silently.
 - If a simpler approach exists, say so. Push back when warranted.
@@ -129,12 +112,14 @@ Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, sim
 **Touch only what you must. Clean up only your own mess.**
 
 When editing existing code:
+
 - Don't "improve" adjacent code, comments, or formatting.
 - Don't refactor things that aren't broken.
 - Match existing style, even if you'd do it differently.
 - If you notice unrelated dead code, mention it - don't delete it.
 
 When your changes create orphans:
+
 - Remove imports/variables/functions that YOUR changes made unused.
 - Don't remove pre-existing dead code unless asked.
 
@@ -145,11 +130,13 @@ The test: Every changed line should trace directly to the user's request.
 **Define success criteria. Loop until verified.**
 
 Transform tasks into verifiable goals:
+
 - "Add validation" → "Write tests for invalid inputs, then make them pass"
 - "Fix the bug" → "Write a test that reproduces it, then make it pass"
 - "Refactor X" → "Ensure tests pass before and after"
 
 For multi-step tasks, state a brief plan:
+
 ```
 1. [Step] → verify: [check]
 2. [Step] → verify: [check]

@@ -14,10 +14,10 @@
 
 ## File Structure
 
-| File | Role | Action |
-|---|---|---|
-| `server/proxy.mjs` | Proxy server — gatekeeper call, accumulation buffer, pipeline orchestration | Modify |
-| `server/whiteboard-runtime.mjs` | Whiteboard agent messages, system prompt, layout utils | Modify |
+| File                            | Role                                                                        | Action |
+| ------------------------------- | --------------------------------------------------------------------------- | ------ |
+| `server/proxy.mjs`              | Proxy server — gatekeeper call, accumulation buffer, pipeline orchestration | Modify |
+| `server/whiteboard-runtime.mjs` | Whiteboard agent messages, system prompt, layout utils                      | Modify |
 
 No new files. No frontend changes.
 
@@ -26,6 +26,7 @@ No new files. No frontend changes.
 ### Task 1: Add gatekeeper constants and model config to proxy.mjs
 
 **Files:**
+
 - Modify: `server/proxy.mjs:33-36` (near existing `WHITEBOARD_MODEL` constant)
 
 - [ ] **Step 1: Add new constants after existing model constants**
@@ -50,8 +51,8 @@ Remove the old `const WHITEBOARD_MODEL` line — it is replaced by `RENDERER_MOD
 Find the `server.listen` callback at the bottom of the file. After the existing log lines, add:
 
 ```js
-  console.log(`  Whiteboard gatekeeper: ${GATEKEEPER_ENABLED ? GATEKEEPER_MODEL : 'disabled'}`)
-  console.log(`  Whiteboard renderer:   ${RENDERER_MODEL}`)
+console.log(`  Whiteboard gatekeeper: ${GATEKEEPER_ENABLED ? GATEKEEPER_MODEL : 'disabled'}`)
+console.log(`  Whiteboard renderer:   ${RENDERER_MODEL}`)
 ```
 
 - [ ] **Step 3: Verify the server starts without errors**
@@ -71,6 +72,7 @@ git commit -m "feat(whiteboard): add gatekeeper pipeline constants"
 ### Task 2: Implement the gatekeeper call function in proxy.mjs
 
 **Files:**
+
 - Modify: `server/proxy.mjs` (add function before `runWhiteboardAgentProxy`)
 
 - [ ] **Step 1: Add `runGatekeeper` function**
@@ -199,11 +201,13 @@ git commit -m "feat(whiteboard): add gatekeeper call function"
 ### Task 3: Implement accumulation buffer and replace whiteboardQueue
 
 **Files:**
+
 - Modify: `server/proxy.mjs` (replace `whiteboardQueue` creation, lines ~282-320)
 
 - [ ] **Step 1: Replace the whiteboardQueue with a 2-stage accumulation buffer**
 
 Find the block starting with:
+
 ```js
 const whiteboardQueue = createTranscriptTurnQueue({
   debounceMs: 3000,
@@ -236,7 +240,11 @@ function shouldFlushBuffer() {
   // Time trigger: >= 30s since last gatekeeper + buffer has text
   if (sinceGatekeeper >= BUFFER_MAX_MS && whiteboardBuffer.wordCount > 0) return true
   // Sentence-complete trigger: >= 100 words + sentence ending
-  if (whiteboardBuffer.wordCount >= BUFFER_MIN_WORDS && /[.!?。？！]\s*$/.test(whiteboardBuffer.text)) return true
+  if (
+    whiteboardBuffer.wordCount >= BUFFER_MIN_WORDS &&
+    /[.!?。？！]\s*$/.test(whiteboardBuffer.text)
+  )
+    return true
   return false
 }
 
@@ -275,7 +283,9 @@ async function flushWhiteboardBuffer() {
     // Stage 1: Gatekeeper
     if (GATEKEEPER_ENABLED) {
       const existingConcepts = extractExistingConcepts(whiteboardState.elements)
-      console.log(`[proxy] gatekeeper: evaluating ${countWords(transcript)} words, ${existingConcepts.length} existing concepts`)
+      console.log(
+        `[proxy] gatekeeper: evaluating ${countWords(transcript)} words, ${existingConcepts.length} existing concepts`
+      )
       const decision = await runGatekeeper(transcript, apiKey, existingConcepts)
 
       if (turnResetVersion !== whiteboardState.resetVersion) return
@@ -285,14 +295,20 @@ async function flushWhiteboardBuffer() {
         return
       }
 
-      console.log(`[proxy] gatekeeper: UPDATE — ${decision.key_points.length} key points, hint: ${decision.diagram_hint}`)
+      console.log(
+        `[proxy] gatekeeper: UPDATE — ${decision.key_points.length} key points, hint: ${decision.diagram_hint}`
+      )
 
       // Renderer cooldown check
       const sinceRenderer = Date.now() - whiteboardBuffer.lastRendererMs
       if (sinceRenderer < RENDERER_COOLDOWN_MS) {
-        console.log(`[proxy] renderer cooldown: ${RENDERER_COOLDOWN_MS - sinceRenderer}ms remaining, deferring`)
+        console.log(
+          `[proxy] renderer cooldown: ${RENDERER_COOLDOWN_MS - sinceRenderer}ms remaining, deferring`
+        )
         // Put key points back conceptually — re-buffer a summary
-        whiteboardBuffer.text = decision.key_points.map(kp => `${kp.concept} ${kp.relation} ${kp.target}`).join('. ')
+        whiteboardBuffer.text = decision.key_points
+          .map((kp) => `${kp.concept} ${kp.relation} ${kp.target}`)
+          .join('. ')
         whiteboardBuffer.wordCount = countWords(whiteboardBuffer.text)
         scheduleBufferCheck()
         return
@@ -304,10 +320,20 @@ async function flushWhiteboardBuffer() {
       broadcastWhiteboard({ type: 'whiteboard:agent-status', status: 'thinking' })
 
       try {
-        const result = await runWhiteboardAgentProxy(decision.key_points, decision.diagram_hint, apiKey, turnResetVersion)
+        const result = await runWhiteboardAgentProxy(
+          decision.key_points,
+          decision.diagram_hint,
+          apiKey,
+          turnResetVersion
+        )
         if (turnResetVersion !== whiteboardState.resetVersion) return
 
-        console.log('[proxy] renderer: applying result — elements:', result.elements?.length ?? 0, 'viewport:', !!result.viewport)
+        console.log(
+          '[proxy] renderer: applying result — elements:',
+          result.elements?.length ?? 0,
+          'viewport:',
+          !!result.viewport
+        )
         if (result.elements) {
           whiteboardState.elements = result.elements
           broadcastWhiteboard({ type: 'whiteboard:update', elements: result.elements })
@@ -326,7 +352,13 @@ async function flushWhiteboardBuffer() {
       broadcastWhiteboard({ type: 'whiteboard:agent-status', status: 'thinking' })
 
       try {
-        const result = await runWhiteboardAgentProxy(null, null, apiKey, turnResetVersion, transcript)
+        const result = await runWhiteboardAgentProxy(
+          null,
+          null,
+          apiKey,
+          turnResetVersion,
+          transcript
+        )
         if (turnResetVersion !== whiteboardState.resetVersion) return
 
         if (result.elements) {
@@ -394,6 +426,7 @@ git commit -m "feat(whiteboard): replace queue with 2-stage accumulation buffer"
 ### Task 4: Refactor runWhiteboardAgentProxy to accept key_points instead of transcript
 
 **Files:**
+
 - Modify: `server/proxy.mjs` (the `runWhiteboardAgentProxy` function, ~line 420+)
 
 - [ ] **Step 1: Change the function signature and message building**
@@ -452,11 +485,13 @@ async function runWhiteboardAgentProxy(
 - [ ] **Step 2: Change the model reference from WHITEBOARD_MODEL to RENDERER_MODEL**
 
 In the same function, find:
+
 ```js
     model: WHITEBOARD_MODEL,
 ```
 
 Replace with:
+
 ```js
     model: RENDERER_MODEL,
 ```
@@ -464,28 +499,32 @@ Replace with:
 - [ ] **Step 3: Update the history push to use key_points format**
 
 In the same function, near the end, find:
+
 ```js
-  whiteboardState.agentHistory.push({ role: 'user', content: `Speaker turn:\n${transcript}` })
+whiteboardState.agentHistory.push({ role: 'user', content: `Speaker turn:\n${transcript}` })
 ```
 
 Replace with:
+
 ```js
-  const turnSummary = rawTranscript
-    ? `Speaker turn:\n${rawTranscript}`
-    : `Key points:\n${JSON.stringify(keyPoints)}\nDiagram hint: ${diagramHint}`
-  whiteboardState.agentHistory.push({ role: 'user', content: turnSummary })
+const turnSummary = rawTranscript
+  ? `Speaker turn:\n${rawTranscript}`
+  : `Key points:\n${JSON.stringify(keyPoints)}\nDiagram hint: ${diagramHint}`
+whiteboardState.agentHistory.push({ role: 'user', content: turnSummary })
 ```
 
 - [ ] **Step 4: Reduce history window from 4 to 2 turns**
 
 In the same function, find:
+
 ```js
-  whiteboardState.agentHistory = whiteboardState.agentHistory.slice(-10)
+whiteboardState.agentHistory = whiteboardState.agentHistory.slice(-10)
 ```
 
 Replace with:
+
 ```js
-  whiteboardState.agentHistory = whiteboardState.agentHistory.slice(-4)
+whiteboardState.agentHistory = whiteboardState.agentHistory.slice(-4)
 ```
 
 (4 entries = 2 turns of user+assistant pairs)
@@ -507,6 +546,7 @@ git commit -m "feat(whiteboard): refactor renderer to accept key_points from gat
 ### Task 5: Update buildWhiteboardAgentMessages to accept key_points
 
 **Files:**
+
 - Modify: `server/whiteboard-runtime.mjs` (the `buildWhiteboardAgentMessages` function and `formatCurrentCanvasTask` function)
 
 - [ ] **Step 1: Update buildWhiteboardAgentMessages signature and body**
@@ -605,6 +645,7 @@ git commit -m "feat(whiteboard): update message builder for key_points input"
 ### Task 6: Simplify the renderer system prompt
 
 **Files:**
+
 - Modify: `server/whiteboard-runtime.mjs` (the `whiteboardSystemPrompt` function)
 
 - [ ] **Step 1: Replace the entire whiteboardSystemPrompt function**
@@ -694,19 +735,22 @@ git commit -m "feat(whiteboard): simplify renderer prompt for 2-stage pipeline"
 ### Task 7: Update whiteboard reset handler for new buffer
 
 **Files:**
+
 - Modify: `server/proxy.mjs` (the `whiteboard:reset` message handler)
 
 - [ ] **Step 1: Add buffer reset to the reset handler**
 
 Find the `whiteboard:reset` handler block. After the line:
+
 ```js
-      whiteboardQueue.clear()
+whiteboardQueue.clear()
 ```
 
 Add:
+
 ```js
-      whiteboardBuffer.lastGatekeeperMs = 0
-      whiteboardBuffer.lastRendererMs = 0
+whiteboardBuffer.lastGatekeeperMs = 0
+whiteboardBuffer.lastRendererMs = 0
 ```
 
 This ensures cooldown timers reset when the user clears the whiteboard.
@@ -728,6 +772,7 @@ git commit -m "fix(whiteboard): reset buffer cooldowns on whiteboard reset"
 ### Task 8: End-to-end manual smoke test
 
 **Files:**
+
 - No file changes — manual verification only
 
 - [ ] **Step 1: Start the full app**
@@ -742,6 +787,7 @@ Open `http://localhost:5173` in Chrome. Click the start button, share a browser 
 - [ ] **Step 3: Observe console logs for gatekeeper decisions**
 
 Watch the terminal running the proxy server. Look for:
+
 - `[proxy] gatekeeper: evaluating N words, M existing concepts` — buffer flush
 - `[proxy] gatekeeper: SKIP — ...` — gatekeeper decided not to update
 - `[proxy] gatekeeper: UPDATE — N key points, hint: ...` — key points extracted
@@ -750,6 +796,7 @@ Watch the terminal running the proxy server. Look for:
 - [ ] **Step 4: Verify success criteria**
 
 Check:
+
 1. Gatekeeper skip messages appear (target: >= 50% of evaluations)
 2. Final canvas has 3-5 meaningful nodes (not 10+ cluttered ones)
 3. Renderer called <= 5 times during the session
@@ -758,6 +805,7 @@ Check:
 - [ ] **Step 5: Commit any log/tuning fixes if needed**
 
 If constants need adjustment based on testing:
+
 ```bash
 git add -A
 git commit -m "fix(whiteboard): tune pipeline parameters after smoke test"

@@ -32,7 +32,12 @@ const DRAWING_TYPES = new Set(['rectangle', 'ellipse', 'diamond', 'arrow', 'text
 const CHAR_WIDTH_RATIO = 0.6
 const PADDING_PER_SIDE = 24
 
-export function createTranscriptTurnQueue({ runTurn, debounceMs = 150, cooldownMs = 0, isReady = () => true }) {
+export function createTranscriptTurnQueue({
+  runTurn,
+  debounceMs = 150,
+  cooldownMs = 0,
+  isReady = () => true,
+}) {
   let running = false
   let buffered = []
   let current = Promise.resolve()
@@ -190,7 +195,9 @@ export function applyWhiteboardEditOperations(elements, operations) {
 
     if (op.type === 'replace') {
       if (!Number.isInteger(op.line) || op.line < 1 || op.line > nextElements.length) {
-        console.warn(`[whiteboard] skipping replace: line ${op.line} out of range (${nextElements.length} elements)`)
+        console.warn(
+          `[whiteboard] skipping replace: line ${op.line} out of range (${nextElements.length} elements)`
+        )
         continue
       }
       nextElements[op.line - 1] = op.element
@@ -198,7 +205,9 @@ export function applyWhiteboardEditOperations(elements, operations) {
     }
     if (op.type === 'insert_after') {
       if (!Number.isInteger(op.line) || op.line < 0 || op.line > nextElements.length) {
-        console.warn(`[whiteboard] skipping insert_after: line ${op.line} out of range (${nextElements.length} elements)`)
+        console.warn(
+          `[whiteboard] skipping insert_after: line ${op.line} out of range (${nextElements.length} elements)`
+        )
         continue
       }
       nextElements.splice(op.line, 0, op.element)
@@ -206,13 +215,18 @@ export function applyWhiteboardEditOperations(elements, operations) {
     }
     if (op.type === 'delete') {
       if (!Number.isInteger(op.line) || op.line < 1 || op.line > nextElements.length) {
-        console.warn(`[whiteboard] skipping delete: line ${op.line} out of range (${nextElements.length} elements)`)
+        console.warn(
+          `[whiteboard] skipping delete: line ${op.line} out of range (${nextElements.length} elements)`
+        )
         continue
       }
       nextElements.splice(op.line - 1, 1)
       continue
     }
-    console.warn(`[whiteboard] skipping unknown edit operation "${op.type ?? 'unknown'}"`, JSON.stringify(op).slice(0, 200))
+    console.warn(
+      `[whiteboard] skipping unknown edit operation "${op.type ?? 'unknown'}"`,
+      JSON.stringify(op).slice(0, 200)
+    )
   }
   return normalizeWhiteboardElements(nextElements)
 }
@@ -254,7 +268,7 @@ function normalizeOperationType(op) {
   // If has drawing-like properties (x, y), infer as a drawing element
   if (typeof op.x === 'number' && typeof op.y === 'number') {
     if (typeof op.width === 'number' && typeof op.height === 'number') {
-      const inferredType = (op.text && !op.label) ? 'text' : 'rectangle'
+      const inferredType = op.text && !op.label ? 'text' : 'rectangle'
       return { ...op, type: inferredType }
     }
     // Arrow-like: has points or startBinding/endBinding
@@ -269,7 +283,14 @@ function normalizeOperationType(op) {
 
   // Last resort: if has an id and label/text, make it a rectangle with defaults
   if (typeof op.id === 'string' && (op.label || op.text)) {
-    return { ...op, type: 'rectangle', x: op.x ?? 0, y: op.y ?? 0, width: op.width ?? 200, height: op.height ?? 60 }
+    return {
+      ...op,
+      type: 'rectangle',
+      x: op.x ?? 0,
+      y: op.y ?? 0,
+      width: op.width ?? 200,
+      height: op.height ?? 60,
+    }
   }
 
   return op
