@@ -2,6 +2,7 @@ import { app, BrowserWindow, shell, globalShortcut, Tray, Menu, nativeImage } fr
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import 'dotenv/config'
+import { registerIpcHandlers, registerWindowNotifiers } from './ipc'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -86,6 +87,8 @@ function registerGlobalShortcuts(): void {
 
 app.whenReady().then(() => {
   createWindow()
+  registerIpcHandlers(mainWindow!)
+  registerWindowNotifiers(mainWindow!)
   createTray()
   registerGlobalShortcuts()
 
