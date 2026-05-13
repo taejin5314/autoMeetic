@@ -769,8 +769,13 @@ When to SKIP (action: "skip"):
 - The transcript is exact repetition of what is already on the canvas.
 
 Key point extraction:
-- Each key_point: concept (short label), relation (verb), target (what it relates to).
-- Be generous — extract 1-3 key points if there is any real content.
+- concept: 1-4 word abstract keyword. NEVER copy transcript verbatim.
+  Good: "Iran proposal", "survival odds", "US stance"
+  Bad: "Most recent proposal from Iran is garbage"
+- relation: choose the most fitting verb from the allowed set.
+- target: 1-4 word abstract keyword, same rules as concept.
+- If the transcript is about ONE topic, emit 1 key_point with the core idea.
+- If comparing/contrasting, emit 2-3 key_points showing the relationship.
 - diagram_hint: choose the best visualization type.
 
 Bias toward UPDATE. When in doubt, update.`
@@ -805,7 +810,7 @@ ${transcript}`
                   type: 'object',
                   properties: {
                     concept: { type: 'string' },
-                    relation: { type: 'string' },
+                    relation: { type: 'string', enum: ['causes', 'opposes', 'supports', 'leads-to', 'part-of', 'compares-to', 'defines', 'blocks'] },
                     target: { type: 'string' },
                   },
                   required: ['concept', 'relation', 'target'],

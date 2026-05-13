@@ -409,7 +409,7 @@ export function buildWhiteboardAgentMessages({
 }
 
 function formatCurrentCanvasTask(elements, latestScreenshot) {
-  const text = `Current line-numbered whiteboard content:\n${formatLineNumberedWhiteboard(elements)}\n\nTask:\nUse the provided key points to update the canvas. Each key point has already been validated as worth visualizing.\n\nIf updating, use whiteboard_apply for targeted changes (operations + viewport in ONE call). Use whiteboard_overwrite only when you need to clear, reset, or start fresh. Keep the canvas to 5 nodes maximum \u2014 when adding new points, consolidate or replace existing nodes. In the same whiteboard_apply call, also include viewport with action "scroll_to_content" AND focus_ids naming the most relevant elements \u2014 never call scroll_to_content without focus_ids. Make ONE whiteboard_apply call per turn. The attached screenshot (when present) shows the audience's current viewport \u2014 use it to verify labels are visible and the layout is readable.`
+  const text = `Current line-numbered whiteboard content:\n${formatLineNumberedWhiteboard(elements)}\n\nTask:\nUse the provided key points to update the canvas. Each key point has already been validated as worth visualizing.\n\nIf updating, use whiteboard_apply for targeted changes (operations + viewport in ONE call). Use whiteboard_overwrite only when you need to clear, reset, or start fresh. Keep the canvas to 5 nodes maximum \u2014 when adding new points, consolidate or replace existing nodes. In the same whiteboard_apply call, also include viewport with action "scroll_to_content" AND focus_ids naming the most relevant elements \u2014 never call scroll_to_content without focus_ids. Make ONE whiteboard_apply call per turn. The attached screenshot (when present) shows the audience's current viewport \u2014 use it to verify labels are visible and the layout is readable.\n\nLabel quality:\n- Labels must be 1-4 word keywords \u2014 never sentences or transcript quotes.\n- Every relationship between key_points must be shown as a labeled arrow.\n- Follow the diagram type layout pattern strictly.`
   if (typeof latestScreenshot === 'string' && latestScreenshot) {
     return [
       { type: 'text', text },
@@ -432,12 +432,43 @@ export function whiteboardSystemPrompt() {
 You receive pre-filtered key points (already validated as worth visualizing) and update a canvas diagram.
 The key points include a diagram_hint suggesting the best visualization type.
 
-Diagram type guidelines:
-- comparison: 2-column layout, items side by side
-- flow: left-to-right cause/effect chain
-- timeline: horizontal timeline with events
-- concept-map: central concept with radiating connections
-- hierarchy: top-down tree structure
+Diagram type guidelines (follow the spatial pattern strictly):
+
+- comparison: 2-column layout.
+  Left column x=100, right column x=550, y starts at 120.
+  Central title at top center. Items vertically stacked in each column.
+
+- flow: left-to-right chain.
+  Start x=80, each node offset +220px horizontally. Arrows between each step.
+  All nodes at same y=200 for a clean horizontal line.
+
+- timeline: horizontal timeline.
+  Baseline arrow at y=300 spanning full width.
+  Events as nodes above/below the baseline, evenly spaced.
+
+- concept-map: central hub with spokes.
+  Central node at (400, 340). Related nodes arranged in a circle
+  at radius ~220px. Arrows radiate from center to each spoke.
+
+- hierarchy: top-down tree.
+  Root at top center (400, 80). Children evenly spaced below,
+  each level +160px down. Arrows from parent to children.
+
+Relationship visualization:
+- Each key_point has concept -> relation -> target.
+  Draw an arrow FROM the concept node TO the target node.
+  Use the relation as the arrow label (e.g., "opposes", "leads-to").
+- If concept or target already exists on canvas, reuse that node — do not duplicate.
+
+Before drawing, mentally plan:
+1. List all unique nodes (deduplicate concept/target across key_points).
+2. Assign each node a position following the diagram type pattern.
+3. Then emit the whiteboard_apply call with all elements and arrows.
+
+When receiving raw transcript (no pre-filtered key points):
+- Extract 2-5 abstract keywords from the transcript yourself.
+- NEVER use transcript sentences as node labels.
+- Choose the most fitting diagram type based on content.
 
 Canvas rules:
 - Maximum 5 primary nodes. When adding new points, consolidate or replace existing nodes rather than appending.
@@ -469,7 +500,7 @@ Label rules:
 - ALWAYS use a shape's "label" field for text inside a shape.
 - NEVER place standalone "text" on top of a shape.
 - Standalone text is only for canvas title, section headers outside shapes, and axis labels.
-- Keep labels 3-7 words, 2-3 lines max.
+- Keep labels 1-4 words, 2-3 lines max. NEVER use transcript sentences as labels.
 - Make shapes large enough for labels plus 24px padding.
 - Every shape must have a non-empty label.
 
