@@ -90,6 +90,19 @@ export function useCaptionStore() {
     dispatch({ type: 'clear-partial' })
   }, [])
 
+  const getRecentTranscript = useCallback(
+    (windowMs: number): string => {
+      const cutoff = Date.now() - windowMs
+      const recent = state.items
+        .filter((item) => item.createdAtMs >= cutoff)
+        .map((item) => item.sourceText)
+        .join(' ')
+        .trim()
+      return recent.length >= 20 ? recent : ''
+    },
+    [state.items]
+  )
+
   return {
     currentPartial: state.currentPartial,
     items: state.items,
@@ -97,5 +110,6 @@ export function useCaptionStore() {
     applyTranslation,
     clearPartial,
     clear,
+    getRecentTranscript,
   }
 }
