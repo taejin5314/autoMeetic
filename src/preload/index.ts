@@ -16,12 +16,15 @@ const electronAPI: ElectronAPI = {
   translate: (text, targetLang) => ipcRenderer.invoke('translate', { text, targetLang }),
   startAnswerAssist: (transcript, lang) =>
     ipcRenderer.invoke('start-answer-assist', { transcript, lang }),
+  resetActionItems: () => ipcRenderer.invoke('reset-action-items'),
   updateVocabulary: (keywords) => ipcRenderer.invoke('update-vocabulary', { keywords }),
   checkHealth: () => ipcRenderer.invoke('check-health'),
+  setTranscriptLanguages: (args) => ipcRenderer.invoke('stt:set-languages', args),
 
   // Audio/STT
   startTranscription: (language) => ipcRenderer.invoke('start-transcription', { language }),
   stopTranscription: () => ipcRenderer.invoke('stop-transcription'),
+  resetTranscriptPostProcessor: () => ipcRenderer.invoke('reset-transcript-postprocessor'),
   sendAudio: (base64Chunk) => ipcRenderer.send('send-audio', { chunk: base64Chunk }),
 
   // Whiteboard
@@ -33,6 +36,7 @@ const electronAPI: ElectronAPI = {
   onSttReady: createEventListener('stt:ready') as ElectronAPI['onSttReady'],
   onSttPartial: createEventListener('stt:partial') as ElectronAPI['onSttPartial'],
   onSttCommitted: createEventListener('stt:committed') as ElectronAPI['onSttCommitted'],
+  onSttProcessed: createEventListener('stt:processed') as ElectronAPI['onSttProcessed'],
   onSttError: createEventListener('stt:error') as ElectronAPI['onSttError'],
   onWhiteboardUpdate: createEventListener('whiteboard:update') as ElectronAPI['onWhiteboardUpdate'],
   onWhiteboardViewport: createEventListener(
@@ -44,6 +48,10 @@ const electronAPI: ElectronAPI = {
   onAnswerAssistEvent: createEventListener(
     'answer-assist:event'
   ) as ElectronAPI['onAnswerAssistEvent'],
+  onActionItemsSuggested: createEventListener(
+    'actions:suggested'
+  ) as ElectronAPI['onActionItemsSuggested'],
+  onActionItemsReset: createEventListener('actions:reset') as ElectronAPI['onActionItemsReset'],
 }
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

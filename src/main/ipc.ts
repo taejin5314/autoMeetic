@@ -41,8 +41,27 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   ipcMain.handle('stop-transcription', async () => {
     const { stopTranscription } = await import('./sttService')
-    stopTranscription()
+    await stopTranscription()
   })
+
+  ipcMain.handle('reset-transcript-postprocessor', async () => {
+    const { resetTranscriptPostProcessor } = await import('./transcriptPostProcessor')
+    resetTranscriptPostProcessor()
+  })
+
+  ipcMain.handle('reset-action-items', async () => {
+    const { resetActionItems } = await import('./actionItemService')
+    resetActionItems()
+  })
+
+  ipcMain.handle(
+    'stt:set-languages',
+    (_event, args: { sourceLanguage: string; targetLanguage: string }) => {
+      void import('./sttService').then(({ setPostProcessorLanguages }) => {
+        setPostProcessorLanguages(args)
+      })
+    }
+  )
 
   ipcMain.on('send-audio', (_event, args: { chunk: string }) => {
     void import('./sttService').then(({ sendAudioChunk }) => {

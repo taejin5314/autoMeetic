@@ -21,6 +21,9 @@ import { TranscriptBus } from '../main/stt/transcriptBus'
 import type { TranscriptSegment, TranslationSegment } from '../main/stt/types'
 import { log } from '../main/telemetry/logger'
 import type { ViewportCommand, WhiteboardElement } from '../main/whiteboard/types'
+import { ActionItemsPanel } from './actions/ActionItemsPanel'
+import { isActionItem } from './actions/types'
+import { useActionItemsStore } from './actions/useActionItemsStore'
 import { AnswerAssistCard } from './answer-assist/AnswerAssistCard'
 import { useAnswerAssistStore } from './answer-assist/useAnswerAssistStore'
 import { translate as apiTranslate, isElectron } from './api'
@@ -50,9 +53,19 @@ const LOCKABLE_LANGUAGE_CODES = new Set(['ko', 'en', 'ja', 'zh'])
 const META_TRANSLATION_RE =
   /\b(this text appears|let me translate|translation|translate it|appears to be a mix)\b/i
 const TRANSLATION_CONCURRENCY = 2
-const FEED_MAX_WORDS = 15
+const FEED_MAX_WORDS = 8
 const FEED_SENTENCE_END_RE = /[.!?。？！]\s*$/
+const HERO_CAPTION_MAX_WORDS = 16
+const HERO_CAPTION_MAX_CHARS = 120
 const CAPTION_COMMITTED_HOLD_MS = 3500
+const DEFAULT_STT_LANGUAGE = 'auto'
+const DEFAULT_TRANSLATION_TARGET = 'ko'
+const TRANSLATION_TARGET_STORAGE_KEY = 'automeetic.translationTarget'
+const TRANSLATION_TARGET_OPTIONS = new Set([
+  'off',
+  ...LANGUAGE_OPTIONS.filter((language) => language.code !== 'auto').map((language) => language.code),
+])
+const FINAL_DEDUPE_WINDOW_MS = 10_000
 
 type TranslationJob = {
   segment: TranscriptSegment
@@ -67,6 +80,26 @@ type DetectedLanguage = {
 
 function countMatches(text: string, pattern: RegExp): number {
   return text.match(pattern)?.length ?? 0
+}
+
+function compactHeroCaption(text: string): string {
+  const normalized = text.replace(/\s+/g, ' ').trim()
+  if (normalized.length <= HERO_CAPTION_MAX_CHARS) return normalized
+
+  const words = normalized.split(' ')
+  let tail = words.slice(-HERO_CAPTION_MAX_WORDS).join(' ')
+
+  while (tail.length > HERO_CAPTION_MAX_CHARS) {
+    const nextSpaceIndex = tail.indexOf(' ')
+    if (nextSpaceIndex === -1) break
+    tail = tail.slice(nextSpaceIndex + 1)
+  }
+
+  return tail === normalized ? tail : `...${tail}`
+}
+
+function normalizeFinalTranscript(text: string): string {
+  return text.toLowerCase().replace(/[\s.,!?。？！'"`~:;()[\]{}-]+/g, '')
 }
 
 function detectTranscriptLanguage(text: string): DetectedLanguage | null {
@@ -111,6 +144,12 @@ function isWhiteboardElement(value: unknown): value is WhiteboardElement {
   return typeof element.id === 'string' && typeof element.type === 'string'
 }
 
+function getInitialTranslationTarget(): string {
+  const storedTarget = window.localStorage.getItem(TRANSLATION_TARGET_STORAGE_KEY)
+  if (storedTarget && TRANSLATION_TARGET_OPTIONS.has(storedTarget)) return storedTarget
+  return DEFAULT_TRANSLATION_TARGET
+}
+
 function App() {
   const shellRef = useRef<HTMLElement | null>(null)
   const resetTimeoutRef = useRef<number | null>(null)
@@ -127,8 +166,8 @@ function App() {
   const [whiteboardConnected, setWhiteboardConnected] = useState(false)
   const [clockMs, setClockMs] = useState(() => Date.now())
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null)
-  const [sttLanguage, setSttLanguage] = useState('auto')
-  const [translationTarget, setTranslationTarget] = useState('off')
+  const [sttLanguage, setSttLanguage] = useState(DEFAULT_STT_LANGUAGE)
+  const [translationTarget, setTranslationTarget] = useState(getInitialTranslationTarget)
   const [languageLock, setLanguageLock] = useState<string | null>(null)
   const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null)
   const [translatingCount, setTranslatingCount] = useState(0)
@@ -149,6 +188,15 @@ function App() {
   } = useCaptionStore()
   const [captionText, setCaptionText] = useState('')
   const answerAssist = useAnswerAssistStore()
+  const {
+    items: actionItemList,
+    addSuggested: addSuggestedActionItems,
+    accept: acceptActionItem,
+    dismiss: dismissActionItem,
+    markDone: markActionItemDone,
+    updateItem: updateActionItem,
+    reset: resetActionItems,
+  } = useActionItemsStore()
 
   // ── Whiteboard state (autopreso pattern) ──────────────────────────────────
   const [whiteboardElements, setWhiteboardElements] = useState<WhiteboardElement[]>([])
@@ -160,6 +208,7 @@ function App() {
   const reconnectLanguageRef = useRef<string | null>(null)
   const acceptedFinalTranscriptIdsRef = useRef<Set<string>>(new Set())
   const rejectedFinalTranscriptIdsRef = useRef<Set<string>>(new Set())
+  const recentFinalTextsRef = useRef<Array<{ normalized: string; createdAtMs: number }>>([])
   const translationQueueRef = useRef<TranslationJob[]>([])
   const translationActiveCountRef = useRef(0)
   const translationTargetRef = useRef(translationTarget)
@@ -220,6 +269,19 @@ function App() {
       }
 
       const text = segment.text.trim()
+      const normalizedFinal = segment.isFinal ? normalizeFinalTranscript(text) : ''
+      if (segment.isFinal && normalizedFinal) {
+        const now = Date.now()
+        recentFinalTextsRef.current = recentFinalTextsRef.current.filter(
+          (entry) => now - entry.createdAtMs <= FINAL_DEDUPE_WINDOW_MS
+        )
+        if (
+          recentFinalTextsRef.current.some((entry) => entry.normalized === normalizedFinal)
+        ) {
+          rejectedFinalTranscriptIdsRef.current.add(segment.id)
+          return false
+        }
+      }
       const detected = detectTranscriptLanguage(text)
       if (detected && LOCKABLE_LANGUAGE_CODES.has(detected.code)) {
         setDetectedLanguage(detected.code)
@@ -252,6 +314,12 @@ function App() {
       if (segment.isFinal) {
         const target = accepted ? acceptedFinalTranscriptIdsRef : rejectedFinalTranscriptIdsRef
         target.current.add(segment.id)
+        if (accepted && normalizedFinal) {
+          recentFinalTextsRef.current.push({
+            normalized: normalizedFinal,
+            createdAtMs: Date.now(),
+          })
+        }
       }
       return accepted
     },
@@ -371,7 +439,11 @@ function App() {
         captionTimerRef.current = null
       }, CAPTION_COMMITTED_HOLD_MS)
 
-      const sourceLanguage = sttLanguage === 'auto' ? lockedLanguageRef.current : sttLanguage
+      const detectedSourceLanguage = detectTranscriptLanguage(text)?.code ?? null
+      const sourceLanguage =
+        sttLanguage === 'auto'
+          ? (lockedLanguageRef.current ?? detectedSourceLanguage)
+          : sttLanguage
       if (
         translationTargetRef.current !== 'off' &&
         translationTargetRef.current !== sourceLanguage
@@ -519,9 +591,13 @@ function App() {
         else setAgentStatus('idle')
       })
 
-      setWhiteboardConnected(true)
+      let active = true
+      queueMicrotask(() => {
+        if (active) setWhiteboardConnected(true)
+      })
 
       return () => {
+        active = false
         offUpdate()
         offViewport()
         offStatus()
@@ -579,6 +655,26 @@ function App() {
       setWhiteboardConnected(false)
     }
   }, [])
+
+  useEffect(() => {
+    if (!isElectron) return
+    const api = window.electronAPI
+    if (!api) return
+
+    const offSuggested = api.onActionItemsSuggested((data: unknown) => {
+      const msg = data as { items?: unknown[] }
+      if (!Array.isArray(msg.items)) return
+      addSuggestedActionItems(msg.items.filter(isActionItem))
+    })
+    const offReset = api.onActionItemsReset(() => {
+      resetActionItems()
+    })
+
+    return () => {
+      offSuggested()
+      offReset()
+    }
+  }, [addSuggestedActionItems, resetActionItems])
 
   useEffect(() => {
     const handler = () => setIsFullscreen(Boolean(document.fullscreenElement))
@@ -760,6 +856,11 @@ function App() {
 
     if (running) onStop()
     clear()
+    resetActionItems()
+    if (isElectron) {
+      void window.electronAPI?.resetActionItems()
+      void window.electronAPI?.resetTranscriptPostProcessor()
+    }
     if (captionTimerRef.current !== null) {
       window.clearTimeout(captionTimerRef.current)
       captionTimerRef.current = null
@@ -779,6 +880,7 @@ function App() {
     languageVotesRef.current = {}
     acceptedFinalTranscriptIdsRef.current.clear()
     rejectedFinalTranscriptIdsRef.current.clear()
+    recentFinalTextsRef.current = []
     feedBufferRef.current = null
     setFeedBufferText('')
     translationGenerationRef.current += 1
@@ -795,7 +897,7 @@ function App() {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'whiteboard:reset' }))
     }
-  }, [clear, onStop, resetConfirming, running, updateHealth])
+  }, [clear, onStop, resetActionItems, resetConfirming, running, updateHealth])
 
   const triggerAnswerAssist = useCallback(() => {
     if (answerAssist.status === 'loading' || answerAssist.status === 'streaming') return
@@ -820,12 +922,12 @@ function App() {
   const sourceLang =
     sttLanguage === 'auto' ? (languageLock ?? detectedLanguage ?? 'auto') : sttLanguage
   const targetLang = translationTarget
-  const showTranslationColumn = translationTarget !== 'off'
-  const liveText =
-    [feedBufferText, currentPartial].filter(Boolean).join(' ').trim() || captionText
-  const lastItem = items[items.length - 1]
-  const heroSourceText = liveText || lastItem?.sourceText || ''
-  const heroTargetText = liveText ? '' : (lastItem?.translatedText ?? '')
+  const showTranslationColumn = translationTarget !== 'off' && targetLang !== sourceLang
+  const pendingFeedText = feedBufferText.trim()
+  const draftLiveText = currentPartial.trim()
+  const hasFeedContent = items.length > 0 || Boolean(pendingFeedText || draftLiveText)
+  const heroSourceText = compactHeroCaption(currentPartial)
+  const heroTargetText = ''
   const heroDurationLabel = sessionStartMs ? formatDuration(totalAudioMs) : '00:00'
   const langCode = (code: string) => (code === 'auto' || code === 'off' ? '—' : code.toUpperCase())
   const answerBusy =
@@ -840,16 +942,40 @@ function App() {
     languageVotesRef.current = {}
     acceptedFinalTranscriptIdsRef.current.clear()
     rejectedFinalTranscriptIdsRef.current.clear()
+    recentFinalTextsRef.current = []
+    if (isElectron && window.electronAPI) {
+      void window.electronAPI.setTranscriptLanguages({
+        sourceLanguage: next,
+        targetLanguage: translationTarget,
+      })
+    }
   }
 
   const onTranslationChange = (next: string): void => {
+    window.localStorage.setItem(TRANSLATION_TARGET_STORAGE_KEY, next)
     setTranslationTarget(next)
     updateHealth(
       'translation',
       next === 'off' ? 'disconnected' : 'connected',
       next === 'off' ? 'not connected' : `to ${next}`
     )
+    if (isElectron && window.electronAPI) {
+      void window.electronAPI.setTranscriptLanguages({
+        sourceLanguage: sttLanguage,
+        targetLanguage: next,
+      })
+    }
   }
+
+  useEffect(() => {
+    if (isElectron && window.electronAPI) {
+      void window.electronAPI.setTranscriptLanguages({
+        sourceLanguage: sttLanguage,
+        targetLanguage: translationTarget,
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <main className="v4-app" ref={shellRef} data-running={running ? 'true' : 'false'}>
@@ -1115,7 +1241,7 @@ function App() {
             </div>
             <div className="v4p-col-body amw-scroll" ref={enColRef}>
               <div className="v4p-col-pad">
-                {items.length === 0 && !liveText && (
+                {!hasFeedContent && (
                   <p className="v4p-empty">
                     <em>Idle.</em> Press <kbd>Start</kbd> and share a tab with audio to begin.
                   </p>
@@ -1127,13 +1253,24 @@ function App() {
                         Math.max(item.createdAtMs - (sessionStartMs ?? item.createdAtMs), 0)
                       )}
                     </div>
-                    <div className="v4p-line-text">{item.sourceText}</div>
+                    <div className="v4p-line-text">
+                      {item.speakerLabel && (
+                        <span className="v4p-line-speaker">{item.speakerLabel}</span>
+                      )}
+                      {item.sourceText}
+                    </div>
                   </div>
                 ))}
-                {liveText && (
+                {pendingFeedText && (
+                  <div className="v4p-line v4p-line-pending">
+                    <div className="v4p-line-time amw-mono">·</div>
+                    <div className="v4p-line-text">{pendingFeedText}</div>
+                  </div>
+                )}
+                {draftLiveText && (
                   <div className="v4p-line v4p-line-live">
                     <div className="v4p-line-time amw-mono">·</div>
-                    <div className="v4p-line-text">{liveText}</div>
+                    <div className="v4p-line-text">{draftLiveText}</div>
                   </div>
                 )}
                 <div className="v4p-trail">·  ·  ·</div>
@@ -1168,6 +1305,9 @@ function App() {
                         )}
                       </div>
                       <div className="v4p-line-text">
+                        {item.speakerLabel && (
+                          <span className="v4p-line-speaker">{item.speakerLabel}</span>
+                        )}
                         {item.translatedText || <span className="v4p-line-pending">…</span>}
                       </div>
                     </div>
@@ -1215,7 +1355,10 @@ function App() {
               </button>
             </div>
             <div className="v4p-shelf-body">
-              {shelf === 'whiteboard' && (
+              <div
+                className={`v4p-shelf-panel ${shelf === 'whiteboard' ? 'on' : ''}`}
+                aria-hidden={shelf !== 'whiteboard'}
+              >
                 <div className="v4p-wb">
                   <ExcalidrawCanvas
                     key={`canvas-${canvasResetVersion}`}
@@ -1256,18 +1399,19 @@ function App() {
                     </div>
                   )}
                 </div>
-              )}
-              {shelf === 'actions' && (
-                <div className="v4p-actions-empty">
-                  <p>
-                    <em>No action items yet.</em>
-                  </p>
-                  <p className="v4p-actions-hint">
-                    Action item extraction is not wired up yet. Captions accumulate in the
-                    transcript as the session runs.
-                  </p>
-                </div>
-              )}
+              </div>
+              <div
+                className={`v4p-shelf-panel ${shelf === 'actions' ? 'on' : ''}`}
+                aria-hidden={shelf !== 'actions'}
+              >
+                <ActionItemsPanel
+                  items={actionItemList}
+                  onAccept={acceptActionItem}
+                  onDismiss={dismissActionItem}
+                  onDone={markActionItemDone}
+                  onUpdate={updateActionItem}
+                />
+              </div>
             </div>
           </aside>
         )}

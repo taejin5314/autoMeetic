@@ -8,6 +8,7 @@ export interface ElectronAPI {
   resetTranscriptPostProcessor(): Promise<void>
   updateVocabulary(keywords: string[]): Promise<{ count: number }>
   checkHealth(): Promise<{ status: string; ts: number }>
+  setTranscriptLanguages(args: { sourceLanguage: string; targetLanguage: string }): Promise<void>
 
   // Audio/STT
   startTranscription(language: string): Promise<void>
