@@ -9,9 +9,9 @@ import {
 
 const OPENAI_TRANSCRIPTION_MODEL = process.env.OPENAI_TRANSCRIPTION_MODEL ?? 'gpt-realtime-whisper'
 const OPENAI_REALTIME_URL = 'wss://api.openai.com/v1/realtime?intent=transcription'
-const DELTA_QUIET_MS = Number(process.env.STT_DELTA_QUIET_MS ?? 500)
-const TRANSCRIPT_MAX_CHARS = Number(process.env.STT_MAX_CHARS ?? 90)
-const TRANSCRIPT_MAX_MS = Number(process.env.STT_MAX_MS ?? 1000)
+const DELTA_QUIET_MS = Number(process.env.STT_DELTA_QUIET_MS ?? 800)
+const TRANSCRIPT_MAX_CHARS = Number(process.env.STT_MAX_CHARS ?? 200)
+const TRANSCRIPT_MAX_MS = Number(process.env.STT_MAX_MS ?? 3000)
 const TRANSCRIPT_SENTENCE_END_RE = /[.!?。？！]\s*$/
 const DEFAULT_KOREAN_TRANSCRIPTION_PROMPT =
   'The audio is Korean. Transcribe only in Korean Hangul. Do not output Japanese, Chinese, English, or romanized text unless those words are clearly spoken.'

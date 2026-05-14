@@ -4,8 +4,8 @@ import type { ProcessedTranscriptTurn, SpeakerId, SpeakerLabel } from './stt/typ
 import { enqueueTranscript as enqueueWhiteboardTranscript } from './whiteboardService'
 
 const STT_POSTPROCESS_MODEL = process.env.STT_POSTPROCESS_MODEL ?? 'gpt-4.1-mini'
-const STT_POSTPROCESS_FLUSH_MS = Number(process.env.STT_POSTPROCESS_FLUSH_MS ?? 900)
-const STT_POSTPROCESS_MIN_CHARS = Number(process.env.STT_POSTPROCESS_MIN_CHARS ?? 1)
+const STT_POSTPROCESS_FLUSH_MS = Number(process.env.STT_POSTPROCESS_FLUSH_MS ?? 2000)
+const STT_POSTPROCESS_MIN_CHARS = Number(process.env.STT_POSTPROCESS_MIN_CHARS ?? 60)
 const STT_POSTPROCESS_MAX_CHARS = Number(process.env.STT_POSTPROCESS_MAX_CHARS ?? 1200)
 const OPENAI_CHAT_COMPLETIONS_URL = 'https://api.openai.com/v1/chat/completions'
 const SENTENCE_END_RE = /[.!?。？！]\s*$/
@@ -151,8 +151,10 @@ async function processTranscriptBatch(
             content: [
               'You clean rough live meeting transcripts AND produce translations.',
               `Return JSON only: {"turns":[{"speakerId":"speaker_a","speakerLabel":"Speaker A","text":"...","translation":${wantsTranslation ? '"..."' : 'null'},"sourceLanguage":"en"}]}.`,
-              'Do not summarize, add facts, or remove meaningful content.',
+              'Each turn MUST contain one or more complete sentences. Never emit partial or cut-off sentences.',
+              'If the input ends mid-sentence, include that sentence in full by fixing the ending naturally.',
               'Fix punctuation, capitalization, sentence boundaries, and obvious filler only when meaning is preserved.',
+              'Do not summarize, add facts, or remove meaningful content.',
               'Detect the source language and emit its ISO code (en, ko, ja, zh, es, fr, de) per turn.',
               'Use speaker_a, speaker_b, speaker_c, or unknown.',
               'Use Speaker A, Speaker B, Speaker C, or Unknown.',
