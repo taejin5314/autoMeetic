@@ -10,6 +10,7 @@ interface CaptionState {
 type CaptionAction =
   | { type: 'partial'; text: string }
   | { type: 'append-processed'; payload: ProcessedTranscriptTurn[] }
+  | { type: 'patch-translation'; id: string; translation: string }
   | { type: 'advance-typing'; id: string; sourceChars: number; translationChars: number }
   | { type: 'complete-typing'; id: string }
   | { type: 'clear-partial' }
@@ -45,6 +46,23 @@ function reducer(state: CaptionState, action: CaptionAction): CaptionState {
     return {
       currentPartial: '',
       items: [...state.items, ...newItems].slice(-MAX_ITEMS),
+    }
+  }
+
+  if (action.type === 'patch-translation') {
+    return {
+      ...state,
+      items: state.items.map((item) =>
+        item.id === action.id
+          ? {
+              ...item,
+              fullTranslation: action.translation,
+              displayedTranslation: '',
+              typing: true,
+              updatedAtMs: Date.now(),
+            }
+          : item
+      ),
     }
   }
 
@@ -107,6 +125,10 @@ export function useCaptionStore() {
     dispatch({ type: 'append-processed', payload: turns })
   }, [])
 
+  const patchTranslation = useCallback((id: string, translation: string) => {
+    dispatch({ type: 'patch-translation', id, translation })
+  }, [])
+
   const advanceTyping = useCallback(
     (id: string, sourceChars: number, translationChars: number) => {
       dispatch({ type: 'advance-typing', id, sourceChars, translationChars })
@@ -144,6 +166,7 @@ export function useCaptionStore() {
     items: state.items,
     applyPartial,
     appendProcessed,
+    patchTranslation,
     advanceTyping,
     completeTyping,
     clearPartial,

@@ -37,6 +37,9 @@ const electronAPI: ElectronAPI = {
   onSttPartial: createEventListener('stt:partial') as ElectronAPI['onSttPartial'],
   onSttCommitted: createEventListener('stt:committed') as ElectronAPI['onSttCommitted'],
   onSttProcessed: createEventListener('stt:processed') as ElectronAPI['onSttProcessed'],
+  onSttTranslationPatch: createEventListener(
+    'stt:translation-patch'
+  ) as ElectronAPI['onSttTranslationPatch'],
   onSttError: createEventListener('stt:error') as ElectronAPI['onSttError'],
   onWhiteboardUpdate: createEventListener('whiteboard:update') as ElectronAPI['onWhiteboardUpdate'],
   onWhiteboardViewport: createEventListener(
