@@ -1,13 +1,17 @@
 import type { BrowserWindow } from 'electron'
 import { WebSocket } from 'ws'
 import { getVocabulary } from './proxyService'
-import { enqueueTranscript } from './whiteboardService'
+import {
+  enqueueRoughTranscript,
+  flushPendingTranscript,
+  resetTranscriptPostProcessor,
+} from './transcriptPostProcessor'
 
 const OPENAI_TRANSCRIPTION_MODEL = process.env.OPENAI_TRANSCRIPTION_MODEL ?? 'gpt-realtime-whisper'
 const OPENAI_REALTIME_URL = 'wss://api.openai.com/v1/realtime?intent=transcription'
-const DELTA_QUIET_MS = Number(process.env.STT_DELTA_QUIET_MS ?? 1200)
-const TRANSCRIPT_MAX_CHARS = Number(process.env.STT_MAX_CHARS ?? 180)
-const TRANSCRIPT_MAX_MS = Number(process.env.STT_MAX_MS ?? 2200)
+const DELTA_QUIET_MS = Number(process.env.STT_DELTA_QUIET_MS ?? 500)
+const TRANSCRIPT_MAX_CHARS = Number(process.env.STT_MAX_CHARS ?? 90)
+const TRANSCRIPT_MAX_MS = Number(process.env.STT_MAX_MS ?? 1000)
 const TRANSCRIPT_SENTENCE_END_RE = /[.!?。？！]\s*$/
 const DEFAULT_KOREAN_TRANSCRIPTION_PROMPT =
   'The audio is Korean. Transcribe only in Korean Hangul. Do not output Japanese, Chinese, English, or romanized text unless those words are clearly spoken.'
@@ -18,6 +22,30 @@ let mainWindowRef: BrowserWindow | null = null
 let deltaBuffer = ''
 let deltaQuietTimer: ReturnType<typeof setTimeout> | null = null
 let turnStartMs = 0
+let emittedRoughForCurrentItem = false
+let currentSourceLanguage = 'auto'
+let currentTargetLanguage = 'off'
+
+export function setPostProcessorLanguages(args: {
+  sourceLanguage: string
+  targetLanguage: string
+}): void {
+  currentSourceLanguage = args.sourceLanguage || 'auto'
+  currentTargetLanguage = args.targetLanguage || 'off'
+}
+
+function emitRoughCommitted(text: string): void {
+  mainWindowRef?.webContents.send('stt:committed', text)
+}
+
+function clearDeltaState(): void {
+  if (deltaQuietTimer) {
+    clearTimeout(deltaQuietTimer)
+    deltaQuietTimer = null
+  }
+  deltaBuffer = ''
+  turnStartMs = 0
+}
 
 function buildTranscriptionSession(
   model: string,
@@ -59,16 +87,15 @@ function buildVocabularyPrompt(keywords: string[]): string {
 }
 
 function commitDelta(): void {
-  if (deltaQuietTimer) {
-    clearTimeout(deltaQuietTimer)
-    deltaQuietTimer = null
-  }
   const text = deltaBuffer.trim()
-  deltaBuffer = ''
-  turnStartMs = 0
+  clearDeltaState()
   if (text) {
-    mainWindowRef?.webContents.send('stt:committed', text)
-    enqueueTranscript(text)
+    emitRoughCommitted(text)
+    enqueueRoughTranscript(text, {
+      sourceLanguageHint: currentSourceLanguage,
+      targetLanguage: currentTargetLanguage,
+    })
+    emittedRoughForCurrentItem = true
   }
 }
 
@@ -96,8 +123,8 @@ function handleOpenAiMessage(raw: string): void {
 
     const shouldCommit =
       deltaBuffer.length >= TRANSCRIPT_MAX_CHARS ||
-      (Date.now() - turnStartMs >= TRANSCRIPT_MAX_MS &&
-        TRANSCRIPT_SENTENCE_END_RE.test(deltaBuffer))
+      Date.now() - turnStartMs >= TRANSCRIPT_MAX_MS ||
+      TRANSCRIPT_SENTENCE_END_RE.test(deltaBuffer)
 
     if (shouldCommit) {
       commitDelta()
@@ -110,11 +137,17 @@ function handleOpenAiMessage(raw: string): void {
 
   if (msg.type === 'conversation.item.input_audio_transcription.completed') {
     const transcript = (msg as Record<string, string>).transcript?.trim() ?? ''
-    if (deltaBuffer.trim()) commitDelta()
-    if (transcript && transcript !== deltaBuffer.trim()) {
-      mainWindowRef?.webContents.send('stt:committed', transcript)
-      enqueueTranscript(transcript)
+    const pendingDelta = deltaBuffer.trim()
+    if (pendingDelta) commitDelta()
+    if (transcript && !emittedRoughForCurrentItem) {
+      emitRoughCommitted(transcript)
+      enqueueRoughTranscript(transcript, {
+        sourceLanguageHint: currentSourceLanguage,
+        targetLanguage: currentTargetLanguage,
+      })
     }
+    emittedRoughForCurrentItem = false
+    clearDeltaState()
     return
   }
 
@@ -129,6 +162,8 @@ function handleOpenAiMessage(raw: string): void {
 export function startTranscription(language: string, mainWindow: BrowserWindow): void {
   mainWindowRef = mainWindow
   stopTranscription()
+  resetTranscriptPostProcessor()
+  emittedRoughForCurrentItem = false
 
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
@@ -163,10 +198,11 @@ export function startTranscription(language: string, mainWindow: BrowserWindow):
     console.log('[stt] WebSocket closed:', code, reason.toString())
     openaiWs = null
     if (deltaBuffer.trim()) commitDelta()
+    void flushPendingTranscript({ force: true })
   })
 }
 
-export function stopTranscription(): void {
+export async function stopTranscription(): Promise<void> {
   if (openaiWs) {
     openaiWs.close()
     openaiWs = null
@@ -178,6 +214,8 @@ export function stopTranscription(): void {
   if (deltaBuffer.trim()) commitDelta()
   deltaBuffer = ''
   turnStartMs = 0
+  emittedRoughForCurrentItem = false
+  await flushPendingTranscript({ force: true })
 }
 
 export function sendAudioChunk(base64Chunk: string): void {
