@@ -9,9 +9,9 @@ interface UseFeedTypewriterArgs {
 
 /** Characters revealed per RAF tick by source language. CJK = slower (more dense). */
 function charsPerTickForLang(lang: string | undefined): number {
-  if (!lang) return 2
-  if (lang === 'ko' || lang === 'ja' || lang === 'zh') return 1
-  return 2
+  if (!lang) return 8
+  if (lang === 'ko' || lang === 'ja' || lang === 'zh') return 5
+  return 8
 }
 
 /**
