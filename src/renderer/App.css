@@ -615,30 +615,48 @@ body,
 .v4p-eyebrow {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 16px;
-  margin-bottom: 4px;
+  gap: 10px;
+  margin: 18px 0 8px;
+}
+
+.v4p-eyebrow:first-child {
+  margin-top: 0;
 }
 
 .v4p-eyebrow-name {
   font-family: var(--p-mono);
-  font-size: 10.5px;
-  line-height: 1.2;
-  color: var(--p-faint);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  color: var(--p-accent);
   white-space: nowrap;
 }
 
 .v4p-eyebrow-rule {
   flex: 1;
   height: 1px;
-  background: var(--p-rule, rgba(0, 0, 0, 0.08));
+  background: var(--p-border);
 }
 
 .v4p-line-typing .v4p-line-text,
 .v4p-line-text.v4p-line-typing {
   opacity: 0.7;
+}
+
+.v4p-line-typing::after {
+  content: '\258D';
+  display: inline-block;
+  margin-left: 2px;
+  color: var(--p-accent);
+  font-weight: 400;
+  animation: v4p-caret-blink 1s steps(1) infinite;
+}
+
+@keyframes v4p-caret-blink {
+  50% {
+    opacity: 0;
+  }
 }
 
 .v4p-line-live .v4p-line-text {
