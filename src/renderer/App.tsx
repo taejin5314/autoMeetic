@@ -22,12 +22,12 @@ import type { ViewportCommand, WhiteboardElement } from '../main/whiteboard/type
 import { ActionItemsPanel } from './actions/ActionItemsPanel'
 import { isActionItem } from './actions/types'
 import { useActionItemsStore } from './actions/useActionItemsStore'
-import { useFeedTypewriter } from './feed/useFeedTypewriter'
 import { AnswerAssistCard } from './answer-assist/AnswerAssistCard'
 import { useAnswerAssistStore } from './answer-assist/useAnswerAssistStore'
 import { isElectron } from './api'
 import './App.css'
 import { ElectronSttClient } from './electronSttClient'
+import { useFeedTypewriter } from './feed/useFeedTypewriter'
 import { CaptionOverlay } from './overlay/CaptionOverlay'
 import { useCaptionStore } from './overlay/useCaptionStore'
 import { Waveform } from './overlay/Waveform'
@@ -57,7 +57,9 @@ const DEFAULT_TRANSLATION_TARGET = 'ko'
 const TRANSLATION_TARGET_STORAGE_KEY = 'automeetic.translationTarget'
 const TRANSLATION_TARGET_OPTIONS = new Set([
   'off',
-  ...LANGUAGE_OPTIONS.filter((language) => language.code !== 'auto').map((language) => language.code),
+  ...LANGUAGE_OPTIONS.filter((language) => language.code !== 'auto').map(
+    (language) => language.code
+  ),
 ])
 function compactHeroCaption(text: string): string {
   const normalized = text.replace(/\s+/g, ' ').trim()
@@ -74,7 +76,6 @@ function compactHeroCaption(text: string): string {
 
   return tail === normalized ? tail : `...${tail}`
 }
-
 
 function countMatches(text: string, pattern: RegExp): number {
   return text.match(pattern)?.length ?? 0
@@ -643,8 +644,7 @@ function App() {
   const heroTargetText = ''
   const heroDurationLabel = sessionStartMs ? formatDuration(totalAudioMs) : '00:00'
   const langCode = (code: string) => (code === 'auto' || code === 'off' ? '—' : code.toUpperCase())
-  const answerBusy =
-    answerAssist.status === 'loading' || answerAssist.status === 'streaming'
+  const answerBusy = answerAssist.status === 'loading' || answerAssist.status === 'streaming'
 
   const onLanguageChange = (next: string): void => {
     setSttLanguage(next)
@@ -766,13 +766,11 @@ function App() {
               aria-label="Translation target"
             >
               <option value="off">Off</option>
-              {LANGUAGE_OPTIONS.filter((language) => language.code !== 'auto').map(
-                (language) => (
-                  <option key={language.code} value={language.code}>
-                    {language.code.toUpperCase()}
-                  </option>
-                )
-              )}
+              {LANGUAGE_OPTIONS.filter((language) => language.code !== 'auto').map((language) => (
+                <option key={language.code} value={language.code}>
+                  {language.code.toUpperCase()}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -940,14 +938,11 @@ function App() {
               <span className="v4p-col-mark">{langCode(sourceLang)}</span>
               <span className="v4p-col-name">
                 <em>Original</em>
-                {languageLock && (
-                  <> · {LANGUAGE_LABEL_BY_CODE.get(languageLock) ?? languageLock}</>
-                )}
+                {languageLock && <> · {LANGUAGE_LABEL_BY_CODE.get(languageLock) ?? languageLock}</>}
                 {!languageLock && detectedLanguage && (
                   <>
                     {' '}
-                    · detecting{' '}
-                    {LANGUAGE_LABEL_BY_CODE.get(detectedLanguage) ?? detectedLanguage}
+                    · detecting {LANGUAGE_LABEL_BY_CODE.get(detectedLanguage) ?? detectedLanguage}
                   </>
                 )}
               </span>
@@ -977,9 +972,7 @@ function App() {
                             Math.max(item.createdAtMs - (sessionStartMs ?? item.createdAtMs), 0)
                           )}
                         </div>
-                        <div
-                          className={`v4p-line-text${item.typing ? ' v4p-line-typing' : ''}`}
-                        >
+                        <div className={`v4p-line-text${item.typing ? ' v4p-line-typing' : ''}`}>
                           {item.displayedSource}
                         </div>
                       </div>
@@ -992,7 +985,7 @@ function App() {
                     <div className="v4p-line-text">{draftLiveText}</div>
                   </div>
                 )}
-                <div className="v4p-trail">·  ·  ·</div>
+                <div className="v4p-trail">· · ·</div>
               </div>
             </div>
           </div>
@@ -1002,8 +995,7 @@ function App() {
               <div className="v4p-col-hd">
                 <span className="v4p-col-mark v4p-col-mark-alt">{langCode(targetLang)}</span>
                 <span className="v4p-col-name">
-                  <em>Translation</em> ·{' '}
-                  {LANGUAGE_LABEL_BY_CODE.get(targetLang) ?? targetLang}
+                  <em>Translation</em> · {LANGUAGE_LABEL_BY_CODE.get(targetLang) ?? targetLang}
                 </span>
               </div>
               <div className="v4p-col-body amw-scroll" ref={koColRef}>
@@ -1018,7 +1010,8 @@ function App() {
                     const willRenderLine = item.fullTranslation !== null
                     if (!willRenderLine) return null
                     const showEyebrow =
-                      item.speakerLabel && (!previous || previous.speakerLabel !== item.speakerLabel)
+                      item.speakerLabel &&
+                      (!previous || previous.speakerLabel !== item.speakerLabel)
                     return (
                       <Fragment key={`tr-${item.id}`}>
                         {showEyebrow && (
@@ -1033,16 +1026,14 @@ function App() {
                               Math.max(item.createdAtMs - (sessionStartMs ?? item.createdAtMs), 0)
                             )}
                           </div>
-                          <div
-                            className={`v4p-line-text${item.typing ? ' v4p-line-typing' : ''}`}
-                          >
+                          <div className={`v4p-line-text${item.typing ? ' v4p-line-typing' : ''}`}>
                             {item.displayedTranslation}
                           </div>
                         </div>
                       </Fragment>
                     )
                   })}
-                  <div className="v4p-trail">·  ·  ·</div>
+                  <div className="v4p-trail">· · ·</div>
                 </div>
               </div>
             </div>
@@ -1145,7 +1136,6 @@ function App() {
             </div>
           </aside>
         )}
-
       </div>
 
       {/* ── Now speaking hero strip ───────────────────────────── */}
