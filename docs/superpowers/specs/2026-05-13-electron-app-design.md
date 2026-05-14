@@ -20,14 +20,15 @@
 
 ## 2. Toolchain
 
-| Role | Tool |
-|---|---|
-| Build orchestrator | `electron-vite` — unified Vite config for main/preload/renderer |
-| Packaging & installers | `electron-builder` — NSIS (Windows), DMG (macOS) |
-| Renderer framework | React + Vite (existing) |
-| IPC bridge | Electron `contextBridge` + `ipcMain`/`ipcRenderer` |
+| Role                   | Tool                                                            |
+| ---------------------- | --------------------------------------------------------------- |
+| Build orchestrator     | `electron-vite` — unified Vite config for main/preload/renderer |
+| Packaging & installers | `electron-builder` — NSIS (Windows), DMG (macOS)                |
+| Renderer framework     | React + Vite (existing)                                         |
+| IPC bridge             | Electron `contextBridge` + `ipcMain`/`ipcRenderer`              |
 
 **Why electron-vite:**
+
 - Minimal migration — existing `src/` structure maps directly to renderer
 - Single `electron.vite.config.ts` for 3 build targets
 - HMR for both main and renderer processes
@@ -77,6 +78,7 @@ autoMeetic/
 ```
 
 ### Key decisions:
+
 - `src/main/` folder absorbs existing `src/main/*` subdirectories (audio, stt, etc.) plus new Electron entry point and ported server logic
 - **Environment split:** Some existing `src/main/` modules currently run in the browser but will move to different execution contexts:
   - `audio/capture.ts` — stays in **renderer** (uses Web Audio API / desktopCapturer), sends chunks via IPC
@@ -94,14 +96,14 @@ autoMeetic/
 
 ### Channel mapping (HTTP/WS → IPC)
 
-| Current (browser mode) | Electron IPC |
-|---|---|
-| `POST /api/translate` | `invoke('translate', {text, targetLang})` |
-| `POST /api/answer-assist` (SSE stream) | `invoke('start-answer-assist', {transcript, lang})` + `on('answer-assist:event')` |
-| `POST /api/vocabulary` | `invoke('update-vocabulary', {keywords})` |
-| `GET /api/health` | `invoke('check-health')` |
-| `ws://.../api/ws/transcribe` | `send('start-transcription', {language})` / `send('send-audio', {chunk})` / `on('stt:partial')` / `on('stt:committed')` |
-| `ws://.../api/ws/whiteboard` | `send('whiteboard:user-elements', {elements})` / `on('whiteboard:update')` / `on('whiteboard:viewport')` / `on('whiteboard:agent-status')` |
+| Current (browser mode)                 | Electron IPC                                                                                                                               |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `POST /api/translate`                  | `invoke('translate', {text, targetLang})`                                                                                                  |
+| `POST /api/answer-assist` (SSE stream) | `invoke('start-answer-assist', {transcript, lang})` + `on('answer-assist:event')`                                                          |
+| `POST /api/vocabulary`                 | `invoke('update-vocabulary', {keywords})`                                                                                                  |
+| `GET /api/health`                      | `invoke('check-health')`                                                                                                                   |
+| `ws://.../api/ws/transcribe`           | `send('start-transcription', {language})` / `send('send-audio', {chunk})` / `on('stt:partial')` / `on('stt:committed')`                    |
+| `ws://.../api/ws/whiteboard`           | `send('whiteboard:user-elements', {elements})` / `on('whiteboard:update')` / `on('whiteboard:viewport')` / `on('whiteboard:agent-status')` |
 
 ### Preload API surface (`window.electronAPI`)
 
@@ -144,6 +146,7 @@ Renderer code checks `isElectron` to decide between IPC calls and HTTP/WS fetch.
 ### IPC conventions
 
 See `.instructions/ipc.instructions.md` for naming rules:
+
 - Actions: present-tense verbs, kebab-case (`start-transcription`, `update-vocabulary`)
 - Events: present-tense, kebab-case (`stt:partial`, `whiteboard:update`)
 - Preload: camelCase actions, camelCase `on`-prefixed events
@@ -183,19 +186,23 @@ See `.instructions/ipc.instructions.md` for naming rules:
 ## 6. System Integration
 
 ### System tray
+
 - App starts with tray icon
 - Tray menu: Start/Stop capture, Audio source, Language, Show/Hide window, Quit
 - Window close (X) minimizes to tray instead of quitting
 
 ### Global hotkeys (`globalShortcut`)
+
 - Toggle capture: `Ctrl+Shift+M` (configurable)
 - Toggle overlay: `Ctrl+Shift+O` (configurable)
 
 ### Always-on-top caption overlay
+
 - Phase 1: Caption overlay stays within main BrowserWindow
 - Phase 2 (future): Separate frameless `BrowserWindow` with `alwaysOnTop: true`, transparent background, click-through (`setIgnoreMouseEvents`)
 
 ### API key storage
+
 - `.env` file with `dotenv/config` — same as current approach
 - Development: `.env` in project root
 - Packaged app: `.env` in app's user data directory (`app.getPath('userData')`)
@@ -237,12 +244,14 @@ dmg:
 ```
 
 ### Included in package
+
 - Electron runtime + Chromium
 - Built main/preload/renderer code (from `out/`)
 - Moonshine sidecar binaries (platform-specific, in `resources/`)
 - `.env.example` template
 
 ### Excluded from package
+
 - `src/`, `server/`, `harness/`, `docs/`, `scripts/`
 - devDependencies
 - `.env` (user creates their own)
@@ -267,6 +276,7 @@ dmg:
 Implementation should be incremental — the app must remain functional in browser mode throughout.
 
 ### Step 1: Scaffold Electron shell
+
 - Install `electron`, `electron-vite`, `electron-builder`
 - Create `electron.vite.config.ts`
 - Create `src/main/index.ts` (minimal BrowserWindow loading renderer)
@@ -276,6 +286,7 @@ Implementation should be incremental — the app must remain functional in brows
 - Verify `npm run dev:electron` opens the existing UI
 
 ### Step 2: Port server to main process
+
 - Port `proxy.mjs` → `src/main/proxy.ts`
 - Port `whiteboard-runtime.mjs` → `src/main/whiteboard-runtime.ts`
 - Wire IPC handlers in main process
@@ -283,16 +294,19 @@ Implementation should be incremental — the app must remain functional in brows
 - Create renderer adapter (`src/renderer/api.ts`) with dual-mode support
 
 ### Step 3: Audio integration
+
 - Implement `desktopCapturer` source selection
 - Wire audio IPC channel
 - Verify end-to-end: audio capture → transcription → caption display
 
 ### Step 4: System integration
+
 - System tray with menu
 - Global hotkeys
 - Close-to-tray behavior
 
 ### Step 5: Packaging
+
 - Configure `electron-builder.yml`
 - Test Windows NSIS build
 - Test macOS DMG build

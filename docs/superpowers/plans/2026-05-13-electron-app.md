@@ -16,65 +16,66 @@
 
 ### New files
 
-| File | Responsibility |
-|---|---|
-| `electron.vite.config.ts` | 3-target Vite config (main, preload, renderer) |
-| `electron-builder.yml` | Packaging config for Windows NSIS + macOS DMG |
-| `src/main/index.ts` | Electron app entry: BrowserWindow, tray, shortcuts, IPC registration |
-| `src/main/ipc.ts` | IPC handler registration (`registerIpcHandlers`, `registerWindowNotifiers`) |
-| `src/main/proxyService.ts` | Translation, answer-assist, vocabulary — ported from proxy.mjs |
-| `src/main/sttService.ts` | OpenAI Realtime WebSocket management — ported from proxy.mjs |
-| `src/main/whiteboardService.ts` | Whiteboard agent pipeline — ported from proxy.mjs + whiteboard-runtime.mjs |
-| `src/preload/index.ts` | contextBridge exposing `window.electronAPI` |
-| `src/preload/types.ts` | `ElectronAPI` interface |
-| `src/renderer/index.html` | Moved from `./index.html` |
-| `src/renderer/api.ts` | Dual-mode adapter (IPC vs HTTP/WS) |
-| `tsconfig.main.json` | TypeScript config for main process |
-| `tsconfig.preload.json` | TypeScript config for preload scripts |
-| `tsconfig.renderer.json` | TypeScript config for renderer (replaces tsconfig.app.json) |
-| `build/icon.ico` | App icon for Windows |
-| `build/icon.icns` | App icon for macOS |
+| File                            | Responsibility                                                              |
+| ------------------------------- | --------------------------------------------------------------------------- |
+| `electron.vite.config.ts`       | 3-target Vite config (main, preload, renderer)                              |
+| `electron-builder.yml`          | Packaging config for Windows NSIS + macOS DMG                               |
+| `src/main/index.ts`             | Electron app entry: BrowserWindow, tray, shortcuts, IPC registration        |
+| `src/main/ipc.ts`               | IPC handler registration (`registerIpcHandlers`, `registerWindowNotifiers`) |
+| `src/main/proxyService.ts`      | Translation, answer-assist, vocabulary — ported from proxy.mjs              |
+| `src/main/sttService.ts`        | OpenAI Realtime WebSocket management — ported from proxy.mjs                |
+| `src/main/whiteboardService.ts` | Whiteboard agent pipeline — ported from proxy.mjs + whiteboard-runtime.mjs  |
+| `src/preload/index.ts`          | contextBridge exposing `window.electronAPI`                                 |
+| `src/preload/types.ts`          | `ElectronAPI` interface                                                     |
+| `src/renderer/index.html`       | Moved from `./index.html`                                                   |
+| `src/renderer/api.ts`           | Dual-mode adapter (IPC vs HTTP/WS)                                          |
+| `tsconfig.main.json`            | TypeScript config for main process                                          |
+| `tsconfig.preload.json`         | TypeScript config for preload scripts                                       |
+| `tsconfig.renderer.json`        | TypeScript config for renderer (replaces tsconfig.app.json)                 |
+| `build/icon.ico`                | App icon for Windows                                                        |
+| `build/icon.icns`               | App icon for macOS                                                          |
 
 ### Moved files
 
-| From | To |
-|---|---|
-| `index.html` | `src/renderer/index.html` |
-| `src/App.tsx` | `src/renderer/App.tsx` |
-| `src/App.css` | `src/renderer/App.css` |
-| `src/main.tsx` | `src/renderer/main.tsx` |
-| `src/index.css` | `src/renderer/index.css` |
-| `src/assets/` | `src/renderer/assets/` |
-| `src/renderer/overlay/` | `src/renderer/overlay/` (stays) |
-| `src/renderer/whiteboard/` | `src/renderer/whiteboard/` (stays) |
+| From                          | To                                    |
+| ----------------------------- | ------------------------------------- |
+| `index.html`                  | `src/renderer/index.html`             |
+| `src/App.tsx`                 | `src/renderer/App.tsx`                |
+| `src/App.css`                 | `src/renderer/App.css`                |
+| `src/main.tsx`                | `src/renderer/main.tsx`               |
+| `src/index.css`               | `src/renderer/index.css`              |
+| `src/assets/`                 | `src/renderer/assets/`                |
+| `src/renderer/overlay/`       | `src/renderer/overlay/` (stays)       |
+| `src/renderer/whiteboard/`    | `src/renderer/whiteboard/` (stays)    |
 | `src/renderer/answer-assist/` | `src/renderer/answer-assist/` (stays) |
 
 ### Modified files
 
-| File | Change |
-|---|---|
-| `package.json` | Add `main` field, Electron deps, new scripts |
-| `vite.config.ts` | Keep for `dev:web` mode only |
-| `tsconfig.json` | Update references to new tsconfig files |
+| File             | Change                                       |
+| ---------------- | -------------------------------------------- |
+| `package.json`   | Add `main` field, Electron deps, new scripts |
+| `vite.config.ts` | Keep for `dev:web` mode only                 |
+| `tsconfig.json`  | Update references to new tsconfig files      |
 
 ### Retained (not moved)
 
-| File | Reason |
-|---|---|
-| `src/main/audio/capture.ts` | Used in renderer (Web Audio API); imported from renderer code |
-| `src/main/stt/transcriptBus.ts` | Used in renderer (drives UI updates) |
-| `src/main/stt/types.ts` | Shared types |
-| `src/main/health/pipelineHealth.ts` | Used in renderer |
-| `src/main/telemetry/logger.ts` | Used in renderer |
-| `src/main/whiteboard/types.ts` | Shared types |
-| `server/proxy.mjs` | Browser-mode dev fallback |
-| `server/whiteboard-runtime.mjs` | Browser-mode dev fallback |
+| File                                | Reason                                                        |
+| ----------------------------------- | ------------------------------------------------------------- |
+| `src/main/audio/capture.ts`         | Used in renderer (Web Audio API); imported from renderer code |
+| `src/main/stt/transcriptBus.ts`     | Used in renderer (drives UI updates)                          |
+| `src/main/stt/types.ts`             | Shared types                                                  |
+| `src/main/health/pipelineHealth.ts` | Used in renderer                                              |
+| `src/main/telemetry/logger.ts`      | Used in renderer                                              |
+| `src/main/whiteboard/types.ts`      | Shared types                                                  |
+| `server/proxy.mjs`                  | Browser-mode dev fallback                                     |
+| `server/whiteboard-runtime.mjs`     | Browser-mode dev fallback                                     |
 
 ---
 
 ## Task 1: Install Electron dependencies and scaffold config
 
 **Files:**
+
 - Modify: `package.json`
 - Create: `electron.vite.config.ts`
 - Create: `electron-builder.yml`
@@ -103,8 +104,8 @@ In `package.json`, add the `main` field at the top level and new scripts:
     "build:electron": "electron-vite build",
     "preview:electron": "electron-vite preview",
     "build:win": "electron-vite build && electron-builder --win",
-    "build:mac": "electron-vite build && electron-builder --mac"
-  }
+    "build:mac": "electron-vite build && electron-builder --mac",
+  },
 }
 ```
 
@@ -189,6 +190,7 @@ dmg:
 - [ ] **Step 5: Create TypeScript configs for Electron targets**
 
 `tsconfig.main.json`:
+
 ```json
 {
   "compilerOptions": {
@@ -208,11 +210,18 @@ dmg:
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/main/index.ts", "src/main/ipc.ts", "src/main/proxyService.ts", "src/main/sttService.ts", "src/main/whiteboardService.ts"]
+  "include": [
+    "src/main/index.ts",
+    "src/main/ipc.ts",
+    "src/main/proxyService.ts",
+    "src/main/sttService.ts",
+    "src/main/whiteboardService.ts"
+  ]
 }
 ```
 
 `tsconfig.preload.json`:
+
 ```json
 {
   "compilerOptions": {
@@ -237,6 +246,7 @@ dmg:
 ```
 
 `tsconfig.renderer.json`:
+
 ```json
 {
   "compilerOptions": {
@@ -257,11 +267,20 @@ dmg:
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/renderer/**/*", "src/main/audio/**/*", "src/main/stt/transcriptBus.ts", "src/main/stt/types.ts", "src/main/health/**/*", "src/main/telemetry/**/*", "src/main/whiteboard/types.ts"]
+  "include": [
+    "src/renderer/**/*",
+    "src/main/audio/**/*",
+    "src/main/stt/transcriptBus.ts",
+    "src/main/stt/types.ts",
+    "src/main/health/**/*",
+    "src/main/telemetry/**/*",
+    "src/main/whiteboard/types.ts"
+  ]
 }
 ```
 
 Update `tsconfig.json`:
+
 ```json
 {
   "files": [],
@@ -283,6 +302,7 @@ mkdir build
 ```
 
 Create a minimal SVG placeholder at `build/icon.svg` (electron-builder can use SVG on some platforms):
+
 ```svg
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256">
   <rect width="256" height="256" rx="32" fill="#18181b"/>
@@ -302,6 +322,7 @@ git commit -m "chore: scaffold electron-vite, electron-builder, and tsconfig tar
 ## Task 2: Move renderer files to `src/renderer/`
 
 **Files:**
+
 - Move: `index.html` → `src/renderer/index.html`
 - Move: `src/App.tsx` → `src/renderer/App.tsx`
 - Move: `src/App.css` → `src/renderer/App.css`
@@ -432,6 +453,7 @@ git commit -m "refactor: move renderer files to src/renderer/"
 ## Task 3: Create preload script and types
 
 **Files:**
+
 - Create: `src/preload/index.ts`
 - Create: `src/preload/types.ts`
 
@@ -501,8 +523,7 @@ const electronAPI: ElectronAPI = {
   sendAudio: (base64Chunk) => ipcRenderer.send('send-audio', { chunk: base64Chunk }),
 
   // Whiteboard
-  sendWhiteboardElements: (elements) =>
-    ipcRenderer.send('whiteboard:user-elements', { elements }),
+  sendWhiteboardElements: (elements) => ipcRenderer.send('whiteboard:user-elements', { elements }),
   sendWhiteboardScreenshot: (imageDataUrl) =>
     ipcRenderer.send('whiteboard:screenshot', { image: imageDataUrl }),
 
@@ -511,9 +532,15 @@ const electronAPI: ElectronAPI = {
   onSttCommitted: createEventListener('stt:committed') as ElectronAPI['onSttCommitted'],
   onSttError: createEventListener('stt:error') as ElectronAPI['onSttError'],
   onWhiteboardUpdate: createEventListener('whiteboard:update') as ElectronAPI['onWhiteboardUpdate'],
-  onWhiteboardViewport: createEventListener('whiteboard:viewport') as ElectronAPI['onWhiteboardViewport'],
-  onWhiteboardAgentStatus: createEventListener('whiteboard:agent-status') as ElectronAPI['onWhiteboardAgentStatus'],
-  onAnswerAssistEvent: createEventListener('answer-assist:event') as ElectronAPI['onAnswerAssistEvent'],
+  onWhiteboardViewport: createEventListener(
+    'whiteboard:viewport'
+  ) as ElectronAPI['onWhiteboardViewport'],
+  onWhiteboardAgentStatus: createEventListener(
+    'whiteboard:agent-status'
+  ) as ElectronAPI['onWhiteboardAgentStatus'],
+  onAnswerAssistEvent: createEventListener(
+    'answer-assist:event'
+  ) as ElectronAPI['onAnswerAssistEvent'],
 }
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)
@@ -531,6 +558,7 @@ git commit -m "feat: create preload script with IPC bridge and ElectronAPI types
 ## Task 4: Create Electron main process entry point
 
 **Files:**
+
 - Create: `src/main/index.ts`
 
 - [ ] **Step 1: Create `src/main/index.ts`**
@@ -669,6 +697,7 @@ git commit -m "feat: create Electron main process entry with window, tray, and s
 ## Task 5: Create IPC handlers (stub)
 
 **Files:**
+
 - Create: `src/main/ipc.ts`
 
 - [ ] **Step 1: Create `src/main/ipc.ts`**
@@ -701,12 +730,15 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   })
 
   // Answer assist
-  ipcMain.handle('start-answer-assist', async (_event, args: { transcript: string; lang: string }) => {
-    const { startAnswerAssist } = await import('./proxyService')
-    await startAnswerAssist(args.transcript, args.lang, (event: unknown) => {
-      mainWindowRef?.webContents.send('answer-assist:event', event)
-    })
-  })
+  ipcMain.handle(
+    'start-answer-assist',
+    async (_event, args: { transcript: string; lang: string }) => {
+      const { startAnswerAssist } = await import('./proxyService')
+      await startAnswerAssist(args.transcript, args.lang, (event: unknown) => {
+        mainWindowRef?.webContents.send('answer-assist:event', event)
+      })
+    }
+  )
 
   // STT
   ipcMain.handle('start-transcription', async (_event, args: { language: string }) => {
@@ -758,8 +790,8 @@ import { registerIpcHandlers, registerWindowNotifiers } from './ipc'
 
 // Inside app.whenReady().then():
 // After createWindow():
-  registerIpcHandlers(mainWindow!)
-  registerWindowNotifiers(mainWindow!)
+registerIpcHandlers(mainWindow!)
+registerWindowNotifiers(mainWindow!)
 ```
 
 - [ ] **Step 3: Commit**
@@ -774,6 +806,7 @@ git commit -m "feat: register IPC handlers for translate, STT, whiteboard, answe
 ## Task 6: Port translation & vocabulary to main process
 
 **Files:**
+
 - Create: `src/main/proxyService.ts`
 
 - [ ] **Step 1: Create `src/main/proxyService.ts`**
@@ -851,7 +884,9 @@ export async function translateText(
   if (!response || !response.ok) {
     const payload = await response?.json().catch(() => ({}))
     const message = (payload as Record<string, unknown>)?.error
-    throw new Error(message ? `OpenAI translation error: ${String(message)}` : 'OpenAI translation failed')
+    throw new Error(
+      message ? `OpenAI translation error: ${String(message)}` : 'OpenAI translation failed'
+    )
   }
 
   const payload = (await response.json()) as {
@@ -1035,6 +1070,7 @@ git commit -m "feat: port translation, vocabulary, answer-assist to main process
 ## Task 7: Port STT service to main process
 
 **Files:**
+
 - Create: `src/main/sttService.ts`
 
 - [ ] **Step 1: Create `src/main/sttService.ts`**
@@ -1138,8 +1174,9 @@ function handleOpenAiMessage(raw: string): void {
 
     // Auto-commit on sentence boundary + enough chars, or max length/time
     const shouldCommit =
-      (deltaBuffer.length >= TRANSCRIPT_MAX_CHARS) ||
-      (Date.now() - turnStartMs >= TRANSCRIPT_MAX_MS && TRANSCRIPT_SENTENCE_END_RE.test(deltaBuffer))
+      deltaBuffer.length >= TRANSCRIPT_MAX_CHARS ||
+      (Date.now() - turnStartMs >= TRANSCRIPT_MAX_MS &&
+        TRANSCRIPT_SENTENCE_END_RE.test(deltaBuffer))
 
     if (shouldCommit) {
       commitDelta()
@@ -1161,7 +1198,7 @@ function handleOpenAiMessage(raw: string): void {
 
   if (msg.type === 'error') {
     const errorMsg =
-      ((msg as Record<string, Record<string, string>>).error?.message) ?? 'Unknown OpenAI error'
+      (msg as Record<string, Record<string, string>>).error?.message ?? 'Unknown OpenAI error'
     mainWindowRef?.webContents.send('stt:error', errorMsg)
   }
 }
@@ -1241,6 +1278,7 @@ git commit -m "feat: port STT realtime WebSocket service to main process"
 ## Task 8: Port whiteboard service to main process (stub)
 
 **Files:**
+
 - Create: `src/main/whiteboardService.ts`
 
 - [ ] **Step 1: Create `src/main/whiteboardService.ts`**
@@ -1288,6 +1326,7 @@ git commit -m "feat: stub whiteboard service in main process (full pipeline defe
 ## Task 9: Create renderer dual-mode adapter
 
 **Files:**
+
 - Create: `src/renderer/api.ts`
 - Modify: `src/renderer/App.tsx` (wire adapter)
 
@@ -1323,9 +1362,7 @@ export async function translate(
 
 // ── Vocabulary ──
 
-export async function updateVocabulary(
-  keywords: string[]
-): Promise<{ count: number }> {
+export async function updateVocabulary(keywords: string[]): Promise<{ count: number }> {
   if (isElectron) {
     return getElectronAPI().updateVocabulary(keywords)
   }
@@ -1366,6 +1403,7 @@ git commit -m "feat: create dual-mode API adapter for renderer (IPC vs HTTP)"
 ## Task 10: Verify end-to-end dual-mode
 
 **Files:**
+
 - Modify: `src/main/index.ts` (ensure dotenv loads before anything)
 
 - [ ] **Step 1: Run `dev:electron` and verify window opens**
@@ -1396,6 +1434,7 @@ git commit -m "fix: verify dual-mode dev (electron + web)"
 ## Task 11: Configure electron-builder and test packaging
 
 **Files:**
+
 - Modify: `package.json` (ensure `main` field and build scripts are correct)
 - Verify: `electron-builder.yml`
 
@@ -1422,19 +1461,19 @@ git commit -m "chore: verify electron-builder packaging for Windows"
 
 ## Summary
 
-| Task | Description | Key files |
-|---:|---|---|
-| 1 | Install deps, scaffold config | `electron.vite.config.ts`, `electron-builder.yml`, tsconfigs |
-| 2 | Move renderer files | `src/renderer/*`, `vite.config.ts` |
-| 3 | Preload script + types | `src/preload/index.ts`, `src/preload/types.ts` |
-| 4 | Electron main entry | `src/main/index.ts` |
-| 5 | IPC handler registration | `src/main/ipc.ts` |
-| 6 | Translation/vocabulary/answer-assist port | `src/main/proxyService.ts` |
-| 7 | STT service port | `src/main/sttService.ts` |
-| 8 | Whiteboard service stub | `src/main/whiteboardService.ts` |
-| 9 | Renderer dual-mode adapter | `src/renderer/api.ts` |
-| 10 | Fix async IPC + verify | `src/main/ipc.ts` |
-| 11 | Packaging test | `electron-builder.yml` |
+| Task | Description                               | Key files                                                    |
+| ---: | ----------------------------------------- | ------------------------------------------------------------ |
+|    1 | Install deps, scaffold config             | `electron.vite.config.ts`, `electron-builder.yml`, tsconfigs |
+|    2 | Move renderer files                       | `src/renderer/*`, `vite.config.ts`                           |
+|    3 | Preload script + types                    | `src/preload/index.ts`, `src/preload/types.ts`               |
+|    4 | Electron main entry                       | `src/main/index.ts`                                          |
+|    5 | IPC handler registration                  | `src/main/ipc.ts`                                            |
+|    6 | Translation/vocabulary/answer-assist port | `src/main/proxyService.ts`                                   |
+|    7 | STT service port                          | `src/main/sttService.ts`                                     |
+|    8 | Whiteboard service stub                   | `src/main/whiteboardService.ts`                              |
+|    9 | Renderer dual-mode adapter                | `src/renderer/api.ts`                                        |
+|   10 | Fix async IPC + verify                    | `src/main/ipc.ts`                                            |
+|   11 | Packaging test                            | `electron-builder.yml`                                       |
 
 ### Deferred to follow-up specs
 
