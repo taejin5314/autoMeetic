@@ -13,11 +13,13 @@ Two independent issues affecting the live meeting experience:
 ## Scope
 
 ### In scope
+
 - Fix feed auto-scroll bug (CSS/ref mismatch)
 - Improve whiteboard renderer prompt with arrow-mandatory rules and few-shot examples per diagram type
 - Apply identical prompt changes to both Electron (`src/main/whiteboard/prompt.ts`) and browser (`server/whiteboard-runtime.mjs`) pipelines
 
 ### Out of scope
+
 - Model changes (staying on gpt-4.1-nano gatekeeper + gpt-4.1-mini renderer)
 - Buffer timing changes
 - Post-processing validation layer
@@ -56,21 +58,80 @@ HARD RULE: Every key_point relationship MUST produce a labeled arrow connecting 
 #### 2b. Few-shot examples per diagram type
 
 Add one complete `whiteboard_apply` operations example for each of the 5 diagram types. Each example includes:
+
 - 3 nodes with explicit coordinates, dimensions, labels, and colors
 - 2-3 arrows with explicit endpoints and labels
 - 1 viewport command
 
 Example structure (flow type):
+
 ```json
 {
   "operations": [
-    {"type":"rectangle","id":"step-1","x":80,"y":200,"width":200,"height":70,"backgroundColor":"#a5d8ff","fillStyle":"solid","roundness":{"type":3},"label":{"text":"Input Data","fontSize":18}},
-    {"type":"rectangle","id":"step-2","x":360,"y":200,"width":200,"height":70,"backgroundColor":"#a5d8ff","fillStyle":"solid","roundness":{"type":3},"label":{"text":"Process","fontSize":18}},
-    {"type":"rectangle","id":"step-3","x":640,"y":200,"width":200,"height":70,"backgroundColor":"#a5d8ff","fillStyle":"solid","roundness":{"type":3},"label":{"text":"Output","fontSize":18}},
-    {"type":"arrow","id":"flow-1-2","x":280,"y":235,"width":80,"height":0,"points":[[0,0],[80,0]],"label":{"text":"leads-to","fontSize":14}},
-    {"type":"arrow","id":"flow-2-3","x":560,"y":235,"width":80,"height":0,"points":[[0,0],[80,0]],"label":{"text":"leads-to","fontSize":14}}
+    {
+      "type": "rectangle",
+      "id": "step-1",
+      "x": 80,
+      "y": 200,
+      "width": 200,
+      "height": 70,
+      "backgroundColor": "#a5d8ff",
+      "fillStyle": "solid",
+      "roundness": { "type": 3 },
+      "label": { "text": "Input Data", "fontSize": 18 }
+    },
+    {
+      "type": "rectangle",
+      "id": "step-2",
+      "x": 360,
+      "y": 200,
+      "width": 200,
+      "height": 70,
+      "backgroundColor": "#a5d8ff",
+      "fillStyle": "solid",
+      "roundness": { "type": 3 },
+      "label": { "text": "Process", "fontSize": 18 }
+    },
+    {
+      "type": "rectangle",
+      "id": "step-3",
+      "x": 640,
+      "y": 200,
+      "width": 200,
+      "height": 70,
+      "backgroundColor": "#a5d8ff",
+      "fillStyle": "solid",
+      "roundness": { "type": 3 },
+      "label": { "text": "Output", "fontSize": 18 }
+    },
+    {
+      "type": "arrow",
+      "id": "flow-1-2",
+      "x": 280,
+      "y": 235,
+      "width": 80,
+      "height": 0,
+      "points": [
+        [0, 0],
+        [80, 0]
+      ],
+      "label": { "text": "leads-to", "fontSize": 14 }
+    },
+    {
+      "type": "arrow",
+      "id": "flow-2-3",
+      "x": 560,
+      "y": 235,
+      "width": 80,
+      "height": 0,
+      "points": [
+        [0, 0],
+        [80, 0]
+      ],
+      "label": { "text": "leads-to", "fontSize": 14 }
+    }
   ],
-  "viewport":{"action":"scroll_to_content","focus_ids":["step-1","step-2","step-3"]}
+  "viewport": { "action": "scroll_to_content", "focus_ids": ["step-1", "step-2", "step-3"] }
 }
 ```
 
@@ -78,9 +139,9 @@ All 5 diagram types (flow, comparison, concept-map, hierarchy, timeline) get a s
 
 #### 2c. Files changed
 
-| File | Change |
-|---|---|
-| `src/main/whiteboard/prompt.ts` | Add arrow hard rule + 5 few-shot examples to `whiteboardSystemPrompt()` |
+| File                            | Change                                                                            |
+| ------------------------------- | --------------------------------------------------------------------------------- |
+| `src/main/whiteboard/prompt.ts` | Add arrow hard rule + 5 few-shot examples to `whiteboardSystemPrompt()`           |
 | `server/whiteboard-runtime.mjs` | Add identical arrow hard rule + 5 few-shot examples to `whiteboardSystemPrompt()` |
 
 Both files must stay in sync — the Electron pipeline uses the TypeScript version, the browser dev mode uses the JS version.
