@@ -128,50 +128,59 @@ async function processTranscriptBatch(
     return [fallbackTurn(batch, hints)]
   }
 
-  const wantsTranslation = hints.targetLanguage !== 'off'
+  const wantsTranslation =
+    hints.targetLanguage !== 'off' && hints.targetLanguage !== hints.sourceLanguageHint
 
-  const response = await fetch(OPENAI_CHAT_COMPLETIONS_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: STT_POSTPROCESS_MODEL,
-      temperature: 0,
-      response_format: { type: 'json_object' },
-      messages: [
-        {
-          role: 'system',
-          content: [
-            'You clean rough live meeting transcripts AND produce translations.',
-            `Return JSON only: {"turns":[{"speakerId":"speaker_a","speakerLabel":"Speaker A","text":"...","translation":${wantsTranslation ? '"..."' : 'null'},"sourceLanguage":"en"}]}.`,
-            'Do not summarize, add facts, or remove meaningful content.',
-            'Fix punctuation, capitalization, sentence boundaries, and obvious filler only when meaning is preserved.',
-            'Detect the source language and emit its ISO code (en, ko, ja, zh, es, fr, de) per turn.',
-            'Use speaker_a, speaker_b, speaker_c, or unknown.',
-            'Use Speaker A, Speaker B, Speaker C, or Unknown.',
-            'Split into speaker turns, not individual sentences.',
-            'Keep the same speaker when uncertain.',
-            wantsTranslation
-              ? `Translate each turn's text into ${hints.targetLanguage}. If source language equals target, set translation to null.`
-              : 'Set translation to null on every turn.',
-          ].join(' '),
-        },
-        {
-          role: 'user',
-          content: [
-            `Source language hint: ${hints.sourceLanguageHint}`,
-            `Target language: ${hints.targetLanguage}`,
-            '',
-            'Rough transcript batch:',
-            '',
-            batch,
-          ].join('\n'),
-        },
-      ],
-    }),
-  })
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 15000)
+  let response: Response
+  try {
+    response = await fetch(OPENAI_CHAT_COMPLETIONS_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: STT_POSTPROCESS_MODEL,
+        temperature: 0,
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content: [
+              'You clean rough live meeting transcripts AND produce translations.',
+              `Return JSON only: {"turns":[{"speakerId":"speaker_a","speakerLabel":"Speaker A","text":"...","translation":${wantsTranslation ? '"..."' : 'null'},"sourceLanguage":"en"}]}.`,
+              'Do not summarize, add facts, or remove meaningful content.',
+              'Fix punctuation, capitalization, sentence boundaries, and obvious filler only when meaning is preserved.',
+              'Detect the source language and emit its ISO code (en, ko, ja, zh, es, fr, de) per turn.',
+              'Use speaker_a, speaker_b, speaker_c, or unknown.',
+              'Use Speaker A, Speaker B, Speaker C, or Unknown.',
+              'Split into speaker turns, not individual sentences.',
+              'Keep the same speaker when uncertain.',
+              wantsTranslation
+                ? `Translate each turn's text into ${hints.targetLanguage}. If source language equals target, set translation to null.`
+                : 'Set translation to null on every turn.',
+            ].join(' '),
+          },
+          {
+            role: 'user',
+            content: [
+              `Source language hint: ${hints.sourceLanguageHint}`,
+              `Target language: ${hints.targetLanguage}`,
+              '',
+              'Rough transcript batch:',
+              '',
+              batch,
+            ].join('\n'),
+          },
+        ],
+      }),
+      signal: controller.signal,
+    })
+  } finally {
+    clearTimeout(timeoutId)
+  }
 
   if (!response.ok) {
     const text = await response.text().catch(() => '')
