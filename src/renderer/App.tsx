@@ -13,7 +13,7 @@
  * - Excalidraw whiteboard with AI agent
  */
 import '@excalidraw/excalidraw/index.css'
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { SystemAudioCaptureService } from '../main/audio/capture'
 import { PipelineHealthStore } from '../main/health/pipelineHealth'
 import { RealtimeSttClient } from '../main/stt/realtimeClient'
@@ -975,31 +975,18 @@ function App() {
                     <em>Idle.</em> Press <kbd>Start</kbd> and share a tab with audio to begin.
                   </p>
                 )}
-                {items.map((item, index) => {
-                  const previous = index > 0 ? items[index - 1] : null
-                  const showEyebrow =
-                    item.speakerLabel && (!previous || previous.speakerLabel !== item.speakerLabel)
-                  return (
-                    <Fragment key={`en-${item.id}`}>
-                      {showEyebrow && (
-                        <div className="v4p-eyebrow">
-                          <span className="v4p-eyebrow-name">{item.speakerLabel}</span>
-                          <span className="v4p-eyebrow-rule" />
-                        </div>
+                {items.map((item) => (
+                  <div className="v4p-line" key={`en-${item.id}`}>
+                    <div className="v4p-line-time amw-mono">
+                      {formatDuration(
+                        Math.max(item.createdAtMs - (sessionStartMs ?? item.createdAtMs), 0)
                       )}
-                      <div className="v4p-line">
-                        <div className="v4p-line-time amw-mono">
-                          {formatDuration(
-                            Math.max(item.createdAtMs - (sessionStartMs ?? item.createdAtMs), 0)
-                          )}
-                        </div>
-                        <div className={`v4p-line-text${item.typing ? ' v4p-line-typing' : ''}`}>
-                          {item.displayedSource}
-                        </div>
-                      </div>
-                    </Fragment>
-                  )
-                })}
+                    </div>
+                    <div className={`v4p-line-text${item.typing ? ' v4p-line-typing' : ''}`}>
+                      {item.displayedSource}
+                    </div>
+                  </div>
+                ))}
                 <div className="v4p-trail">· · ·</div>
               </div>
             </div>
@@ -1020,32 +1007,19 @@ function App() {
                       <em>Translations appear here.</em>
                     </p>
                   )}
-                  {items.map((item, index) => {
-                    const previous = index > 0 ? items[index - 1] : null
-                    const willRenderLine = item.fullTranslation !== null
-                    if (!willRenderLine) return null
-                    const showEyebrow =
-                      item.speakerLabel &&
-                      (!previous || previous.speakerLabel !== item.speakerLabel)
+                  {items.map((item) => {
+                    if (item.fullTranslation === null) return null
                     return (
-                      <Fragment key={`tr-${item.id}`}>
-                        {showEyebrow && (
-                          <div className="v4p-eyebrow">
-                            <span className="v4p-eyebrow-name">{item.speakerLabel}</span>
-                            <span className="v4p-eyebrow-rule" />
-                          </div>
-                        )}
-                        <div className="v4p-line">
-                          <div className="v4p-line-time amw-mono">
-                            {formatDuration(
-                              Math.max(item.createdAtMs - (sessionStartMs ?? item.createdAtMs), 0)
-                            )}
-                          </div>
-                          <div className={`v4p-line-text${item.typing ? ' v4p-line-typing' : ''}`}>
-                            {item.displayedTranslation}
-                          </div>
+                      <div className="v4p-line" key={`tr-${item.id}`}>
+                        <div className="v4p-line-time amw-mono">
+                          {formatDuration(
+                            Math.max(item.createdAtMs - (sessionStartMs ?? item.createdAtMs), 0)
+                          )}
                         </div>
-                      </Fragment>
+                        <div className={`v4p-line-text${item.typing ? ' v4p-line-typing' : ''}`}>
+                          {item.displayedTranslation}
+                        </div>
+                      </div>
                     )
                   })}
                   <div className="v4p-trail">· · ·</div>
