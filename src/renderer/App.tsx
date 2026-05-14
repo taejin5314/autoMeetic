@@ -13,20 +13,19 @@
  * - Excalidraw whiteboard with AI agent
  */
 import '@excalidraw/excalidraw/index.css'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { SystemAudioCaptureService } from '../main/audio/capture'
 import { PipelineHealthStore } from '../main/health/pipelineHealth'
 import { RealtimeSttClient } from '../main/stt/realtimeClient'
 import { TranscriptBus } from '../main/stt/transcriptBus'
-import type { TranscriptSegment, TranslationSegment } from '../main/stt/types'
-import { log } from '../main/telemetry/logger'
 import type { ViewportCommand, WhiteboardElement } from '../main/whiteboard/types'
 import { ActionItemsPanel } from './actions/ActionItemsPanel'
 import { isActionItem } from './actions/types'
 import { useActionItemsStore } from './actions/useActionItemsStore'
+import { useFeedTypewriter } from './feed/useFeedTypewriter'
 import { AnswerAssistCard } from './answer-assist/AnswerAssistCard'
 import { useAnswerAssistStore } from './answer-assist/useAnswerAssistStore'
-import { translate as apiTranslate, isElectron } from './api'
+import { isElectron } from './api'
 import './App.css'
 import { ElectronSttClient } from './electronSttClient'
 import { CaptionOverlay } from './overlay/CaptionOverlay'
@@ -49,15 +48,10 @@ const LANGUAGE_OPTIONS = [
 const LANGUAGE_LABEL_BY_CODE = new Map(
   LANGUAGE_OPTIONS.map((language) => [language.code, language.label])
 )
-const LOCKABLE_LANGUAGE_CODES = new Set(['ko', 'en', 'ja', 'zh'])
 const META_TRANSLATION_RE =
   /\b(this text appears|let me translate|translation|translate it|appears to be a mix)\b/i
-const TRANSLATION_CONCURRENCY = 2
-const FEED_MAX_WORDS = 8
-const FEED_SENTENCE_END_RE = /[.!?。？！]\s*$/
 const HERO_CAPTION_MAX_WORDS = 16
 const HERO_CAPTION_MAX_CHARS = 120
-const CAPTION_COMMITTED_HOLD_MS = 3500
 const DEFAULT_STT_LANGUAGE = 'auto'
 const DEFAULT_TRANSLATION_TARGET = 'ko'
 const TRANSLATION_TARGET_STORAGE_KEY = 'automeetic.translationTarget'
@@ -65,23 +59,6 @@ const TRANSLATION_TARGET_OPTIONS = new Set([
   'off',
   ...LANGUAGE_OPTIONS.filter((language) => language.code !== 'auto').map((language) => language.code),
 ])
-const FINAL_DEDUPE_WINDOW_MS = 10_000
-
-type TranslationJob = {
-  segment: TranscriptSegment
-  targetLang: string
-  generation: number
-}
-
-type DetectedLanguage = {
-  code: string
-  confidence: number
-}
-
-function countMatches(text: string, pattern: RegExp): number {
-  return text.match(pattern)?.length ?? 0
-}
-
 function compactHeroCaption(text: string): string {
   const normalized = text.replace(/\s+/g, ' ').trim()
   if (normalized.length <= HERO_CAPTION_MAX_CHARS) return normalized
@@ -98,24 +75,9 @@ function compactHeroCaption(text: string): string {
   return tail === normalized ? tail : `...${tail}`
 }
 
-function normalizeFinalTranscript(text: string): string {
-  return text.toLowerCase().replace(/[\s.,!?。？！'"`~:;()[\]{}-]+/g, '')
-}
 
-function detectTranscriptLanguage(text: string): DetectedLanguage | null {
-  const hangul = countMatches(text, /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af]/g)
-  const kana = countMatches(text, /[\u3040-\u30ff]/g)
-  const han = countMatches(text, /[\u3400-\u4dbf\u4e00-\u9fff]/g)
-  const latin = countMatches(text, /[A-Za-z]/g)
-  const total = hangul + kana + han + latin
-  if (total < 2) return null
-
-  if (hangul >= 2 && hangul >= kana * 2) return { code: 'ko', confidence: hangul / total }
-  if (kana >= 2 && kana >= hangul) return { code: 'ja', confidence: kana / total }
-  if (han >= 2 && hangul === 0 && kana === 0) return { code: 'zh', confidence: han / total }
-  if (latin >= 8 && hangul === 0 && kana === 0 && han === 0)
-    return { code: 'en', confidence: latin / total }
-  return null
+function countMatches(text: string, pattern: RegExp): number {
+  return text.match(pattern)?.length ?? 0
 }
 
 function conflictsWithLockedLanguage(text: string, lockedLanguage: string): boolean {
@@ -170,7 +132,6 @@ function App() {
   const [translationTarget, setTranslationTarget] = useState(getInitialTranslationTarget)
   const [languageLock, setLanguageLock] = useState<string | null>(null)
   const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null)
-  const [translatingCount, setTranslatingCount] = useState(0)
   // V4: collapsible right shelf — 'whiteboard' | 'actions' | 'closed'
   const [shelf, setShelf] = useState<'whiteboard' | 'actions' | 'closed'>('whiteboard')
   const [whiteboardMaximized, setWhiteboardMaximized] = useState(false)
@@ -180,12 +141,14 @@ function App() {
   const {
     items,
     currentPartial,
-    applyTranscript,
-    applyTranslation,
-    clearPartial,
+    applyPartial,
+    appendProcessed,
+    advanceTyping,
+    completeTyping,
     clear,
     getRecentTranscript,
   } = useCaptionStore()
+  useFeedTypewriter({ items, advanceTyping, completeTyping })
   const [captionText, setCaptionText] = useState('')
   const answerAssist = useAnswerAssistStore()
   const {
@@ -209,26 +172,8 @@ function App() {
   const acceptedFinalTranscriptIdsRef = useRef<Set<string>>(new Set())
   const rejectedFinalTranscriptIdsRef = useRef<Set<string>>(new Set())
   const recentFinalTextsRef = useRef<Array<{ normalized: string; createdAtMs: number }>>([])
-  const translationQueueRef = useRef<TranslationJob[]>([])
-  const translationActiveCountRef = useRef(0)
-  const translationTargetRef = useRef(translationTarget)
-  const translationGenerationRef = useRef(0)
-
-  // ── Feed accumulation buffer ─────────────────────────────────────────────
-  // Accumulates short committed chunks until sentence boundary or 15 words,
-  // then flushes to the feed + translation. Whiteboard agent receives commits
-  // immediately (separate listener) so it stays fast.
-  const feedBufferRef = useRef<{ id: string; createdAtMs: number; text: string } | null>(null)
-  const [feedBufferText, setFeedBufferText] = useState('')
   const [autoScroll, setAutoScroll] = useState(true)
   const captionTimerRef = useRef<number | null>(null)
-
-  // Refs to stabilize callback closure: these hold latest versions of functions
-  // but don't cause useEffect to re-run when they change
-  const shouldAcceptTranscriptRef = useRef<((segment: TranscriptSegment) => boolean) | null>(null)
-  const applyTranscriptRef = useRef<((segment: TranscriptSegment) => void) | null>(null)
-  const flushFeedBufferRef = useRef<((force?: boolean) => void) | null>(null)
-  const clearPartialRef = useRef<(() => void) | null>(null)
 
   // Stable service instances — same lifecycle pattern as autopreso
   const bus = useMemo(() => new TranscriptBus(), [])
@@ -252,261 +197,36 @@ function App() {
   )
 
   useEffect(() => {
-    translationTargetRef.current = translationTarget
-    translationGenerationRef.current += 1
-    if (translationTarget === 'off') {
-      translationQueueRef.current = []
-      setTranslatingCount(translationActiveCountRef.current)
-    }
-  }, [translationTarget])
-
-  const shouldAcceptTranscript = useCallback(
-    (segment: TranscriptSegment): boolean => {
-      if (segment.isFinal) {
-        // Already processed — skip duplicate finals
-        if (acceptedFinalTranscriptIdsRef.current.has(segment.id)) return false
-        if (rejectedFinalTranscriptIdsRef.current.has(segment.id)) return false
-      }
-
-      const text = segment.text.trim()
-      const normalizedFinal = segment.isFinal ? normalizeFinalTranscript(text) : ''
-      if (segment.isFinal && normalizedFinal) {
-        const now = Date.now()
-        recentFinalTextsRef.current = recentFinalTextsRef.current.filter(
-          (entry) => now - entry.createdAtMs <= FINAL_DEDUPE_WINDOW_MS
-        )
-        if (
-          recentFinalTextsRef.current.some((entry) => entry.normalized === normalizedFinal)
-        ) {
-          rejectedFinalTranscriptIdsRef.current.add(segment.id)
-          return false
-        }
-      }
-      const detected = detectTranscriptLanguage(text)
-      if (detected && LOCKABLE_LANGUAGE_CODES.has(detected.code)) {
-        setDetectedLanguage(detected.code)
-
-        if (segment.isFinal && sttLanguage === 'auto' && detected.confidence >= 0.35) {
-          const votes = languageVotesRef.current
-          votes[detected.code] = (votes[detected.code] ?? 0) + Math.max(detected.confidence, 0.5)
-          const best = Object.entries(votes).sort((a, b) => b[1] - a[1])[0]
-          if (best && best[1] >= 1.5 && lockedLanguageRef.current !== best[0]) {
-            lockedLanguageRef.current = best[0]
-            setLanguageLock(best[0])
-            updateHealth('stt', 'connected', `locked ${best[0]}`)
-          }
-        }
-      }
-
-      const preferredLanguage = sttLanguage === 'auto' ? lockedLanguageRef.current : sttLanguage
-      if (!segment.isFinal) return true
-
-      const accepted = !preferredLanguage || !conflictsWithLockedLanguage(text, preferredLanguage)
-      if (!accepted) {
-        log('warn', 'stt', 'filtered transcript that conflicts with locked language', {
-          lockedLanguage: preferredLanguage,
-          detectedLanguage: detected?.code ?? 'unknown',
-          text: text.slice(0, 120),
-        })
-        clearPartial()
-      }
-
-      if (segment.isFinal) {
-        const target = accepted ? acceptedFinalTranscriptIdsRef : rejectedFinalTranscriptIdsRef
-        target.current.add(segment.id)
-        if (accepted && normalizedFinal) {
-          recentFinalTextsRef.current.push({
-            normalized: normalizedFinal,
-            createdAtMs: Date.now(),
-          })
-        }
-      }
-      return accepted
-    },
-    [clearPartial, sttLanguage, updateHealth]
-  )
-
-  // Wire transcript bus → caption store, capture → STT client
-  const updateTranslationQueueStatus = useCallback(() => {
-    setTranslatingCount(translationActiveCountRef.current + translationQueueRef.current.length)
-  }, [])
-
-  const drainTranslationQueue = useCallback(() => {
-    const pump = () => {
-      while (
-        translationActiveCountRef.current < TRANSLATION_CONCURRENCY &&
-        translationQueueRef.current.length > 0
-      ) {
-        const job = translationQueueRef.current.shift()
-        if (!job) return
-
-        translationActiveCountRef.current += 1
-        updateTranslationQueueStatus()
-        updateHealth(
-          'translation',
-          'degraded',
-          `translating ${translationActiveCountRef.current + translationQueueRef.current.length}`
-        )
-
-        void apiTranslate(job.segment.text, job.targetLang)
-          .then((data) => {
-            if (
-              translationGenerationRef.current !== job.generation ||
-              translationTargetRef.current !== job.targetLang
-            ) {
-              return
-            }
-            const translation: TranslationSegment = {
-              segmentId: job.segment.id,
-              text: data.translation,
-              createdAtMs: Date.now(),
-              provider: 'openai-async',
-            }
-            applyTranslation(translation)
-          })
-          .catch((err) => {
-            updateHealth(
-              'translation',
-              'degraded',
-              err instanceof Error ? err.message : String(err)
-            )
-          })
-          .finally(() => {
-            translationActiveCountRef.current = Math.max(translationActiveCountRef.current - 1, 0)
-            updateTranslationQueueStatus()
-            if (translationQueueRef.current.length > 0) {
-              queueMicrotask(pump)
-            } else if (
-              translationGenerationRef.current === job.generation &&
-              translationActiveCountRef.current === 0 &&
-              translationTargetRef.current !== 'off'
-            ) {
-              updateHealth('translation', 'connected', `to ${translationTargetRef.current}`)
-            }
-          })
-      }
-    }
-
-    pump()
-  }, [applyTranslation, updateHealth, updateTranslationQueueStatus])
-
-  const enqueueTranslation = useCallback(
-    (segment: TranscriptSegment, targetLang: string) => {
-      if (!segment.isFinal || targetLang === 'off') return
-      translationQueueRef.current.push({
-        segment,
-        targetLang,
-        generation: translationGenerationRef.current,
-      })
-      updateTranslationQueueStatus()
-      drainTranslationQueue()
-    },
-    [drainTranslationQueue, updateTranslationQueueStatus]
-  )
-
-  /** Flush accumulated feed buffer → applyTranscript + enqueue translation. */
-  const flushFeedBuffer = useCallback(
-    (force = false) => {
-      const buf = feedBufferRef.current
-      if (!buf) return
-      const text = buf.text.trim()
-      if (!text) {
-        feedBufferRef.current = null
-        setFeedBufferText('')
-        return
-      }
-      const wordCount = text.split(/\s+/).filter(Boolean).length
-      if (!force && !FEED_SENTENCE_END_RE.test(text) && wordCount < FEED_MAX_WORDS) return
-
-      const merged: TranscriptSegment = {
-        id: buf.id,
-        text,
-        isFinal: true,
-        createdAtMs: buf.createdAtMs,
-        source: 'openai-realtime',
-      }
-      feedBufferRef.current = null
-      setFeedBufferText('')
-      applyTranscript(merged)
-
-      // Match autopreso: committed text stays visible for 3.5s then clears.
-      if (captionTimerRef.current !== null) {
-        window.clearTimeout(captionTimerRef.current)
-      }
-      setCaptionText(text)
-      captionTimerRef.current = window.setTimeout(() => {
-        setCaptionText('')
-        captionTimerRef.current = null
-      }, CAPTION_COMMITTED_HOLD_MS)
-
-      const detectedSourceLanguage = detectTranscriptLanguage(text)?.code ?? null
-      const sourceLanguage =
-        sttLanguage === 'auto'
-          ? (lockedLanguageRef.current ?? detectedSourceLanguage)
-          : sttLanguage
-      if (
-        translationTargetRef.current !== 'off' &&
-        translationTargetRef.current !== sourceLanguage
-      ) {
-        enqueueTranslation(merged, translationTargetRef.current)
-      }
-    },
-    [applyTranscript, enqueueTranslation, sttLanguage]
-  )
-
-  // Update refs to hold latest function versions without re-triggering main useEffect
-  useEffect(() => {
-    shouldAcceptTranscriptRef.current = shouldAcceptTranscript
-  }, [shouldAcceptTranscript])
-  useEffect(() => {
-    applyTranscriptRef.current = applyTranscript
-  }, [applyTranscript])
-  useEffect(() => {
-    flushFeedBufferRef.current = flushFeedBuffer
-  }, [flushFeedBuffer])
-  useEffect(() => {
-    clearPartialRef.current = clearPartial
-  }, [clearPartial])
-
-  useEffect(() => {
-    const offTranscript = bus.onTranscript((segment) => {
-      if (!shouldAcceptTranscriptRef.current?.(segment)) return
-
-      // Match autopreso: partials replace caption text directly.
-      if (!segment.isFinal) {
-        const text = segment.text.trim()
-        if (text) {
-          if (captionTimerRef.current !== null) {
-            window.clearTimeout(captionTimerRef.current)
-            captionTimerRef.current = null
-          }
-          setCaptionText(text)
-        }
-        applyTranscriptRef.current?.(segment)
-        return
-      }
-
-      // Finals: clear partial and accumulate in feed buffer
-      clearPartialRef.current?.()
-      const text = segment.text.trim()
-      if (!text) return
-      if (!feedBufferRef.current) {
-        feedBufferRef.current = { id: segment.id, createdAtMs: segment.createdAtMs, text }
-      } else {
-        feedBufferRef.current.text += ' ' + text
-      }
-      setFeedBufferText(feedBufferRef.current.text)
-      flushFeedBufferRef.current?.(false)
-    })
     const offCapture = capture.subscribe((chunk) => sttClient.ingest(chunk))
 
     return () => {
-      offTranscript()
       offCapture()
       capture.stop()
       sttClient.disconnect()
     }
-  }, [bus, capture, sttClient])
+  }, [capture, sttClient])
+
+  // Wire Electron IPC STT events to caption store
+  useEffect(() => {
+    if (!isElectron) return
+    const api = window.electronAPI
+    if (!api) return
+
+    const offPartial = api.onSttPartial((text) => {
+      applyPartial(text)
+      if (text.trim()) setCaptionText(text)
+    })
+
+    const offProcessed = api.onSttProcessed((event) => {
+      if (!event?.turns?.length) return
+      appendProcessed(event.turns)
+    })
+
+    return () => {
+      offPartial()
+      offProcessed()
+    }
+  }, [applyPartial, appendProcessed])
 
   // V4: auto-scroll bilingual columns to bottom when content changes.
   useEffect(() => {
@@ -517,7 +237,7 @@ function App() {
       if (en) en.scrollTop = en.scrollHeight
       if (ko) ko.scrollTop = ko.scrollHeight
     })
-  }, [items, feedBufferText, currentPartial, autoScroll])
+  }, [items, currentPartial, autoScroll])
 
   // V4: keep the EN and KO column scroll positions linked, and track
   // manual scrolling to toggle the auto-scroll state.
@@ -826,7 +546,6 @@ function App() {
     }
     capture.stop()
     sttClient.disconnect()
-    flushFeedBuffer(true)
     if (captionTimerRef.current !== null) {
       window.clearTimeout(captionTimerRef.current)
       captionTimerRef.current = null
@@ -836,7 +555,7 @@ function App() {
     updateHealth('capture', 'disconnected', 'stopped')
     updateHealth('stt', 'disconnected', 'stopped')
     setRunning(false)
-  }, [capture, flushFeedBuffer, runStartMs, sttClient, updateHealth])
+  }, [capture, runStartMs, sttClient, updateHealth])
 
   const resetSession = useCallback(() => {
     if (!resetConfirming) {
@@ -881,11 +600,6 @@ function App() {
     acceptedFinalTranscriptIdsRef.current.clear()
     rejectedFinalTranscriptIdsRef.current.clear()
     recentFinalTextsRef.current = []
-    feedBufferRef.current = null
-    setFeedBufferText('')
-    translationGenerationRef.current += 1
-    translationQueueRef.current = []
-    setTranslatingCount(translationActiveCountRef.current)
     setActiveAudioMs(0)
     setRunStartMs(null)
     setSessionStartMs(null)
@@ -923,9 +637,8 @@ function App() {
     sttLanguage === 'auto' ? (languageLock ?? detectedLanguage ?? 'auto') : sttLanguage
   const targetLang = translationTarget
   const showTranslationColumn = translationTarget !== 'off' && targetLang !== sourceLang
-  const pendingFeedText = feedBufferText.trim()
   const draftLiveText = currentPartial.trim()
-  const hasFeedContent = items.length > 0 || Boolean(pendingFeedText || draftLiveText)
+  const hasFeedContent = items.length > 0 || Boolean(draftLiveText)
   const heroSourceText = compactHeroCaption(currentPartial)
   const heroTargetText = ''
   const heroDurationLabel = sessionStartMs ? formatDuration(totalAudioMs) : '00:00'
@@ -1246,27 +959,33 @@ function App() {
                     <em>Idle.</em> Press <kbd>Start</kbd> and share a tab with audio to begin.
                   </p>
                 )}
-                {items.map((item) => (
-                  <div key={`en-${item.id}`} className="v4p-line">
-                    <div className="v4p-line-time amw-mono">
-                      {formatDuration(
-                        Math.max(item.createdAtMs - (sessionStartMs ?? item.createdAtMs), 0)
+                {items.map((item, index) => {
+                  const previous = index > 0 ? items[index - 1] : null
+                  const showEyebrow =
+                    item.speakerLabel && (!previous || previous.speakerLabel !== item.speakerLabel)
+                  return (
+                    <Fragment key={`en-${item.id}`}>
+                      {showEyebrow && (
+                        <div className="v4p-eyebrow">
+                          <span className="v4p-eyebrow-name">{item.speakerLabel}</span>
+                          <span className="v4p-eyebrow-rule" />
+                        </div>
                       )}
-                    </div>
-                    <div className="v4p-line-text">
-                      {item.speakerLabel && (
-                        <span className="v4p-line-speaker">{item.speakerLabel}</span>
-                      )}
-                      {item.sourceText}
-                    </div>
-                  </div>
-                ))}
-                {pendingFeedText && (
-                  <div className="v4p-line v4p-line-pending">
-                    <div className="v4p-line-time amw-mono">·</div>
-                    <div className="v4p-line-text">{pendingFeedText}</div>
-                  </div>
-                )}
+                      <div className="v4p-line">
+                        <div className="v4p-line-time amw-mono">
+                          {formatDuration(
+                            Math.max(item.createdAtMs - (sessionStartMs ?? item.createdAtMs), 0)
+                          )}
+                        </div>
+                        <div
+                          className={`v4p-line-text${item.typing ? ' v4p-line-typing' : ''}`}
+                        >
+                          {item.displayedSource}
+                        </div>
+                      </div>
+                    </Fragment>
+                  )
+                })}
                 {draftLiveText && (
                   <div className="v4p-line v4p-line-live">
                     <div className="v4p-line-time amw-mono">·</div>
@@ -1286,9 +1005,6 @@ function App() {
                   <em>Translation</em> ·{' '}
                   {LANGUAGE_LABEL_BY_CODE.get(targetLang) ?? targetLang}
                 </span>
-                {translatingCount > 0 && (
-                  <span className="v4p-col-pending">translating {translatingCount}…</span>
-                )}
               </div>
               <div className="v4p-col-body amw-scroll" ref={koColRef}>
                 <div className="v4p-col-pad">
@@ -1297,21 +1013,35 @@ function App() {
                       <em>Translations appear here.</em>
                     </p>
                   )}
-                  {items.map((item) => (
-                    <div key={`tr-${item.id}`} className="v4p-line">
-                      <div className="v4p-line-time amw-mono">
-                        {formatDuration(
-                          Math.max(item.createdAtMs - (sessionStartMs ?? item.createdAtMs), 0)
+                  {items.map((item, index) => {
+                    const previous = index > 0 ? items[index - 1] : null
+                    const willRenderLine = item.fullTranslation !== null
+                    if (!willRenderLine) return null
+                    const showEyebrow =
+                      item.speakerLabel && (!previous || previous.speakerLabel !== item.speakerLabel)
+                    return (
+                      <Fragment key={`tr-${item.id}`}>
+                        {showEyebrow && (
+                          <div className="v4p-eyebrow">
+                            <span className="v4p-eyebrow-name">{item.speakerLabel}</span>
+                            <span className="v4p-eyebrow-rule" />
+                          </div>
                         )}
-                      </div>
-                      <div className="v4p-line-text">
-                        {item.speakerLabel && (
-                          <span className="v4p-line-speaker">{item.speakerLabel}</span>
-                        )}
-                        {item.translatedText || <span className="v4p-line-pending">…</span>}
-                      </div>
-                    </div>
-                  ))}
+                        <div className="v4p-line">
+                          <div className="v4p-line-time amw-mono">
+                            {formatDuration(
+                              Math.max(item.createdAtMs - (sessionStartMs ?? item.createdAtMs), 0)
+                            )}
+                          </div>
+                          <div
+                            className={`v4p-line-text${item.typing ? ' v4p-line-typing' : ''}`}
+                          >
+                            {item.displayedTranslation}
+                          </div>
+                        </div>
+                      </Fragment>
+                    )
+                  })}
                   <div className="v4p-trail">·  ·  ·</div>
                 </div>
               </div>

@@ -601,6 +601,46 @@ body,
   text-wrap: pretty;
 }
 
+.v4p-line-speaker {
+  display: block;
+  margin-bottom: 3px;
+  font-family: var(--p-mono);
+  font-size: 10.5px;
+  line-height: 1.2;
+  color: var(--p-faint);
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.v4p-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  margin-bottom: 4px;
+}
+
+.v4p-eyebrow-name {
+  font-family: var(--p-mono);
+  font-size: 10.5px;
+  line-height: 1.2;
+  color: var(--p-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.v4p-eyebrow-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--p-rule, rgba(0, 0, 0, 0.08));
+}
+
+.v4p-line-typing .v4p-line-text,
+.v4p-line-text.v4p-line-typing {
+  opacity: 0.7;
+}
+
 .v4p-line-live .v4p-line-text {
   color: var(--p-ink);
   font-weight: 500;
@@ -611,6 +651,10 @@ body,
 
 .v4p-line-pending {
   color: var(--p-faint);
+}
+
+.v4p-line-pending .v4p-line-text {
+  color: var(--p-ink);
 }
 
 .v4p-trail {
@@ -688,7 +732,25 @@ body,
   padding: 16px;
   display: flex;
   flex-direction: column;
+  position: relative;
   overflow: hidden;
+}
+
+.v4p-shelf-panel {
+  position: absolute;
+  inset: 16px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.v4p-shelf-panel.on {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .v4p-wb {
@@ -1013,6 +1075,132 @@ body,
   color: var(--p-faint) !important;
 }
 
+.v4p-actions-panel {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.v4p-action-section {
+  margin-bottom: 18px;
+}
+
+.v4p-action-section-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-family: var(--p-serif);
+  font-size: 13px;
+  color: var(--p-mute);
+}
+
+.v4p-action-section-hd em {
+  color: var(--p-ink);
+  font-style: italic;
+}
+
+.v4p-action-section-hd span {
+  font-family: var(--p-mono);
+  font-size: 11px;
+  color: var(--p-faint);
+}
+
+.v4p-action-section-empty {
+  margin: 0;
+  padding: 10px 0 12px;
+  font-family: var(--p-serif);
+  font-size: 12.5px;
+  color: var(--p-faint);
+}
+
+.v4p-action-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.v4p-action-card {
+  border: 1px solid var(--p-border);
+  border-radius: 8px;
+  background: var(--p-bg-sub);
+  padding: 10px;
+}
+
+.v4p-action-card.compact {
+  opacity: 0.78;
+}
+
+.v4p-action-title,
+.v4p-action-fields input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.58);
+  color: var(--p-ink);
+  font: inherit;
+}
+
+.v4p-action-title {
+  padding: 6px 7px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.v4p-action-title:focus,
+.v4p-action-fields input:focus {
+  outline: none;
+  border-color: var(--p-accent);
+  background: #fff;
+}
+
+.v4p-action-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.v4p-action-fields input {
+  padding: 5px 6px;
+  font-size: 12px;
+}
+
+.v4p-action-source {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--p-faint);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.v4p-action-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.v4p-action-controls button {
+  border: 1px solid var(--p-border);
+  border-radius: 5px;
+  background: var(--p-bg-card);
+  color: var(--p-mute);
+  cursor: pointer;
+  font-size: 11.5px;
+  padding: 4px 7px;
+}
+
+.v4p-action-controls button:hover {
+  border-color: var(--p-border-strong);
+  color: var(--p-ink);
+}
+
 
 /* ── Now speaking hero ──────────────────────────────────────────────────── */
 
@@ -1109,9 +1297,13 @@ body,
   font-size: 24px;
   line-height: 1.35;
   color: var(--p-ink);
-  letter-spacing: -0.015em;
+  letter-spacing: 0;
   text-wrap: pretty;
   max-width: 900px;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .v4p-now-ko {
@@ -1119,7 +1311,7 @@ body,
   line-height: 1.55;
   color: var(--p-mute);
   margin-top: 8px;
-  letter-spacing: -0.005em;
+  letter-spacing: 0;
   text-wrap: pretty;
   max-width: 900px;
 }
