@@ -4,7 +4,7 @@ import type { ProcessedTranscriptTurn, SpeakerId, SpeakerLabel } from './stt/typ
 import { enqueueTranscript as enqueueWhiteboardTranscript } from './whiteboardService'
 
 const STT_POSTPROCESS_MODEL = process.env.STT_POSTPROCESS_MODEL ?? 'gpt-4.1-mini'
-const STT_POSTPROCESS_FLUSH_MS = Number(process.env.STT_POSTPROCESS_FLUSH_MS ?? 2000)
+const STT_POSTPROCESS_FLUSH_MS = Number(process.env.STT_POSTPROCESS_FLUSH_MS ?? 1000)
 const STT_POSTPROCESS_MIN_CHARS = Number(process.env.STT_POSTPROCESS_MIN_CHARS ?? 60)
 const STT_POSTPROCESS_MAX_CHARS = Number(process.env.STT_POSTPROCESS_MAX_CHARS ?? 1200)
 const OPENAI_CHAT_COMPLETIONS_URL = 'https://api.openai.com/v1/chat/completions'
@@ -223,8 +223,7 @@ function toProcessedTurn(
     typeof turn.sourceLanguage === 'string' && turn.sourceLanguage.length === 2
       ? turn.sourceLanguage
       : hints.sourceLanguageHint
-  const wantsTranslation =
-    hints.targetLanguage !== 'off' && hints.targetLanguage !== sourceLanguage
+  const wantsTranslation = hints.targetLanguage !== 'off' && hints.targetLanguage !== sourceLanguage
   const rawTranslation = typeof turn.translation === 'string' ? turn.translation.trim() : ''
   return {
     id: `turn_${createdAtMs}_${Math.random().toString(36).slice(2, 8)}`,
@@ -265,7 +264,10 @@ function normalizeSpeakerLabel(value: unknown, speakerId: SpeakerId): SpeakerLab
 }
 
 function stripJsonFence(text: string): string {
-  return text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+  return text
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim()
 }
 
 function scheduleFlush(): void {
