@@ -215,7 +215,28 @@ function App() {
 
     const offPartial = api.onSttPartial((text) => {
       applyPartial(text)
-      if (text.trim()) setCaptionText(text)
+      const trimmed = text.trim()
+      if (trimmed) {
+        if (captionTimerRef.current !== null) {
+          window.clearTimeout(captionTimerRef.current)
+          captionTimerRef.current = null
+        }
+        setCaptionText(trimmed)
+      }
+    })
+
+    const offCommitted = api.onSttCommitted((text) => {
+      const trimmed = (text ?? '').trim()
+      if (trimmed) {
+        if (captionTimerRef.current !== null) {
+          window.clearTimeout(captionTimerRef.current)
+        }
+        setCaptionText(trimmed)
+        captionTimerRef.current = window.setTimeout(() => {
+          setCaptionText('')
+          captionTimerRef.current = null
+        }, 3500)
+      }
     })
 
     const offProcessed = api.onSttProcessed((event) => {
@@ -225,6 +246,7 @@ function App() {
 
     return () => {
       offPartial()
+      offCommitted()
       offProcessed()
     }
   }, [applyPartial, appendProcessed])
@@ -639,7 +661,7 @@ function App() {
   const targetLang = translationTarget
   const showTranslationColumn = translationTarget !== 'off' && targetLang !== sourceLang
   const hasFeedContent = items.length > 0
-  const heroSourceText = compactHeroCaption(currentPartial)
+  const heroSourceText = compactHeroCaption(captionText)
   const heroTargetText = ''
   const heroDurationLabel = sessionStartMs ? formatDuration(totalAudioMs) : '00:00'
   const langCode = (code: string) => (code === 'auto' || code === 'off' ? '—' : code.toUpperCase())

@@ -96,8 +96,6 @@ function commitDelta(): void {
       targetLanguage: currentTargetLanguage,
     })
     emittedRoughForCurrentItem = true
-    // Clear the hero partial immediately so the committed sentence doesn't linger
-    mainWindowRef?.webContents.send('stt:partial', '')
   }
 }
 
@@ -147,7 +145,6 @@ function handleOpenAiMessage(raw: string): void {
         sourceLanguageHint: currentSourceLanguage,
         targetLanguage: currentTargetLanguage,
       })
-      mainWindowRef?.webContents.send('stt:partial', '')
     }
     emittedRoughForCurrentItem = false
     clearDeltaState()
