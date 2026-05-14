@@ -17,6 +17,8 @@ const INITIAL: AnswerAssistState = {
   errorMessage: null,
 }
 
+const ANSWER_ASSIST_URL = '/api/answer-assist'
+
 function reducer(state: AnswerAssistState, action: Action): AnswerAssistState {
   switch (action.type) {
     case 'start':
@@ -39,15 +41,53 @@ function reducer(state: AnswerAssistState, action: Action): AnswerAssistState {
   }
 }
 
-const ANSWER_ASSIST_URL = '/api/answer-assist'
+type HandleEventArgs = {
+  dispatch: React.Dispatch<Action>
+  sectionRef: React.MutableRefObject<'source' | 'ko'>
+  appendSource: (content: string) => void
+  appendKo: (content: string) => void
+}
+
+function handleAnswerAssistEvent(
+  event: SSEEvent,
+  { dispatch, sectionRef, appendSource, appendKo }: HandleEventArgs
+): 'done' | 'continue' {
+  switch (event.type) {
+    case 'searching':
+      dispatch({ type: 'searching', query: event.query })
+      return 'continue'
+    case 'delta':
+      if (sectionRef.current === 'ko') {
+        appendKo(event.content)
+      } else {
+        appendSource(event.content)
+      }
+      dispatch({ type: 'delta', content: event.content, section: sectionRef.current })
+      return 'continue'
+    case 'section':
+      if (event.name === 'ko') sectionRef.current = 'ko'
+      return 'continue'
+    case 'done':
+      dispatch({ type: 'done', answer: event.answer, answerKo: event.answer_ko })
+      return 'done'
+    case 'no_question':
+      dispatch({ type: 'error', message: '질문이 감지되지 않았습니다' })
+      return 'done'
+    case 'error':
+      dispatch({ type: 'error', message: event.message })
+      return 'done'
+  }
+}
 
 export function useAnswerAssistStore() {
   const [state, dispatch] = useReducer(reducer, INITIAL)
   const abortRef = useRef<AbortController | null>(null)
+  const cleanupElectronListenerRef = useRef<(() => void) | null>(null)
   const sectionRef = useRef<'source' | 'ko'>('source')
 
   const requestAnswer = useCallback(async (transcript: string, lang: string) => {
     if (abortRef.current) abortRef.current.abort()
+    if (cleanupElectronListenerRef.current) cleanupElectronListenerRef.current()
     const controller = new AbortController()
     abortRef.current = controller
     sectionRef.current = 'source'
@@ -55,6 +95,34 @@ export function useAnswerAssistStore() {
     dispatch({ type: 'start' })
 
     try {
+      if (window.electronAPI) {
+        let fullAnswer = ''
+        let fullAnswerKo = ''
+        cleanupElectronListenerRef.current = window.electronAPI.onAnswerAssistEvent(
+          (rawEvent: unknown) => {
+            const handled = handleAnswerAssistEvent(rawEvent as SSEEvent, {
+              dispatch,
+              sectionRef,
+              appendSource: (content) => {
+                fullAnswer += content
+              },
+              appendKo: (content) => {
+                fullAnswerKo += content
+              },
+            })
+            if (handled === 'done') {
+              cleanupElectronListenerRef.current?.()
+              cleanupElectronListenerRef.current = null
+            }
+          }
+        )
+        await window.electronAPI.startAnswerAssist(transcript, lang)
+        if (fullAnswer || fullAnswerKo) {
+          dispatch({ type: 'done', answer: fullAnswer, answerKo: fullAnswerKo })
+        }
+        return
+      }
+
       const res = await fetch(ANSWER_ASSIST_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
@@ -101,31 +169,17 @@ export function useAnswerAssistStore() {
             continue
           }
 
-          switch (event.type) {
-            case 'searching':
-              dispatch({ type: 'searching', query: event.query })
-              break
-            case 'delta':
-              if (sectionRef.current === 'ko') {
-                fullAnswerKo += event.content
-              } else {
-                fullAnswer += event.content
-              }
-              dispatch({ type: 'delta', content: event.content, section: sectionRef.current })
-              break
-            case 'section':
-              if (event.name === 'ko') sectionRef.current = 'ko'
-              break
-            case 'done':
-              dispatch({ type: 'done', answer: event.answer, answerKo: event.answer_ko })
-              return
-            case 'no_question':
-              dispatch({ type: 'error', message: '질문이 감지되지 않았습니다' })
-              return
-            case 'error':
-              dispatch({ type: 'error', message: event.message })
-              return
-          }
+          const handled = handleAnswerAssistEvent(event, {
+            dispatch,
+            sectionRef,
+            appendSource: (content) => {
+              fullAnswer += content
+            },
+            appendKo: (content) => {
+              fullAnswerKo += content
+            },
+          })
+          if (handled === 'done') return
         }
       }
 
@@ -140,7 +194,9 @@ export function useAnswerAssistStore() {
 
   const dismiss = useCallback(() => {
     if (abortRef.current) abortRef.current.abort()
+    if (cleanupElectronListenerRef.current) cleanupElectronListenerRef.current()
     abortRef.current = null
+    cleanupElectronListenerRef.current = null
     sectionRef.current = 'source'
     dispatch({ type: 'dismiss' })
   }, [])
