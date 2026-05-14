@@ -337,6 +337,12 @@ body,
   border-color: var(--p-border-strong);
 }
 
+.v4p-iconbtn.ghost.on {
+  background: var(--p-bg-sub);
+  border-color: var(--p-ink);
+  color: var(--p-ink);
+}
+
 /* ── Source bar ─────────────────────────────────────────────────────────── */
 
 .v4p-sourcebar {
@@ -1007,29 +1013,6 @@ body,
   color: var(--p-faint) !important;
 }
 
-.v4p-shelf-reopen {
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 22px;
-  height: 60px;
-  background: var(--p-bg-card);
-  border: 1px solid var(--p-border);
-  border-right: none;
-  border-radius: 8px 0 0 8px;
-  color: var(--p-mute);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 5;
-}
-
-.v4p-shelf-reopen:hover {
-  color: var(--p-ink);
-  background: var(--p-bg-sub);
-}
 
 /* ── Now speaking hero ──────────────────────────────────────────────────── */
 

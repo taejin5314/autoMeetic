@@ -964,6 +964,28 @@ function App() {
           </button>
 
           <button
+            className={`v4p-iconbtn ghost ${shelf !== 'closed' ? 'on' : ''}`}
+            type="button"
+            onClick={() => setShelf(shelf === 'closed' ? 'whiteboard' : 'closed')}
+            title={shelf === 'closed' ? 'Show panel' : 'Hide panel'}
+            aria-label="Toggle right panel"
+            aria-pressed={shelf !== 'closed'}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+            >
+              <rect x="1.25" y="2.5" width="11.5" height="9" rx="1.5" />
+              <line x1="9" y1="2.5" x2="9" y2="11.5" />
+            </svg>
+          </button>
+
+          <button
             className="v4p-iconbtn ghost"
             type="button"
             onClick={() => {
@@ -1250,25 +1272,6 @@ function App() {
           </aside>
         )}
 
-        {shelf === 'closed' && (
-          <button
-            className="v4p-shelf-reopen"
-            onClick={() => setShelf('whiteboard')}
-            title="Open panel"
-            aria-label="Open panel"
-          >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 12 12"
-              stroke="currentColor"
-              strokeWidth="1.4"
-              fill="none"
-            >
-              <path d="M8 3L4 6l4 3" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-        )}
       </div>
 
       {/* ── Now speaking hero strip ───────────────────────────── */}
