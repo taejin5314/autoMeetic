@@ -60,6 +60,8 @@ export class ElectronSttClient {
           isFinal: true,
           createdAtMs: Date.now(),
           source: 'openai-realtime',
+          speakerId: 'unknown',
+          speakerLabel: 'Unknown',
         })
       })
 
