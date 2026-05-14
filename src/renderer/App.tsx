@@ -144,6 +144,7 @@ function App() {
     currentPartial,
     applyPartial,
     appendProcessed,
+    patchTranslation,
     advanceTyping,
     completeTyping,
     clear,
@@ -244,12 +245,18 @@ function App() {
       appendProcessed(event.turns)
     })
 
+    const offTranslationPatch = api.onSttTranslationPatch((event) => {
+      if (!event?.id || !event.translation) return
+      patchTranslation(event.id, event.translation)
+    })
+
     return () => {
       offPartial()
       offCommitted()
       offProcessed()
+      offTranslationPatch()
     }
-  }, [applyPartial, appendProcessed])
+  }, [applyPartial, appendProcessed, patchTranslation])
 
   // V4: auto-scroll bilingual columns to bottom when content changes.
   useEffect(() => {

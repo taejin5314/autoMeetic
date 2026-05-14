@@ -4,7 +4,7 @@ import type { ProcessedTranscriptTurn } from './stt/types'
 import { enqueueTranscript as enqueueWhiteboardTranscript } from './whiteboardService'
 
 const STT_POSTPROCESS_MODEL = process.env.STT_POSTPROCESS_MODEL ?? 'gpt-4.1-nano'
-const STT_POSTPROCESS_MIN_CHARS = Number(process.env.STT_POSTPROCESS_MIN_CHARS ?? 3)
+const STT_POSTPROCESS_MIN_CHARS = Number(process.env.STT_POSTPROCESS_MIN_CHARS ?? 1)
 const STT_POSTPROCESS_FLOOR_FLUSH_MS = Number(process.env.STT_POSTPROCESS_FLOOR_FLUSH_MS ?? 2000)
 const OPENAI_CHAT_COMPLETIONS_URL = 'https://api.openai.com/v1/chat/completions'
 
@@ -13,16 +13,25 @@ interface LanguageHints {
   targetLanguage: string
 }
 
+interface PendingTranslation {
+  id: string
+  text: string
+  hints: LanguageHints
+}
+
 interface TranslationResponse {
   translation: string | null
   sourceLanguage: string
 }
 
 let mainWindowRef: BrowserWindow | null = null
-let buffer = ''
-let bufferHints: LanguageHints = { sourceLanguageHint: 'auto', targetLanguage: 'off' }
-let floorTimer: ReturnType<typeof setTimeout> | null = null
-let inFlight = false
+
+let coalesceBuffer = ''
+let coalesceHints: LanguageHints = { sourceLanguageHint: 'auto', targetLanguage: 'off' }
+let coalesceTimer: ReturnType<typeof setTimeout> | null = null
+
+const translationQueue: PendingTranslation[] = []
+let translationInFlight = false
 let warnedMissingApiKey = false
 
 export function init(mainWindow: BrowserWindow): void {
@@ -32,38 +41,54 @@ export function init(mainWindow: BrowserWindow): void {
 export function enqueueRoughTranscript(text: string, hints: LanguageHints): void {
   const trimmed = String(text ?? '').trim()
   if (!trimmed) return
-  buffer = buffer ? `${buffer} ${trimmed}` : trimmed
-  bufferHints = hints
-  void tryDrain()
+
+  const combined = coalesceBuffer ? `${coalesceBuffer} ${trimmed}` : trimmed
+  coalesceHints = hints
+
+  if (combined.length < STT_POSTPROCESS_MIN_CHARS) {
+    coalesceBuffer = combined
+    scheduleCoalesceFlush()
+    return
+  }
+
+  if (coalesceTimer) {
+    clearTimeout(coalesceTimer)
+    coalesceTimer = null
+  }
+  coalesceBuffer = ''
+  emitSourceAndQueueTranslation(combined, hints)
 }
 
 export async function flushPendingTranscript(options: { force?: boolean } = {}): Promise<void> {
-  if (floorTimer) {
-    clearTimeout(floorTimer)
-    floorTimer = null
+  if (coalesceTimer) {
+    clearTimeout(coalesceTimer)
+    coalesceTimer = null
   }
-  if (!buffer.trim()) return
-  if (!options.force && buffer.length < STT_POSTPROCESS_MIN_CHARS) {
-    scheduleFloorFlush()
+  const pending = coalesceBuffer.trim()
+  if (!pending) return
+  if (!options.force && pending.length < STT_POSTPROCESS_MIN_CHARS) {
+    coalesceBuffer = pending
+    scheduleCoalesceFlush()
     return
   }
-  await tryDrain({ force: true })
+  coalesceBuffer = ''
+  emitSourceAndQueueTranslation(pending, coalesceHints)
 }
 
 export function resetTranscriptPostProcessor(): void {
-  buffer = ''
-  bufferHints = { sourceLanguageHint: 'auto', targetLanguage: 'off' }
-  if (floorTimer) {
-    clearTimeout(floorTimer)
-    floorTimer = null
+  coalesceBuffer = ''
+  coalesceHints = { sourceLanguageHint: 'auto', targetLanguage: 'off' }
+  if (coalesceTimer) {
+    clearTimeout(coalesceTimer)
+    coalesceTimer = null
   }
-  inFlight = false
+  translationQueue.length = 0
+  translationInFlight = false
 }
 
 /**
- * Back-compat parser for any external callers / tests. Accepts either the
- * new single-turn schema { translation, sourceLanguage } or the legacy
- * { turns: [...] } and returns a normalized array.
+ * Back-compat parser for any external callers / tests. Accepts the
+ * single-turn schema { translation, sourceLanguage } and returns a normalized array.
  */
 export function parseProcessedTranscriptResponse(
   content: string,
@@ -71,87 +96,77 @@ export function parseProcessedTranscriptResponse(
   hints: LanguageHints = { sourceLanguageHint: 'auto', targetLanguage: 'off' }
 ): ProcessedTranscriptTurn[] {
   const parsed = JSON.parse(stripJsonFence(content)) as Record<string, unknown>
-  if (typeof parsed.translation !== 'undefined' || typeof parsed.sourceLanguage !== 'undefined') {
-    return [
-      buildTurn({
-        text: typeof parsed.text === 'string' ? parsed.text : '',
-        translation: typeof parsed.translation === 'string' ? parsed.translation : null,
-        sourceLanguage:
-          typeof parsed.sourceLanguage === 'string' ? parsed.sourceLanguage : hints.sourceLanguageHint,
-        targetLanguage: hints.targetLanguage,
-        createdAtMs,
-      }),
-    ].filter((turn) => turn.text.trim().length > 0)
+  if (typeof parsed.translation === 'undefined' && typeof parsed.sourceLanguage === 'undefined') {
+    return []
   }
-  return []
-}
-
-async function tryDrain(options: { force?: boolean } = {}): Promise<void> {
-  if (inFlight) return
-  const text = buffer.trim()
-  if (!text) return
-  if (!options.force && text.length < STT_POSTPROCESS_MIN_CHARS) {
-    scheduleFloorFlush()
-    return
-  }
-  if (floorTimer) {
-    clearTimeout(floorTimer)
-    floorTimer = null
-  }
-  buffer = ''
-  const hints = bufferHints
-  inFlight = true
-  try {
-    const turn = await processSingleTurn(text, hints)
-    emitProcessedTurn(turn)
-  } catch (err) {
-    console.warn(
-      '[stt-postprocess] failed; emitting raw fallback:',
-      err instanceof Error ? err.message : String(err)
-    )
-    emitProcessedTurn(buildFallbackTurn(text, hints))
-  } finally {
-    inFlight = false
-    if (buffer.trim()) void tryDrain()
-  }
-}
-
-async function processSingleTurn(
-  text: string,
-  hints: LanguageHints
-): Promise<ProcessedTranscriptTurn> {
-  const createdAtMs = Date.now()
-
-  // Translation off, or source already matches target: skip LLM entirely.
-  const wantsTranslation =
-    hints.targetLanguage !== 'off' && hints.targetLanguage !== hints.sourceLanguageHint
-  if (!wantsTranslation) {
-    return buildTurn({
+  const text = typeof parsed.text === 'string' ? parsed.text : ''
+  if (!text.trim()) return []
+  return [
+    buildTurn({
+      id: makeTurnId(createdAtMs),
       text,
-      translation: null,
-      sourceLanguage: hints.sourceLanguageHint,
+      translation: typeof parsed.translation === 'string' ? parsed.translation : null,
+      sourceLanguage:
+        typeof parsed.sourceLanguage === 'string'
+          ? parsed.sourceLanguage
+          : hints.sourceLanguageHint,
       targetLanguage: hints.targetLanguage,
       createdAtMs,
-    })
-  }
+    }),
+  ]
+}
+
+function emitSourceAndQueueTranslation(text: string, hints: LanguageHints): void {
+  const createdAtMs = Date.now()
+  const id = makeTurnId(createdAtMs)
+
+  const turn = buildTurn({
+    id,
+    text,
+    translation: null,
+    sourceLanguage: hints.sourceLanguageHint,
+    targetLanguage: hints.targetLanguage,
+    createdAtMs,
+  })
+
+  emitProcessedTurn(turn)
+
+  const wantsTranslation =
+    hints.targetLanguage !== 'off' && hints.targetLanguage !== hints.sourceLanguageHint
+  if (!wantsTranslation) return
+
+  translationQueue.push({ id, text, hints })
+  void drainTranslationQueue()
+}
+
+async function drainTranslationQueue(): Promise<void> {
+  if (translationInFlight) return
+  const next = translationQueue.shift()
+  if (!next) return
 
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
     if (!warnedMissingApiKey) {
       warnedMissingApiKey = true
-      console.warn('[stt-postprocess] OPENAI_API_KEY not configured; using raw fallback')
+      console.warn('[stt-postprocess] OPENAI_API_KEY not configured; skipping translation')
     }
-    return buildFallbackTurn(text, hints)
+    if (translationQueue.length > 0) void drainTranslationQueue()
+    return
   }
 
-  const response = await callTranslationApi(text, hints, apiKey)
-  return buildTurn({
-    text,
-    translation: response.translation,
-    sourceLanguage: response.sourceLanguage || hints.sourceLanguageHint,
-    targetLanguage: hints.targetLanguage,
-    createdAtMs,
-  })
+  translationInFlight = true
+  try {
+    const response = await callTranslationApi(next.text, next.hints, apiKey)
+    if (response.translation) emitTranslationPatch(next.id, response.translation)
+  } catch (err) {
+    console.warn(
+      '[stt-postprocess] translation failed:',
+      err instanceof Error ? err.message : String(err)
+    )
+  } finally {
+    translationInFlight = false
+    if (translationQueue.length > 0) void drainTranslationQueue()
+  }
 }
 
 async function callTranslationApi(
@@ -227,6 +242,7 @@ async function callTranslationApi(
 }
 
 function buildTurn(args: {
+  id: string
   text: string
   translation: string | null
   sourceLanguage: string
@@ -234,7 +250,7 @@ function buildTurn(args: {
   createdAtMs: number
 }): ProcessedTranscriptTurn {
   return {
-    id: `turn_${args.createdAtMs}_${Math.random().toString(36).slice(2, 8)}`,
+    id: args.id,
     speakerId: 'unknown',
     speakerLabel: 'Unknown',
     text: args.text.trim(),
@@ -245,14 +261,8 @@ function buildTurn(args: {
   }
 }
 
-function buildFallbackTurn(text: string, hints: LanguageHints): ProcessedTranscriptTurn {
-  return buildTurn({
-    text,
-    translation: null,
-    sourceLanguage: hints.sourceLanguageHint,
-    targetLanguage: hints.targetLanguage,
-    createdAtMs: Date.now(),
-  })
+function makeTurnId(createdAtMs: number): string {
+  return `turn_${createdAtMs}_${Math.random().toString(36).slice(2, 8)}`
 }
 
 function emitProcessedTurn(turn: ProcessedTranscriptTurn): void {
@@ -263,11 +273,18 @@ function emitProcessedTurn(turn: ProcessedTranscriptTurn): void {
   enqueueActionTranscript(downstream)
 }
 
-function scheduleFloorFlush(): void {
-  if (floorTimer) return
-  floorTimer = setTimeout(() => {
-    floorTimer = null
-    void tryDrain({ force: true })
+function emitTranslationPatch(id: string, translation: string): void {
+  mainWindowRef?.webContents.send('stt:translation-patch', { id, translation })
+}
+
+function scheduleCoalesceFlush(): void {
+  if (coalesceTimer) return
+  coalesceTimer = setTimeout(() => {
+    coalesceTimer = null
+    const pending = coalesceBuffer.trim()
+    if (!pending) return
+    coalesceBuffer = ''
+    emitSourceAndQueueTranslation(pending, coalesceHints)
   }, STT_POSTPROCESS_FLOOR_FLUSH_MS)
 }
 

@@ -40,7 +40,13 @@ export function useFeedTypewriter({
       }
 
       if (!stateRef.current || stateRef.current.id !== typingItem.id) {
-        stateRef.current = { id: typingItem.id, src: 0, tr: 0 }
+        // Seed from currently displayed lengths so a late translation patch
+        // doesn't re-type source from zero.
+        stateRef.current = {
+          id: typingItem.id,
+          src: typingItem.displayedSource.length,
+          tr: typingItem.displayedTranslation.length,
+        }
       }
 
       const step = charsPerTickForLang(typingItem.sourceLanguage)
@@ -49,11 +55,14 @@ export function useFeedTypewriter({
       const fullTrLen = typingItem.fullTranslation?.length ?? 0
 
       cursor.src = Math.min(cursor.src + step, fullSrcLen)
-      // Translation starts when source is at least 30% done; CJK-aware ratio keeps both columns synced.
-      const ratio = fullSrcLen === 0 ? 1 : cursor.src / fullSrcLen
-      if (ratio >= 0.3 && fullTrLen > 0) {
-        const targetTr = Math.ceil(ratio * fullTrLen)
-        cursor.tr = Math.min(targetTr, fullTrLen)
+      if (cursor.src >= fullSrcLen) {
+        if (fullTrLen > 0) cursor.tr = Math.min(cursor.tr + step, fullTrLen)
+      } else if (fullTrLen > 0) {
+        const ratio = cursor.src / fullSrcLen
+        if (ratio >= 0.3) {
+          const targetTr = Math.ceil(ratio * fullTrLen)
+          cursor.tr = Math.min(targetTr, fullTrLen)
+        }
       }
 
       const allDone = cursor.src >= fullSrcLen && cursor.tr >= fullTrLen

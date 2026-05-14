@@ -1,5 +1,10 @@
 import type { ProcessedTurnsEvent } from '../main/stt/types'
 
+export interface TranslationPatchEvent {
+  id: string
+  translation: string
+}
+
 export interface ElectronAPI {
   // Actions
   translate(text: string, targetLang: string): Promise<{ translation: string }>
@@ -24,6 +29,7 @@ export interface ElectronAPI {
   onSttPartial(callback: (text: string) => void): () => void
   onSttCommitted(callback: (text: string) => void): () => void
   onSttProcessed(callback: (event: ProcessedTurnsEvent) => void): () => void
+  onSttTranslationPatch(callback: (event: TranslationPatchEvent) => void): () => void
   onSttError(callback: (message: string) => void): () => void
   onWhiteboardUpdate(callback: (elements: unknown[]) => void): () => void
   onWhiteboardViewport(callback: (cmd: unknown) => void): () => void

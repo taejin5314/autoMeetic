@@ -9,7 +9,7 @@ import {
 
 const OPENAI_TRANSCRIPTION_MODEL = process.env.OPENAI_TRANSCRIPTION_MODEL ?? 'gpt-realtime-whisper'
 const OPENAI_REALTIME_URL = 'wss://api.openai.com/v1/realtime?intent=transcription'
-const DELTA_QUIET_MS = Number(process.env.STT_DELTA_QUIET_MS ?? 800)
+const DELTA_QUIET_MS = Number(process.env.STT_DELTA_QUIET_MS ?? 350)
 const TRANSCRIPT_MAX_CHARS = Number(process.env.STT_MAX_CHARS ?? 200)
 const TRANSCRIPT_MAX_MS = Number(process.env.STT_MAX_MS ?? 3000)
 const TRANSCRIPT_SENTENCE_END_RE = /[.!?。？！]\s*$/
