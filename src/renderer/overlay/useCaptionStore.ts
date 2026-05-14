@@ -1,56 +1,85 @@
 import { useCallback, useReducer } from 'react'
-import type { TranscriptSegment, TranslationSegment } from '../../main/stt/types'
+import type { ProcessedTranscriptTurn } from '../../main/stt/types'
 import type { CaptionItem } from './types'
 
-/**
- * Caption store — manages partial + committed transcript display.
- *
- * Ported from autopreso's caption handling pattern:
- * - Partials update a single live `currentPartial` string (not appended to feed)
- * - Committed transcripts are finalized into the `items` feed
- * - Caption pill shows currentPartial or last committed text
- */
-
 interface CaptionState {
-  /** Current in-progress partial text from OpenAI deltas. */
   currentPartial: string
-  /** Finalized committed transcripts. */
   items: CaptionItem[]
 }
 
 type CaptionAction =
   | { type: 'partial'; text: string }
-  | { type: 'committed'; payload: TranscriptSegment }
-  | { type: 'translation'; payload: TranslationSegment }
+  | { type: 'append-processed'; payload: ProcessedTranscriptTurn[] }
+  | { type: 'advance-typing'; id: string; sourceChars: number; translationChars: number }
+  | { type: 'complete-typing'; id: string }
   | { type: 'clear-partial' }
   | { type: 'clear' }
 
 const MAX_ITEMS = 50
+
+function turnToItem(turn: ProcessedTranscriptTurn): CaptionItem {
+  return {
+    id: turn.id,
+    fullSource: turn.text,
+    fullTranslation: turn.translation,
+    displayedSource: '',
+    displayedTranslation: '',
+    typing: true,
+    createdAtMs: turn.createdAtMs,
+    updatedAtMs: Date.now(),
+    speakerId: turn.speakerId,
+    speakerLabel: turn.speakerLabel,
+    sourceLanguage: turn.sourceLanguage,
+    sourceText: turn.text,
+    translatedText: turn.translation ?? undefined,
+  }
+}
 
 function reducer(state: CaptionState, action: CaptionAction): CaptionState {
   if (action.type === 'partial') {
     return { ...state, currentPartial: action.text.trim() }
   }
 
-  if (action.type === 'committed') {
-    const item: CaptionItem = {
-      id: action.payload.id,
-      sourceText: action.payload.text,
-      createdAtMs: action.payload.createdAtMs,
-      updatedAtMs: Date.now(),
-    }
+  if (action.type === 'append-processed') {
+    const newItems = action.payload.map(turnToItem)
     return {
       currentPartial: '',
-      items: [...state.items, item].slice(-MAX_ITEMS),
+      items: [...state.items, ...newItems].slice(-MAX_ITEMS),
     }
   }
 
-  if (action.type === 'translation') {
+  if (action.type === 'advance-typing') {
     return {
       ...state,
       items: state.items.map((item) =>
-        item.id === action.payload.segmentId
-          ? { ...item, translatedText: action.payload.text, updatedAtMs: Date.now() }
+        item.id === action.id
+          ? {
+              ...item,
+              displayedSource: item.fullSource.slice(0, action.sourceChars),
+              displayedTranslation:
+                item.fullTranslation === null
+                  ? ''
+                  : item.fullTranslation.slice(0, action.translationChars),
+              updatedAtMs: Date.now(),
+            }
+          : item
+      ),
+    }
+  }
+
+  if (action.type === 'complete-typing') {
+    return {
+      ...state,
+      items: state.items.map((item) =>
+        item.id === action.id
+          ? {
+              ...item,
+              displayedSource: item.fullSource,
+              displayedTranslation: item.fullTranslation ?? '',
+              typing: false,
+              translatedText: item.fullTranslation ?? undefined,
+              updatedAtMs: Date.now(),
+            }
           : item
       ),
     }
@@ -70,16 +99,23 @@ function reducer(state: CaptionState, action: CaptionAction): CaptionState {
 export function useCaptionStore() {
   const [state, dispatch] = useReducer(reducer, { currentPartial: '', items: [] })
 
-  const applyTranscript = useCallback((segment: TranscriptSegment) => {
-    if (segment.isFinal) {
-      dispatch({ type: 'committed', payload: segment })
-    } else {
-      dispatch({ type: 'partial', text: segment.text })
-    }
+  const applyPartial = useCallback((text: string) => {
+    dispatch({ type: 'partial', text })
   }, [])
 
-  const applyTranslation = useCallback((segment: TranslationSegment) => {
-    dispatch({ type: 'translation', payload: segment })
+  const appendProcessed = useCallback((turns: ProcessedTranscriptTurn[]) => {
+    dispatch({ type: 'append-processed', payload: turns })
+  }, [])
+
+  const advanceTyping = useCallback(
+    (id: string, sourceChars: number, translationChars: number) => {
+      dispatch({ type: 'advance-typing', id, sourceChars, translationChars })
+    },
+    []
+  )
+
+  const completeTyping = useCallback((id: string) => {
+    dispatch({ type: 'complete-typing', id })
   }, [])
 
   const clear = useCallback(() => {
@@ -95,7 +131,7 @@ export function useCaptionStore() {
       const cutoff = Date.now() - windowMs
       const recent = state.items
         .filter((item) => item.createdAtMs >= cutoff)
-        .map((item) => item.sourceText)
+        .map((item) => item.fullSource)
         .join(' ')
         .trim()
       return recent.length >= 20 ? recent : ''
@@ -106,8 +142,10 @@ export function useCaptionStore() {
   return {
     currentPartial: state.currentPartial,
     items: state.items,
-    applyTranscript,
-    applyTranslation,
+    applyPartial,
+    appendProcessed,
+    advanceTyping,
+    completeTyping,
     clearPartial,
     clear,
     getRecentTranscript,
