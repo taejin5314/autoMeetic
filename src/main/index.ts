@@ -13,6 +13,8 @@ import {
 } from 'electron'
 import { join } from 'path'
 import { registerIpcHandlers, registerWindowNotifiers } from './ipc'
+import { init as initActionItems } from './actionItemService'
+import { init as initTranscriptPostProcessor } from './transcriptPostProcessor'
 import { init as initWhiteboard } from './whiteboardService'
 
 let mainWindow: BrowserWindow | null = null
@@ -22,6 +24,8 @@ function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
+    minWidth: 1024,
+    minHeight: 700,
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
@@ -124,6 +128,8 @@ app.whenReady().then(() => {
   registerIpcHandlers(mainWindow!)
   registerWindowNotifiers(mainWindow!)
   initWhiteboard(mainWindow!)
+  initTranscriptPostProcessor(mainWindow!)
+  initActionItems(mainWindow!)
   createTray()
   registerGlobalShortcuts()
 

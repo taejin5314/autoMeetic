@@ -18,9 +18,11 @@
   },
   "include": [
     "src/main/index.ts",
+    "src/main/actionItemService.ts",
     "src/main/ipc.ts",
     "src/main/proxyService.ts",
     "src/main/sttService.ts",
+    "src/main/transcriptPostProcessor.ts",
     "src/main/whiteboardService.ts"
   ]
 }
