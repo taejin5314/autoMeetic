@@ -1,8 +1,19 @@
-import { app, BrowserWindow, shell, globalShortcut, Tray, Menu, nativeImage } from 'electron'
-import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import 'dotenv/config'
+import {
+  app,
+  BrowserWindow,
+  desktopCapturer,
+  globalShortcut,
+  Menu,
+  nativeImage,
+  session,
+  shell,
+  Tray,
+} from 'electron'
+import { join } from 'path'
 import { registerIpcHandlers, registerWindowNotifiers } from './ipc'
+import { init as initWhiteboard } from './whiteboardService'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -14,13 +25,36 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
+      preload: join(__dirname, '../preload/index.mjs'),
       sandbox: false,
     },
   })
 
+  // Allow getDisplayMedia in renderer — pick all screens + audio
+  session.defaultSession.setDisplayMediaRequestHandler((_request, callback) => {
+    desktopCapturer.getSources({ types: ['screen'] }).then((sources) => {
+      callback({ video: sources[0], audio: 'loopback' })
+    })
+  })
+
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show()
+  })
+
+  // Forward renderer console to terminal
+  mainWindow.webContents.on('console-message', (event) => {
+    const { level, message, line, sourceId } = event
+    const tag = ['VERBOSE', 'LOG', 'WARN', 'ERROR'][level] ?? 'LOG'
+    const src = sourceId ? ` (${sourceId}:${line})` : ''
+    console.log(`[renderer:${tag}] ${message}${src}`)
+  })
+
+  // F12 to toggle DevTools
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'F12' && input.type === 'keyDown') {
+      event.preventDefault()
+      mainWindow?.webContents.toggleDevTools()
+    }
   })
 
   // Open external links in browser
@@ -89,6 +123,7 @@ app.whenReady().then(() => {
   createWindow()
   registerIpcHandlers(mainWindow!)
   registerWindowNotifiers(mainWindow!)
+  initWhiteboard(mainWindow!)
   createTray()
   registerGlobalShortcuts()
 
@@ -105,4 +140,12 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+process.on('uncaughtException', (err) => {
+  console.error('[main:UNCAUGHT]', err)
+})
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[main:UNHANDLED_REJECTION]', reason)
 })

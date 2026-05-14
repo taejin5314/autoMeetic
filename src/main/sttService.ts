@@ -1,9 +1,10 @@
-import { WebSocket } from 'ws'
 import type { BrowserWindow } from 'electron'
+import { WebSocket } from 'ws'
 import { getVocabulary } from './proxyService'
+import { enqueueTranscript } from './whiteboardService'
 
-const OPENAI_REALTIME_URL = 'wss://api.openai.com/v1/realtime?intent=transcription'
 const OPENAI_TRANSCRIPTION_MODEL = process.env.OPENAI_TRANSCRIPTION_MODEL ?? 'gpt-realtime-whisper'
+const OPENAI_REALTIME_URL = 'wss://api.openai.com/v1/realtime?intent=transcription'
 const DELTA_QUIET_MS = Number(process.env.STT_DELTA_QUIET_MS ?? 1200)
 const TRANSCRIPT_MAX_CHARS = Number(process.env.STT_MAX_CHARS ?? 180)
 const TRANSCRIPT_MAX_MS = Number(process.env.STT_MAX_MS ?? 2200)
@@ -67,6 +68,7 @@ function commitDelta(): void {
   turnStartMs = 0
   if (text) {
     mainWindowRef?.webContents.send('stt:committed', text)
+    enqueueTranscript(text)
   }
 }
 
@@ -93,8 +95,9 @@ function handleOpenAiMessage(raw: string): void {
     mainWindowRef?.webContents.send('stt:partial', deltaBuffer.trim())
 
     const shouldCommit =
-      (deltaBuffer.length >= TRANSCRIPT_MAX_CHARS) ||
-      (Date.now() - turnStartMs >= TRANSCRIPT_MAX_MS && TRANSCRIPT_SENTENCE_END_RE.test(deltaBuffer))
+      deltaBuffer.length >= TRANSCRIPT_MAX_CHARS ||
+      (Date.now() - turnStartMs >= TRANSCRIPT_MAX_MS &&
+        TRANSCRIPT_SENTENCE_END_RE.test(deltaBuffer))
 
     if (shouldCommit) {
       commitDelta()
@@ -110,13 +113,15 @@ function handleOpenAiMessage(raw: string): void {
     if (deltaBuffer.trim()) commitDelta()
     if (transcript && transcript !== deltaBuffer.trim()) {
       mainWindowRef?.webContents.send('stt:committed', transcript)
+      enqueueTranscript(transcript)
     }
     return
   }
 
   if (msg.type === 'error') {
     const errorMsg =
-      ((msg as Record<string, Record<string, string>>).error?.message) ?? 'Unknown OpenAI error'
+      (msg as Record<string, Record<string, string>>).error?.message ?? 'Unknown OpenAI error'
+    console.error('[stt] OpenAI error:', errorMsg)
     mainWindowRef?.webContents.send('stt:error', errorMsg)
   }
 }
@@ -137,11 +142,11 @@ export function startTranscription(language: string, mainWindow: BrowserWindow):
   openaiWs = new WebSocket(OPENAI_REALTIME_URL, {
     headers: {
       Authorization: `Bearer ${apiKey}`,
-      'OpenAI-Beta': 'realtime=v1',
     },
   })
 
   openaiWs.on('open', () => {
+    console.log('[stt] WebSocket open, sending session.update')
     openaiWs?.send(JSON.stringify({ type: 'session.update', session }))
   })
 
@@ -150,10 +155,12 @@ export function startTranscription(language: string, mainWindow: BrowserWindow):
   })
 
   openaiWs.on('error', (err: Error) => {
+    console.error('[stt] WebSocket error:', err.message)
     mainWindowRef?.webContents.send('stt:error', err.message)
   })
 
-  openaiWs.on('close', () => {
+  openaiWs.on('close', (code: number, reason: Buffer) => {
+    console.log('[stt] WebSocket closed:', code, reason.toString())
     openaiWs = null
     if (deltaBuffer.trim()) commitDelta()
   })

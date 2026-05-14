@@ -68,7 +68,9 @@ export async function translateText(
   if (!response || !response.ok) {
     const payload = await response?.json().catch(() => ({}))
     const message = (payload as Record<string, unknown>)?.error
-    throw new Error(message ? `OpenAI translation error: ${String(message)}` : 'OpenAI translation failed')
+    throw new Error(
+      message ? `OpenAI translation error: ${String(message)}` : 'OpenAI translation failed'
+    )
   }
 
   const payload = (await response.json()) as {

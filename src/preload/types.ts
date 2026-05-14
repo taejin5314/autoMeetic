@@ -15,6 +15,7 @@ export interface ElectronAPI {
   sendWhiteboardScreenshot(imageDataUrl: string): void
 
   // Events (main → renderer)
+  onSttReady(callback: () => void): () => void
   onSttPartial(callback: (text: string) => void): () => void
   onSttCommitted(callback: (text: string) => void): () => void
   onSttError(callback: (message: string) => void): () => void

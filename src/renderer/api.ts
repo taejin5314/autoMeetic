@@ -27,9 +27,7 @@ export async function translate(
 
 // ── Vocabulary ──
 
-export async function updateVocabulary(
-  keywords: string[]
-): Promise<{ count: number }> {
+export async function updateVocabulary(keywords: string[]): Promise<{ count: number }> {
   if (isElectron) {
     return getElectronAPI().updateVocabulary(keywords)
   }

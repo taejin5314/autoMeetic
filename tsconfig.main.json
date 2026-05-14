@@ -16,5 +16,11 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/main/index.ts", "src/main/ipc.ts", "src/main/proxyService.ts", "src/main/sttService.ts", "src/main/whiteboardService.ts"]
+  "include": [
+    "src/main/index.ts",
+    "src/main/ipc.ts",
+    "src/main/proxyService.ts",
+    "src/main/sttService.ts",
+    "src/main/whiteboardService.ts"
+  ]
 }

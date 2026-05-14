@@ -17,5 +17,13 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/renderer/**/*", "src/main/audio/**/*", "src/main/stt/transcriptBus.ts", "src/main/stt/types.ts", "src/main/health/**/*", "src/main/telemetry/**/*", "src/main/whiteboard/types.ts"]
+  "include": [
+    "src/renderer/**/*",
+    "src/main/audio/**/*",
+    "src/main/stt/transcriptBus.ts",
+    "src/main/stt/types.ts",
+    "src/main/health/**/*",
+    "src/main/telemetry/**/*",
+    "src/main/whiteboard/types.ts"
+  ]
 }

@@ -25,19 +25,25 @@ const electronAPI: ElectronAPI = {
   sendAudio: (base64Chunk) => ipcRenderer.send('send-audio', { chunk: base64Chunk }),
 
   // Whiteboard
-  sendWhiteboardElements: (elements) =>
-    ipcRenderer.send('whiteboard:user-elements', { elements }),
+  sendWhiteboardElements: (elements) => ipcRenderer.send('whiteboard:user-elements', { elements }),
   sendWhiteboardScreenshot: (imageDataUrl) =>
     ipcRenderer.send('whiteboard:screenshot', { image: imageDataUrl }),
 
   // Events
+  onSttReady: createEventListener('stt:ready') as ElectronAPI['onSttReady'],
   onSttPartial: createEventListener('stt:partial') as ElectronAPI['onSttPartial'],
   onSttCommitted: createEventListener('stt:committed') as ElectronAPI['onSttCommitted'],
   onSttError: createEventListener('stt:error') as ElectronAPI['onSttError'],
   onWhiteboardUpdate: createEventListener('whiteboard:update') as ElectronAPI['onWhiteboardUpdate'],
-  onWhiteboardViewport: createEventListener('whiteboard:viewport') as ElectronAPI['onWhiteboardViewport'],
-  onWhiteboardAgentStatus: createEventListener('whiteboard:agent-status') as ElectronAPI['onWhiteboardAgentStatus'],
-  onAnswerAssistEvent: createEventListener('answer-assist:event') as ElectronAPI['onAnswerAssistEvent'],
+  onWhiteboardViewport: createEventListener(
+    'whiteboard:viewport'
+  ) as ElectronAPI['onWhiteboardViewport'],
+  onWhiteboardAgentStatus: createEventListener(
+    'whiteboard:agent-status'
+  ) as ElectronAPI['onWhiteboardAgentStatus'],
+  onAnswerAssistEvent: createEventListener(
+    'answer-assist:event'
+  ) as ElectronAPI['onAnswerAssistEvent'],
 }
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

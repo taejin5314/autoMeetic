@@ -23,12 +23,15 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   })
 
   // Answer assist
-  ipcMain.handle('start-answer-assist', async (_event, args: { transcript: string; lang: string }) => {
-    const { startAnswerAssist } = await import('./proxyService')
-    await startAnswerAssist(args.transcript, args.lang, (event: unknown) => {
-      mainWindowRef?.webContents.send('answer-assist:event', event)
-    })
-  })
+  ipcMain.handle(
+    'start-answer-assist',
+    async (_event, args: { transcript: string; lang: string }) => {
+      const { startAnswerAssist } = await import('./proxyService')
+      await startAnswerAssist(args.transcript, args.lang, (event: unknown) => {
+        mainWindowRef?.webContents.send('answer-assist:event', event)
+      })
+    }
+  )
 
   // STT
   ipcMain.handle('start-transcription', async (_event, args: { language: string }) => {

@@ -8,8 +8,20 @@
  * - Use appropriate shapes, arrows, and text
  * - Maintain visual hierarchy
  */
-export function whiteboardSystemPrompt(): string {
+export interface WhiteboardViewport {
+  width: number
+  height: number
+}
+
+const DEFAULT_VIEWPORT: WhiteboardViewport = { width: 1280, height: 720 }
+
+export function whiteboardSystemPrompt(viewport?: WhiteboardViewport): string {
+  const vp = viewport ?? DEFAULT_VIEWPORT
   return `You are AutoMeetic, a real-time visual note-taking agent.
+
+Canvas viewport at 100% zoom: approximately ${vp.width}px wide by ${vp.height}px tall.
+Lay out diagrams so they fit comfortably inside that area at zoom 1.0. The renderer auto-fits the viewport to your content after each turn, so an overly wide layout (>${vp.width + 200}px) will appear shrunken and unreadable to the audience.
+Place the first element of any new diagram in the upper-left of the intended layout area — start node positions around x=80, y=60. Avoid placing content below y=${vp.height - 120} in the initial pass.
 
 You listen to transcript chunks and maintain a visual presentation that complements the speaker.
 The transcript may contain slight inaccuracies, especially for names, product terms, and short phrases.
@@ -26,6 +38,7 @@ Extract the core concepts and choose the best visual form: concept map, process 
 Reorganize the whole canvas as your understanding improves.
 Move, rewrite, group, or replace existing objects instead of appending one note per transcript chunk.
 If the current canvas is turning into a transcript list, replace it with a clearer conceptual diagram.
+If the current canvas has only 2-3 disconnected nodes that read like a list, and a new key point arrives, prefer whiteboard_overwrite to restructure into a proper concept-map, flow, or hierarchy with arrows — do not just append a 4th floating node.
 
 2. Direct canvas commands: the user may give a direct command to perform an action on the canvas.
 Examples include "clear the canvas", "add a rectangle", "draw an arrow from A to B", and "draw a line chart".
@@ -131,10 +144,29 @@ Viewport commands:
 When no update is useful, do not call a tool.
 After all useful whiteboard updates are complete, respond with exactly: DONE
 
+HARD RULE: Every key_point relationship MUST produce a labeled arrow connecting the concept node to the target node. A diagram with labeled nodes but no arrows is a failure — always include arrows showing relationships. If you receive 3 key_points, there must be at least 3 arrows in your output.
+
 Examples of correct drawing objects:
 {"type":"rectangle","id":"node-1","x":100,"y":100,"width":220,"height":80,"backgroundColor":"#a5d8ff","fillStyle":"solid","roundness":{"type":3},"label":{"text":"Main idea","fontSize":18}}
 {"type":"text","id":"title","x":100,"y":40,"text":"Architecture Overview","fontSize":28}
 {"type":"arrow","id":"flow-1","x":100,"y":180,"width":200,"height":0,"points":[[0,0],[200,0]],"label":{"text":"leads to","fontSize":14}}
 {"type":"ellipse","id":"important","x":350,"y":100,"width":120,"height":80,"backgroundColor":"#fff8e1","label":{"text":"Key insight","fontSize":16}}
+
+Complete few-shot examples per diagram type (use these exact coordinate patterns):
+
+FLOW (left-to-right chain):
+{"operations":[{"type":"rectangle","id":"step-1","x":80,"y":200,"width":200,"height":70,"backgroundColor":"#a5d8ff","fillStyle":"solid","roundness":{"type":3},"label":{"text":"Input Data","fontSize":18}},{"type":"rectangle","id":"step-2","x":360,"y":200,"width":200,"height":70,"backgroundColor":"#a5d8ff","fillStyle":"solid","roundness":{"type":3},"label":{"text":"Process","fontSize":18}},{"type":"rectangle","id":"step-3","x":640,"y":200,"width":200,"height":70,"backgroundColor":"#a5d8ff","fillStyle":"solid","roundness":{"type":3},"label":{"text":"Output","fontSize":18}},{"type":"arrow","id":"flow-1-2","x":280,"y":235,"width":80,"height":0,"points":[[0,0],[80,0]],"label":{"text":"leads-to","fontSize":14}},{"type":"arrow","id":"flow-2-3","x":560,"y":235,"width":80,"height":0,"points":[[0,0],[80,0]],"label":{"text":"leads-to","fontSize":14}}],"viewport":{"action":"scroll_to_content","focus_ids":["step-1","step-2","step-3"]}}
+
+COMPARISON (2-column layout):
+{"operations":[{"type":"text","id":"title","x":300,"y":40,"text":"Comparison","fontSize":24},{"type":"rectangle","id":"left-1","x":100,"y":120,"width":200,"height":70,"backgroundColor":"#a5d8ff","fillStyle":"solid","roundness":{"type":3},"label":{"text":"Option A","fontSize":18}},{"type":"rectangle","id":"left-2","x":100,"y":250,"width":200,"height":70,"backgroundColor":"#a5d8ff","fillStyle":"solid","roundness":{"type":3},"label":{"text":"Strength A","fontSize":18}},{"type":"rectangle","id":"right-1","x":550,"y":120,"width":200,"height":70,"backgroundColor":"#ffd6a5","fillStyle":"solid","roundness":{"type":3},"label":{"text":"Option B","fontSize":18}},{"type":"rectangle","id":"right-2","x":550,"y":250,"width":200,"height":70,"backgroundColor":"#ffd6a5","fillStyle":"solid","roundness":{"type":3},"label":{"text":"Strength B","fontSize":18}},{"type":"arrow","id":"a-vs-b","x":300,"y":155,"width":250,"height":0,"points":[[0,0],[250,0]],"label":{"text":"opposes","fontSize":14}},{"type":"arrow","id":"a-detail","x":200,"y":190,"width":0,"height":60,"points":[[0,0],[0,60]],"label":{"text":"supports","fontSize":14}},{"type":"arrow","id":"b-detail","x":650,"y":190,"width":0,"height":60,"points":[[0,0],[0,60]],"label":{"text":"supports","fontSize":14}}],"viewport":{"action":"scroll_to_content","focus_ids":["left-1","right-1"]}}
+
+CONCEPT-MAP (central hub with spokes):
+{"operations":[{"type":"ellipse","id":"hub","x":320,"y":280,"width":180,"height":80,"backgroundColor":"#ffd6a5","fillStyle":"solid","label":{"text":"Core Idea","fontSize":18}},{"type":"rectangle","id":"spoke-1","x":100,"y":100,"width":180,"height":60,"backgroundColor":"#a5d8ff","fillStyle":"solid","roundness":{"type":3},"label":{"text":"Aspect 1","fontSize":16}},{"type":"rectangle","id":"spoke-2","x":540,"y":100,"width":180,"height":60,"backgroundColor":"#a5d8ff","fillStyle":"solid","roundness":{"type":3},"label":{"text":"Aspect 2","fontSize":16}},{"type":"rectangle","id":"spoke-3","x":320,"y":460,"width":180,"height":60,"backgroundColor":"#a5d8ff","fillStyle":"solid","roundness":{"type":3},"label":{"text":"Aspect 3","fontSize":16}},{"type":"arrow","id":"hub-to-1","x":370,"y":280,"width":-80,"height":-120,"points":[[0,0],[-80,-120]],"label":{"text":"defines","fontSize":14}},{"type":"arrow","id":"hub-to-2","x":500,"y":300,"width":140,"height":-140,"points":[[0,0],[140,-140]],"label":{"text":"causes","fontSize":14}},{"type":"arrow","id":"hub-to-3","x":410,"y":360,"width":0,"height":100,"points":[[0,0],[0,100]],"label":{"text":"leads-to","fontSize":14}}],"viewport":{"action":"scroll_to_content","focus_ids":["hub","spoke-1","spoke-2","spoke-3"]}}
+
+HIERARCHY (top-down tree):
+{"operations":[{"type":"rectangle","id":"root","x":310,"y":60,"width":200,"height":70,"backgroundColor":"#ffd6a5","fillStyle":"solid","roundness":{"type":3},"label":{"text":"Root","fontSize":18}},{"type":"rectangle","id":"child-1","x":100,"y":220,"width":200,"height":70,"backgroundColor":"#a5d8ff","fillStyle":"solid","roundness":{"type":3},"label":{"text":"Branch A","fontSize":18}},{"type":"rectangle","id":"child-2","x":520,"y":220,"width":200,"height":70,"backgroundColor":"#a5d8ff","fillStyle":"solid","roundness":{"type":3},"label":{"text":"Branch B","fontSize":18}},{"type":"arrow","id":"root-to-1","x":360,"y":130,"width":-60,"height":90,"points":[[0,0],[-60,90]],"label":{"text":"part-of","fontSize":14}},{"type":"arrow","id":"root-to-2","x":460,"y":130,"width":160,"height":90,"points":[[0,0],[160,90]],"label":{"text":"part-of","fontSize":14}}],"viewport":{"action":"scroll_to_content","focus_ids":["root","child-1","child-2"]}}
+
+TIMELINE (horizontal baseline):
+{"operations":[{"type":"arrow","id":"baseline","x":60,"y":300,"width":740,"height":0,"points":[[0,0],[740,0]]},{"type":"rectangle","id":"evt-1","x":80,"y":180,"width":180,"height":60,"backgroundColor":"#a5d8ff","fillStyle":"solid","roundness":{"type":3},"label":{"text":"Event 1","fontSize":16}},{"type":"rectangle","id":"evt-2","x":340,"y":180,"width":180,"height":60,"backgroundColor":"#a5d8ff","fillStyle":"solid","roundness":{"type":3},"label":{"text":"Event 2","fontSize":16}},{"type":"rectangle","id":"evt-3","x":600,"y":180,"width":180,"height":60,"backgroundColor":"#a5d8ff","fillStyle":"solid","roundness":{"type":3},"label":{"text":"Event 3","fontSize":16}},{"type":"arrow","id":"evt1-to-base","x":170,"y":240,"width":0,"height":60,"points":[[0,0],[0,60]]},{"type":"arrow","id":"evt2-to-base","x":430,"y":240,"width":0,"height":60,"points":[[0,0],[0,60]]},{"type":"arrow","id":"evt3-to-base","x":690,"y":240,"width":0,"height":60,"points":[[0,0],[0,60]]},{"type":"arrow","id":"evt1-to-2","x":260,"y":210,"width":80,"height":0,"points":[[0,0],[80,0]],"label":{"text":"leads-to","fontSize":14}},{"type":"arrow","id":"evt2-to-3","x":520,"y":210,"width":80,"height":0,"points":[[0,0],[80,0]],"label":{"text":"leads-to","fontSize":14}}],"viewport":{"action":"scroll_to_content","focus_ids":["evt-1","evt-2","evt-3"]}}
 `;
 }

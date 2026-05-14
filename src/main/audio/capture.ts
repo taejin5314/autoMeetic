@@ -61,10 +61,27 @@ function pcm16ToBase64(samples: Float32Array): string {
 export class SystemAudioCaptureService {
   private audioCtx: AudioContext | undefined
   private processorNode: ScriptProcessorNode | undefined
+  private workletNode: AudioWorkletNode | undefined
   private analyserNode: AnalyserNode | undefined
   private stream: MediaStream | undefined
   private readonly listeners = new Set<ChunkListener>()
   private resampleCarry = new Float32Array(0)
+
+  private emitResampledChunk(input: Float32Array, nativeRate: number): void {
+    const resampled = resample(input, nativeRate, TARGET_SAMPLE_RATE, this.resampleCarry)
+    this.resampleCarry = new Float32Array(resampled.carry)
+    if (resampled.samples.length === 0) return
+
+    const chunk: AudioChunk = {
+      id: makeId('audio'),
+      encoding: 'pcm16-base64',
+      sampleRateHz: TARGET_SAMPLE_RATE,
+      channels: 1,
+      createdAtMs: Date.now(),
+      payload: pcm16ToBase64(resampled.samples),
+    }
+    for (const listener of this.listeners) listener(chunk)
+  }
 
   constructor(_config: Partial<CaptureConfig> = {}) {
     // Config available for future use
@@ -136,31 +153,51 @@ export class SystemAudioCaptureService {
     this.analyserNode.fftSize = 1024
     this.analyserNode.smoothingTimeConstant = 0.85
 
-    // ScriptProcessorNode gives raw float32 PCM; 4096 samples per buffer
-    this.processorNode = this.audioCtx.createScriptProcessor(4096, 1, 1)
-    this.processorNode.onaudioprocess = (e) => {
-      const input = e.inputBuffer.getChannelData(0)
-
-      // Resample from browser native rate to 24kHz (autopreso pattern)
-      const resampled = resample(input, nativeRate, TARGET_SAMPLE_RATE, this.resampleCarry)
-      this.resampleCarry = new Float32Array(resampled.carry)
-
-      if (resampled.samples.length === 0) return
-
-      const chunk: AudioChunk = {
-        id: makeId('audio'),
-        encoding: 'pcm16-base64',
-        sampleRateHz: TARGET_SAMPLE_RATE,
-        channels: 1,
-        createdAtMs: Date.now(),
-        payload: pcm16ToBase64(resampled.samples),
-      }
-      for (const listener of this.listeners) listener(chunk)
-    }
-    // Connect: source → analyser, source → processor → destination (autopreso pattern)
+    // Connect analyser regardless of processor path.
     source.connect(this.analyserNode)
-    source.connect(this.processorNode)
-    this.processorNode.connect(this.audioCtx.destination)
+
+    const canUseWorklet = typeof AudioWorkletNode !== 'undefined' && !!this.audioCtx.audioWorklet
+    if (canUseWorklet) {
+      const processorCode = `
+class PcmForwardProcessor extends AudioWorkletProcessor {
+  process(inputs) {
+    const input = inputs[0];
+    const channel = input && input[0];
+    if (channel && channel.length) {
+      this.port.postMessage(channel.slice(0));
+    }
+    return true;
+  }
+}
+registerProcessor('pcm-forward-processor', PcmForwardProcessor);
+`
+      const blob = new Blob([processorCode], { type: 'application/javascript' })
+      const workletUrl = URL.createObjectURL(blob)
+      await this.audioCtx.audioWorklet.addModule(workletUrl)
+      URL.revokeObjectURL(workletUrl)
+
+      this.workletNode = new AudioWorkletNode(this.audioCtx, 'pcm-forward-processor', {
+        numberOfInputs: 1,
+        numberOfOutputs: 1,
+        channelCount: 1,
+      })
+      this.workletNode.port.onmessage = (event: MessageEvent<Float32Array>) => {
+        this.emitResampledChunk(event.data, nativeRate)
+      }
+
+      // Keep node connected to destination so processing remains active.
+      source.connect(this.workletNode)
+      this.workletNode.connect(this.audioCtx.destination)
+    } else {
+      // Fallback for environments without AudioWorklet support.
+      this.processorNode = this.audioCtx.createScriptProcessor(4096, 1, 1)
+      this.processorNode.onaudioprocess = (e) => {
+        const input = e.inputBuffer.getChannelData(0)
+        this.emitResampledChunk(input, nativeRate)
+      }
+      source.connect(this.processorNode)
+      this.processorNode.connect(this.audioCtx.destination)
+    }
 
     log('info', 'capture', 'system audio capture started', {
       audioTrack: audioTracks[0].label,
@@ -173,6 +210,11 @@ export class SystemAudioCaptureService {
     if (this.processorNode) {
       this.processorNode.disconnect()
       this.processorNode = undefined
+    }
+    if (this.workletNode) {
+      this.workletNode.port.onmessage = null
+      this.workletNode.disconnect()
+      this.workletNode = undefined
     }
     if (this.analyserNode) {
       this.analyserNode.disconnect()
