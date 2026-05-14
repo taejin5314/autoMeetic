@@ -639,6 +639,8 @@ function App() {
   const targetLang = translationTarget
   const showTranslationColumn = translationTarget !== 'off' && targetLang !== sourceLang
   const draftLiveText = currentPartial.trim()
+  const anyTyping = items.some((item) => item.typing)
+  const showDraftLive = draftLiveText && !anyTyping
   const hasFeedContent = items.length > 0 || Boolean(draftLiveText)
   const heroSourceText = compactHeroCaption(currentPartial)
   const heroTargetText = ''
@@ -979,7 +981,7 @@ function App() {
                     </Fragment>
                   )
                 })}
-                {draftLiveText && (
+                {showDraftLive && (
                   <div className="v4p-line v4p-line-live">
                     <div className="v4p-line-time amw-mono">·</div>
                     <div className="v4p-line-text">{draftLiveText}</div>
