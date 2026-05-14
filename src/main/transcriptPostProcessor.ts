@@ -14,6 +14,8 @@ type RawTurn = {
   speakerId?: unknown
   speakerLabel?: unknown
   text?: unknown
+  translation?: unknown
+  sourceLanguage?: unknown
 }
 
 interface LanguageHints {
@@ -103,24 +105,30 @@ export function resetTranscriptPostProcessor(): void {
 
 export function parseProcessedTranscriptResponse(
   content: string,
-  createdAtMs = Date.now()
+  createdAtMs = Date.now(),
+  hints: LanguageHints = { sourceLanguageHint: 'auto', targetLanguage: 'off' }
 ): ProcessedTranscriptTurn[] {
   const parsed = JSON.parse(stripJsonFence(content)) as { turns?: RawTurn[] }
   if (!Array.isArray(parsed.turns)) return []
   return parsed.turns
-    .map((turn) => toProcessedTurn(turn, createdAtMs))
+    .map((turn) => toProcessedTurn(turn, createdAtMs, hints))
     .filter((turn): turn is ProcessedTranscriptTurn => turn !== null)
 }
 
-async function processTranscriptBatch(batch: string, _hints: LanguageHints): Promise<ProcessedTranscriptTurn[]> {
+async function processTranscriptBatch(
+  batch: string,
+  hints: LanguageHints
+): Promise<ProcessedTranscriptTurn[]> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
     if (!warnedMissingApiKey) {
       warnedMissingApiKey = true
       console.warn('[stt-postprocess] OPENAI_API_KEY not configured; using raw fallback')
     }
-    return [fallbackTurn(batch, _hints)]
+    return [fallbackTurn(batch, hints)]
   }
+
+  const wantsTranslation = hints.targetLanguage !== 'off'
 
   const response = await fetch(OPENAI_CHAT_COMPLETIONS_URL, {
     method: 'POST',
@@ -136,19 +144,30 @@ async function processTranscriptBatch(batch: string, _hints: LanguageHints): Pro
         {
           role: 'system',
           content: [
-            'You clean rough live meeting transcripts.',
-            'Return JSON only: {"turns":[{"speakerId":"speaker_a","speakerLabel":"Speaker A","text":"..."}]}.',
-            'Do not translate, summarize, add facts, add commitments, or remove meaningful content.',
+            'You clean rough live meeting transcripts AND produce translations.',
+            `Return JSON only: {"turns":[{"speakerId":"speaker_a","speakerLabel":"Speaker A","text":"...","translation":${wantsTranslation ? '"..."' : 'null'},"sourceLanguage":"en"}]}.`,
+            'Do not summarize, add facts, or remove meaningful content.',
             'Fix punctuation, capitalization, sentence boundaries, and obvious filler only when meaning is preserved.',
+            'Detect the source language and emit its ISO code (en, ko, ja, zh, es, fr, de) per turn.',
             'Use speaker_a, speaker_b, speaker_c, or unknown.',
             'Use Speaker A, Speaker B, Speaker C, or Unknown.',
             'Split into speaker turns, not individual sentences.',
             'Keep the same speaker when uncertain.',
+            wantsTranslation
+              ? `Translate each turn's text into ${hints.targetLanguage}. If source language equals target, set translation to null.`
+              : 'Set translation to null on every turn.',
           ].join(' '),
         },
         {
           role: 'user',
-          content: `Rough transcript batch:\n\n${batch}`,
+          content: [
+            `Source language hint: ${hints.sourceLanguageHint}`,
+            `Target language: ${hints.targetLanguage}`,
+            '',
+            'Rough transcript batch:',
+            '',
+            batch,
+          ].join('\n'),
         },
       ],
     }),
@@ -164,7 +183,7 @@ async function processTranscriptBatch(batch: string, _hints: LanguageHints): Pro
   }
   const content = payload.choices?.[0]?.message?.content?.trim() ?? ''
   if (!content) return []
-  return parseProcessedTranscriptResponse(content)
+  return parseProcessedTranscriptResponse(content, Date.now(), hints)
 }
 
 function emitProcessedTurns(turns: ProcessedTranscriptTurn[]): void {
@@ -181,18 +200,29 @@ function formatTurnForDownstream(turn: ProcessedTranscriptTurn): string {
   return `${turn.speakerLabel}: ${turn.text}`
 }
 
-function toProcessedTurn(turn: RawTurn, createdAtMs: number): ProcessedTranscriptTurn | null {
+function toProcessedTurn(
+  turn: RawTurn,
+  createdAtMs: number,
+  hints: LanguageHints
+): ProcessedTranscriptTurn | null {
   const text = typeof turn.text === 'string' ? turn.text.trim() : ''
   if (!text) return null
   const speakerId = normalizeSpeakerId(turn.speakerId)
+  const sourceLanguage =
+    typeof turn.sourceLanguage === 'string' && turn.sourceLanguage.length === 2
+      ? turn.sourceLanguage
+      : hints.sourceLanguageHint
+  const wantsTranslation =
+    hints.targetLanguage !== 'off' && hints.targetLanguage !== sourceLanguage
+  const rawTranslation = typeof turn.translation === 'string' ? turn.translation.trim() : ''
   return {
     id: `turn_${createdAtMs}_${Math.random().toString(36).slice(2, 8)}`,
     speakerId,
     speakerLabel: normalizeSpeakerLabel(turn.speakerLabel, speakerId),
     text,
-    translation: null,
-    sourceLanguage: 'auto',
-    targetLanguage: 'off',
+    translation: wantsTranslation && rawTranslation ? rawTranslation : null,
+    sourceLanguage,
+    targetLanguage: hints.targetLanguage,
     createdAtMs,
   }
 }
