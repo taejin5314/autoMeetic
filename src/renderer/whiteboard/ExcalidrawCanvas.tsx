@@ -12,7 +12,7 @@ import {
   exportToBlob,
   MainMenu,
 } from '@excalidraw/excalidraw'
-import React, { useCallback, useEffect, useRef } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { ViewportCommand, WhiteboardElement } from '../../main/whiteboard/types'
 
 // Excalidraw types — use inline types to avoid deep import path issues
@@ -232,6 +232,27 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({
   const wrapperRef = useRef<HTMLDivElement>(null)
   const autoFitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Compute initialData once at mount. Excalidraw reads this only on its
+  // initial render, so capture the elements value present at that moment.
+  // Fixes two bugs:
+  //   1. When the shelf tab toggles or the modal opens after elements have
+  //      arrived, ExcalidrawCanvas mounts but the elements useEffect bails
+  //      out while apiRef is still null — so the diagram never paints.
+  //   2. The default Excalidraw canvas background is white; pinning
+  //      viewBackgroundColor here prevents a flash of color mismatch with
+  //      the surrounding cream-paper container.
+  const [initialData] = useState(() => {
+    const renderable =
+      elements.length > 0
+        ? (buildRenderableElements(elements) as unknown as ExcalidrawElement[])
+        : []
+    return {
+      elements: renderable,
+      appState: { viewBackgroundColor: '#fbf8f1' },
+      scrollToContent: renderable.length > 0,
+    }
+  })
+
   const setApi = useCallback(
     (api: ExcalidrawImperativeAPI | null) => {
       if (!api) return
@@ -444,6 +465,7 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({
         viewModeEnabled={isCompact ? true : viewModeEnabled}
         UIOptions={isCompact ? compactUIOptions : fullUIOptions}
         theme="light"
+        initialData={initialData as never}
       >
         {!isCompact && (
           <MainMenu>

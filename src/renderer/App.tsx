@@ -673,7 +673,6 @@ function App() {
       }, 0),
     [items]
   )
-  const sessionElapsedMs = sessionStartMs === null ? 0 : Math.max(clockMs - sessionStartMs, 0)
   const currentRunMs = running && runStartMs !== null ? Math.max(clockMs - runStartMs, 0) : 0
   const totalAudioMs = activeAudioMs + currentRunMs
 
@@ -827,11 +826,7 @@ function App() {
   const lastItem = items[items.length - 1]
   const heroSourceText = liveText || lastItem?.sourceText || ''
   const heroTargetText = liveText ? '' : (lastItem?.translatedText ?? '')
-  const heroDurationLabel = running
-    ? formatDuration(totalAudioMs)
-    : sessionStartMs
-      ? formatDuration(sessionElapsedMs)
-      : '00:00'
+  const heroDurationLabel = sessionStartMs ? formatDuration(totalAudioMs) : '00:00'
   const langCode = (code: string) => (code === 'auto' || code === 'off' ? '—' : code.toUpperCase())
   const answerBusy =
     answerAssist.status === 'loading' || answerAssist.status === 'streaming'
