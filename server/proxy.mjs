@@ -160,6 +160,45 @@ Rules:
 - Always provide a response. Even if the transcript is casual or lacks a clear question, offer a useful contribution the user could make to the conversation.`
 }
 
+// Looser separator: tolerates `---`, `**---**`, etc., with optional whitespace
+// around it. Anchoring on "newline or start" + "newline or end" keeps it from
+// matching a hyphen-rich sentence body.
+const SECTION_SEPARATOR_RE = /(?:^|\n)\s*\**\s*---+\s*\**\s*(?:\n|$)/
+
+async function translateText(text, targetLang, openaiApiKey) {
+  const targetLanguage = LANGUAGE_NAME_BY_CODE.get(targetLang) ?? targetLang
+  const response = await fetch(OPENAI_TRANSLATION_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${openaiApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: TRANSLATION_MODEL,
+      max_tokens: Math.min(Math.max(Math.ceil(text.length * 1.8), 96), 512),
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are a precise translation engine. Return only translated text with no quotes, labels, or explanations.',
+        },
+        {
+          role: 'user',
+          content: `Translate the following text to ${targetLanguage}. Return ONLY the translation. Do not explain, quote, identify languages, or add a preamble:\n\n${text}`,
+        },
+      ],
+    }),
+  })
+  if (!response.ok) throw new Error(`translation HTTP ${response.status}`)
+  const payload = await response.json().catch(() => ({}))
+  const translation =
+    typeof payload?.choices?.[0]?.message?.content === 'string'
+      ? payload.choices[0].message.content.trim()
+      : ''
+  if (!translation) throw new Error('empty translation')
+  return translation
+}
+
 app.post('/api/answer-assist', async (req, res) => {
   const { transcript, sourceLang = 'en', targetLang = 'ko' } = req.body
   if (!transcript || typeof transcript !== 'string' || transcript.trim().length < 20) {
@@ -181,6 +220,41 @@ app.post('/api/answer-assist', async (req, res) => {
 
   const sendSSE = (data) => {
     res.write(`data: ${JSON.stringify(data)}\n\n`)
+  }
+
+  const wantsTranslation =
+    targetLang !== 'off' &&
+    targetLang !== sourceLang &&
+    typeof targetLang === 'string' &&
+    targetLang.length > 0
+
+  // Streams a missing-half translation back to the client through the SSE
+  // pipe in 50-char chunks so the UI feels live (matches the existing UX
+  // when the model itself produces both halves).
+  async function ensureBothHalves(answer, answerKo) {
+    if (!wantsTranslation) return { answer, answerKo }
+    if (answer && !answerKo) {
+      try {
+        const translated = await translateText(answer, targetLang, openaiApiKey)
+        sendSSE({ type: 'section', name: 'ko' })
+        for (let i = 0; i < translated.length; i += 50) {
+          sendSSE({ type: 'delta', content: translated.slice(i, i + 50) })
+        }
+        return { answer, answerKo: translated }
+      } catch (err) {
+        console.warn('[proxy] fallback translation (target) failed:', err?.message ?? err)
+      }
+    } else if (!answer && answerKo) {
+      // Rare: model produced only the translation half. Treat that as the
+      // primary answer in the source language and translate back.
+      try {
+        const translated = await translateText(answerKo, sourceLang, openaiApiKey)
+        return { answer: translated, answerKo }
+      } catch (err) {
+        console.warn('[proxy] fallback translation (source) failed:', err?.message ?? err)
+      }
+    }
+    return { answer, answerKo }
   }
 
   try {
@@ -268,17 +342,20 @@ app.post('/api/answer-assist', async (req, res) => {
             return
           }
 
-          // Check for section separator
-          if (!sentSection && fullText.includes('\n---\n')) {
-            sentSection = true
-            sendSSE({ type: 'section', name: 'ko' })
-            fullText = fullText.slice(fullText.indexOf('\n---\n') + 5)
-            continue
-          }
-
-          // Don't send the --- separator as delta content
-          if (!sentSection && fullText.trimEnd().endsWith('---')) {
-            continue
+          // Check for section separator (tolerant to extra whitespace/markup)
+          if (!sentSection) {
+            const sepMatch = fullText.match(SECTION_SEPARATOR_RE)
+            if (sepMatch && typeof sepMatch.index === 'number') {
+              sentSection = true
+              sendSSE({ type: 'section', name: 'ko' })
+              fullText = fullText.slice(sepMatch.index + sepMatch[0].length)
+              continue
+            }
+            // Don't send a trailing `---` (or `**---**`) chunk as delta content;
+            // wait for the next chunk so we can detect the full separator.
+            if (/\n\s*\**\s*-{2,}\s*\**\s*$/.test(fullText)) {
+              continue
+            }
           }
 
           sendSSE({ type: 'delta', content: delta })
@@ -287,9 +364,10 @@ app.post('/api/answer-assist', async (req, res) => {
         // Handle completion
         if (event.type === 'response.completed') {
           const outputText = event.response?.output?.[0]?.content?.[0]?.text ?? fullText
-          const parts = outputText.split(/\n---\n/)
-          const answer = (parts[0] ?? '').trim()
-          const answerKo = (parts[1] ?? '').trim()
+          const parts = outputText.split(SECTION_SEPARATOR_RE)
+          let answer = (parts[0] ?? '').trim()
+          let answerKo = (parts[1] ?? '').trim()
+          ;({ answer, answerKo } = await ensureBothHalves(answer, answerKo))
           sendSSE({ type: 'done', answer, answer_ko: answerKo })
           res.end()
           return
@@ -298,9 +376,10 @@ app.post('/api/answer-assist', async (req, res) => {
     }
 
     // Stream ended without response.completed
-    const parts = fullText.split(/\n---\n/)
-    const answer = (parts[0] ?? '').trim()
-    const answerKo = (parts[1] ?? '').trim()
+    const parts = fullText.split(SECTION_SEPARATOR_RE)
+    let answer = (parts[0] ?? '').trim()
+    let answerKo = (parts[1] ?? '').trim()
+    ;({ answer, answerKo } = await ensureBothHalves(answer, answerKo))
     sendSSE({ type: 'done', answer, answer_ko: answerKo })
     res.end()
   } catch (err) {
