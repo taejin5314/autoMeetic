@@ -46,8 +46,7 @@ function createWindow(): void {
   })
 
   // Forward renderer console to terminal
-  mainWindow.webContents.on('console-message', (event) => {
-    const { level, message, line, sourceId } = event
+  mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
     const tag = ['VERBOSE', 'LOG', 'WARN', 'ERROR'][level] ?? 'LOG'
     const src = sourceId ? ` (${sourceId}:${line})` : ''
     console.log(`[renderer:${tag}] ${message}${src}`)

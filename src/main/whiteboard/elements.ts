@@ -5,6 +5,12 @@ const CHAR_WIDTH_RATIO = 0.6;
 const PADDING_PER_SIDE = 28;
 const MIN_SHAPE_GAP = 56;
 const ARROW_LABEL_PADDING = 12;
+const REPAIR_SHAPE_WIDTH = 260;
+const REPAIR_SHAPE_HEIGHT = 90;
+const REPAIR_COLUMN_GAP = 140;
+const REPAIR_ROW_GAP = 90;
+const REPAIR_START_X = 80;
+const REPAIR_START_Y = 80;
 
 /**
  * Normalize whiteboard elements (strip Excalidraw internals).
@@ -20,6 +26,264 @@ export function normalizeWhiteboardElements(elements: unknown): WhiteboardElemen
     byId.set(candidate.id, candidate);
   }
   return [...byId.values()];
+}
+
+/**
+ * Deterministic layout repair for model-generated diagrams.
+ *
+ * The model is good at choosing concepts, but not reliable at exact geometry.
+ * When shapes overlap or crowd, reflow shapes into a simple grid and reroute
+ * arrows from shape edge to shape edge. This keeps live diagrams readable
+ * without adding another model roundtrip.
+ */
+export function repairWhiteboardLayout(elements: WhiteboardElement[]): WhiteboardElement[] {
+  const normalized = normalizeWhiteboardElements(elements);
+  if (normalized.length === 0) return normalized;
+  const repairNeeded = needsLayoutRepair(normalized);
+  const hasArrows = normalized.some((element) => element.type === "arrow");
+
+  const shapeIds = new Set(
+    normalized.filter((element) => SHAPE_TYPES.has(element?.type)).map((element) => element.id)
+  );
+  const originalShapes = normalized.filter(
+    (element): element is WhiteboardElement & { x: number; y: number; width: number; height: number } =>
+      SHAPE_TYPES.has(element?.type) && hasRect(element)
+  );
+  if (originalShapes.length === 0) return normalized;
+  if (!repairNeeded && originalShapes.length < 3 && !hasArrows) return normalized;
+
+  const repairedShapeById = new Map<string, WhiteboardElement>();
+  const measuredShapes = originalShapes
+    .slice()
+    .sort((a, b) => a.y - b.y || a.x - b.x)
+    .map(measureShapeForRepair);
+  const shouldReflowShapes = repairNeeded || isCompactCrowdedRow(originalShapes);
+  const orderedShapes = shouldReflowShapes ? positionMeasuredShapes(measuredShapes) : measuredShapes;
+
+  for (const shape of orderedShapes) {
+    repairedShapeById.set(shape.id, shape);
+  }
+
+  return normalized
+    .filter((element) => {
+      if (SHAPE_TYPES.has(element?.type)) return repairedShapeById.has(element.id);
+      return true;
+    })
+    .map((element) => {
+      if (repairedShapeById.has(element.id)) return repairedShapeById.get(element.id)!;
+      if (element.type === "arrow") {
+        return repairArrow(element, originalShapes, repairedShapeById, shouldReflowShapes);
+      }
+      if (element.type === "text") return repairStandaloneText(element, orderedShapes, shapeIds);
+      return element;
+    });
+}
+
+function needsLayoutRepair(elements: WhiteboardElement[]): boolean {
+  return detectMalformedLayoutWarnings(elements).length > 0;
+}
+
+function measureShapeForRepair(shape: WhiteboardElement): WhiteboardElement & { width: number; height: number } {
+  const estimated = estimateTextBox(shape.label?.text, shape.label?.fontSize);
+  const width = Math.max(shape.width ?? 0, REPAIR_SHAPE_WIDTH, estimated.width + PADDING_PER_SIDE * 2);
+  const height = Math.max(shape.height ?? 0, REPAIR_SHAPE_HEIGHT, estimated.height + PADDING_PER_SIDE * 2);
+  return { ...shape, width, height };
+}
+
+function positionMeasuredShapes(
+  shapes: Array<WhiteboardElement & { width: number; height: number }>
+): Array<WhiteboardElement & { width: number; height: number }> {
+  const cols = chooseRepairColumns(shapes.length);
+  const colWidths = Array.from({ length: cols }, (_, col) =>
+    Math.max(
+      ...shapes.filter((_, index) => index % cols === col).map((shape) => shape.width),
+      REPAIR_SHAPE_WIDTH
+    )
+  );
+  const rowCount = Math.ceil(shapes.length / cols);
+  const rowHeights = Array.from({ length: rowCount }, (_, row) =>
+    Math.max(
+      ...shapes
+        .filter((_, index) => Math.floor(index / cols) === row)
+        .map((shape) => shape.height),
+      REPAIR_SHAPE_HEIGHT
+    )
+  );
+
+  return shapes.map((shape, index) => {
+    const row = Math.floor(index / cols);
+    const col = index % cols;
+    const x =
+      REPAIR_START_X +
+      colWidths.slice(0, col).reduce((sum, width) => sum + width + REPAIR_COLUMN_GAP, 0);
+    const y =
+      REPAIR_START_Y +
+      rowHeights.slice(0, row).reduce((sum, height) => sum + height + REPAIR_ROW_GAP, 0);
+    return { ...shape, x, y };
+  });
+}
+
+function chooseRepairColumns(count: number): number {
+  if (count <= 1) return 1;
+  if (count <= 2) return count;
+  return 2;
+}
+
+function isCompactCrowdedRow(
+  shapes: Array<WhiteboardElement & { x: number; y: number; width: number; height: number }>
+): boolean {
+  if (shapes.length < 3) return false;
+  const top = Math.min(...shapes.map((shape) => shape.y));
+  const bottom = Math.max(...shapes.map((shape) => shape.y + shape.height));
+  const rowHeight = bottom - top;
+  const tallest = Math.max(...shapes.map((shape) => shape.height));
+  return rowHeight <= tallest * 1.5;
+}
+
+function repairArrow(
+  arrow: WhiteboardElement,
+  originalShapes: Array<WhiteboardElement & { x: number; y: number; width: number; height: number }>,
+  repairedShapeById: Map<string, WhiteboardElement>,
+  removeLabelsForFullRepair: boolean
+): WhiteboardElement {
+  const originalLine = getArrowLine(arrow);
+  if (!originalLine || originalShapes.length < 2) return arrow;
+
+  const source = nearestShapeToPoint(originalShapes, originalLine.x1, originalLine.y1);
+  const target = nearestShapeToPoint(originalShapes, originalLine.x2, originalLine.y2, source?.id);
+  if (!source || !target) return arrow;
+
+  const repairedSource = repairedShapeById.get(source.id);
+  const repairedTarget = repairedShapeById.get(target.id);
+  if (!hasRect(repairedSource) || !hasRect(repairedTarget)) return arrow;
+
+  const line = edgeLineBetween(repairedSource, repairedTarget);
+  const repaired: WhiteboardElement = {
+    ...arrow,
+    x: line.x1,
+    y: line.y1,
+    width: line.x2 - line.x1,
+    height: line.y2 - line.y1,
+    points: [
+      [0, 0],
+      [line.x2 - line.x1, line.y2 - line.y1],
+    ],
+  };
+  if (removeLabelsForFullRepair || arrowLabelOverlapsShape(repaired, repairedShapeById)) {
+    return dropArrowLabel(repaired);
+  }
+  return repaired;
+}
+
+function dropArrowLabel(arrow: WhiteboardElement): WhiteboardElement {
+  if (!arrow.label) return arrow;
+  const repaired = { ...arrow };
+  delete repaired.label;
+  return repaired;
+}
+
+function arrowLabelOverlapsShape(
+  arrow: WhiteboardElement,
+  shapeById: Map<string, WhiteboardElement>
+): boolean {
+  const line = getArrowLine(arrow);
+  if (!line || !arrow.label?.text) return false;
+  const labelBox = estimateArrowLabelBox(arrow, line);
+  if (!labelBox) return false;
+  for (const shape of shapeById.values()) {
+    if (!hasRect(shape)) continue;
+    if (rectanglesOverlap(labelBox, shape)) return true;
+  }
+  return false;
+}
+
+function repairStandaloneText(
+  text: WhiteboardElement,
+  repairedShapes: Array<WhiteboardElement & { width: number; height: number }>,
+  shapeIds: Set<string>
+): WhiteboardElement {
+  if (shapeIds.has(String((text as unknown as Record<string, unknown>).containerId))) return text;
+  const estimated = estimateTextBox(text.text, text.fontSize);
+  const textBox = {
+    x: text.x,
+    y: text.y,
+    width: text.width ?? estimated.width,
+    height: text.height ?? estimated.height,
+  };
+  if (!repairedShapes.some((shape) => rectanglesOverlap(textBox, shape))) return text;
+  const bottom = Math.max(...repairedShapes.map((shape) => shape.y + shape.height));
+  return {
+    ...text,
+    x: REPAIR_START_X,
+    y: bottom + REPAIR_ROW_GAP,
+  };
+}
+
+function nearestShapeToPoint(
+  shapes: Array<WhiteboardElement & { x: number; y: number; width: number; height: number }>,
+  x: number,
+  y: number,
+  excludedId?: string
+): (WhiteboardElement & { x: number; y: number; width: number; height: number }) | null {
+  let best: (WhiteboardElement & { x: number; y: number; width: number; height: number }) | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const shape of shapes) {
+    if (shape.id === excludedId) continue;
+    const center = rectCenter(shape);
+    const distance = Math.hypot(center.x - x, center.y - y);
+    if (distance < bestDistance) {
+      best = shape;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
+function edgeLineBetween(
+  source: WhiteboardElement & { x: number; y: number; width: number; height: number },
+  target: WhiteboardElement & { x: number; y: number; width: number; height: number }
+): { x1: number; y1: number; x2: number; y2: number } {
+  const sourceCenter = rectCenter(source);
+  const targetCenter = rectCenter(target);
+  const horizontal = Math.abs(targetCenter.x - sourceCenter.x) >= Math.abs(targetCenter.y - sourceCenter.y);
+  const gap = 10;
+
+  if (horizontal) {
+    if (targetCenter.x >= sourceCenter.x) {
+      return {
+        x1: source.x + source.width + gap,
+        y1: sourceCenter.y,
+        x2: target.x - gap,
+        y2: targetCenter.y,
+      };
+    }
+    return {
+      x1: source.x - gap,
+      y1: sourceCenter.y,
+      x2: target.x + target.width + gap,
+      y2: targetCenter.y,
+    };
+  }
+
+  if (targetCenter.y >= sourceCenter.y) {
+    return {
+      x1: sourceCenter.x,
+      y1: source.y + source.height + gap,
+      x2: targetCenter.x,
+      y2: target.y - gap,
+    };
+  }
+
+  return {
+    x1: sourceCenter.x,
+    y1: source.y - gap,
+    x2: targetCenter.x,
+    y2: target.y + target.height + gap,
+  };
+}
+
+function rectCenter(rect: { x: number; y: number; width: number; height: number }): { x: number; y: number } {
+  return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
 }
 
 /**
@@ -139,7 +403,7 @@ export function detectMalformedLayoutWarnings(elements: WhiteboardElement[]): st
 }
 
 function hasRect(
-  element: WhiteboardElement
+  element: WhiteboardElement | undefined
 ): element is WhiteboardElement & { x: number; y: number; width: number; height: number } {
   return (
     typeof element?.x === "number" &&

@@ -11,7 +11,11 @@
 import type { BrowserWindow } from 'electron'
 import type { WhiteboardElement, ViewportCommand } from './whiteboard/types'
 import { formatLineNumberedWhiteboard } from './whiteboard/tools'
-import { appendLayoutWarnings, normalizeWhiteboardElements } from './whiteboard/elements'
+import {
+  appendLayoutWarnings,
+  normalizeWhiteboardElements,
+  repairWhiteboardLayout,
+} from './whiteboard/elements'
 import { isTrivialTranscript } from './whiteboard/session'
 import { whiteboardSystemPrompt, type WhiteboardViewport } from './whiteboard/prompt'
 
@@ -277,7 +281,7 @@ function applyResult(result: { elements: WhiteboardElement[] | null; viewport: V
   }
 }
 
-function sendToRenderer(channel: string, data: Record<string, unknown>): void {
+function sendToRenderer(channel: string, data: unknown): void {
   mainWindowRef?.webContents.send(channel, data)
 }
 
@@ -676,7 +680,7 @@ function parseRendererChoice(choice: RendererChoice | undefined): RendererParseR
     }
 
     if (call.function.name === 'whiteboard_overwrite') {
-      const normalized = normalizeWhiteboardElements(input.elements ?? [])
+      const normalized = repairWhiteboardLayout(normalizeWhiteboardElements(input.elements ?? []))
       workingElements = normalized
       result.elements = normalized
       operationCount += normalized.length
@@ -691,7 +695,7 @@ function parseRendererChoice(choice: RendererChoice | undefined): RendererParseR
       let nextElements = workingElements
       if (Array.isArray(operations) && operations.length > 0) {
         operationCount += operations.length
-        nextElements = applyEditOperations(workingElements, operations)
+        nextElements = repairWhiteboardLayout(applyEditOperations(workingElements, operations))
         workingElements = nextElements
         result.elements = nextElements
       }

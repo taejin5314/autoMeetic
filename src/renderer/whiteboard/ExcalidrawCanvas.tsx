@@ -12,14 +12,19 @@ import {
   exportToBlob,
   MainMenu,
 } from '@excalidraw/excalidraw'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 import type { ViewportCommand, WhiteboardElement } from '../../main/whiteboard/types'
+import { repairWhiteboardLayout } from '../../main/whiteboard/elements'
 import { useThemeStore, type Theme } from '../theme/useThemeStore'
 
 const WB_LIGHT_BG = '#fafafa'
 const WB_DARK_BG = '#101216'
 const WB_LIGHT_EXPORT_BG = '#ffffff'
 const WB_DARK_EXPORT_BG = '#101216'
+const WB_LIGHT_INK = '#1e1e1e'
+const WB_DARK_INK = '#f4f4f5'
+const WB_DEFAULT_NODE_FILL = '#a5d8ff'
+const WB_ACCENT_NODE_FILL = '#ffd6a5'
 
 // Excalidraw types — use inline types to avoid deep import path issues
 interface ExcalidrawImperativeAPI {
@@ -90,8 +95,7 @@ function isRenderableWhiteboardElement(el: unknown): el is WhiteboardElement {
 }
 
 function toExcalidrawElement(el: WhiteboardElement, theme: Theme): Record<string, unknown> {
-  const isDark = theme === 'dark'
-  const strokeColor = el.type === 'arrow' || el.type === 'text' ? (isDark ? '#f4f4f5' : '#1e1e1e') : '#1e1e1e'
+  const strokeColor = theme === 'dark' ? '#f4f4f5' : '#1e1e1e'
   const base: Record<string, unknown> = {
     id: el.id,
     type: el.type,
@@ -100,7 +104,7 @@ function toExcalidrawElement(el: WhiteboardElement, theme: Theme): Record<string
     width: el.width ?? 0,
     height: el.height ?? 0,
     strokeColor,
-    backgroundColor: el.backgroundColor ?? 'transparent',
+    backgroundColor: normalizeShapeFill(el, theme),
     fillStyle: el.fillStyle ?? 'solid',
     strokeWidth: el.type === 'arrow' ? 3 : 2,
     roughness: 0.8,
@@ -158,13 +162,97 @@ function toExcalidrawElement(el: WhiteboardElement, theme: Theme): Record<string
  * Build renderable elements using Excalidraw's own converter.
  * This matches autopreso/public/app.js applyScene().
  */
-function buildRenderableElements(elements: WhiteboardElement[], theme: Theme): Record<string, unknown>[] {
-  const skeleton = elements
+function buildRenderableElements(
+  elements: WhiteboardElement[],
+  theme: Theme
+): Record<string, unknown>[] {
+  const repaired = repairWhiteboardLayout(elements)
+  const skeleton = repaired
     .filter(isRenderableWhiteboardElement)
     .map((element) => toExcalidrawElement(element, theme))
-  return convertToExcalidrawElements(skeleton as never, {
+  const renderable = convertToExcalidrawElements(skeleton as never, {
     regenerateIds: false,
   }) as Record<string, unknown>[]
+  return normalizeRenderableColors(renderable, theme)
+}
+
+function normalizeRenderableColors(
+  renderable: Record<string, unknown>[],
+  theme: Theme
+): Record<string, unknown>[] {
+  const elementTypeById = new Map<string, string>()
+  for (const element of renderable) {
+    if (typeof element.id === 'string' && typeof element.type === 'string') {
+      elementTypeById.set(element.id, element.type)
+    }
+  }
+
+  return renderable.map((element) => {
+    const type = element.type
+    const containerId = typeof element.containerId === 'string' ? element.containerId : null
+    const containerType = containerId ? elementTypeById.get(containerId) : null
+    const next = { ...element }
+
+    if (type === 'arrow') {
+      next.strokeColor = theme === 'dark' ? WB_DARK_INK : WB_LIGHT_INK
+      next.backgroundColor = 'transparent'
+      return next
+    }
+
+    if (type === 'text') {
+      const textOnCanvas = !containerType || containerType === 'arrow'
+      next.strokeColor = theme === 'dark' && textOnCanvas ? WB_DARK_INK : WB_LIGHT_INK
+      next.backgroundColor = 'transparent'
+      return next
+    }
+
+    next.strokeColor = WB_LIGHT_INK
+    next.backgroundColor = normalizeRenderableShapeFill(next, theme)
+    next.fillStyle = next.fillStyle === 'hachure' ? 'solid' : next.fillStyle
+    return next
+  })
+}
+
+function normalizeShapeFill(el: WhiteboardElement, theme: Theme): string {
+  if (el.type === 'arrow' || el.type === 'text') return 'transparent'
+  return normalizeFillColor(el.backgroundColor, theme, el.type)
+}
+
+function normalizeRenderableShapeFill(element: Record<string, unknown>, theme: Theme): string {
+  const type = typeof element.type === 'string' ? element.type : 'rectangle'
+  const color = typeof element.backgroundColor === 'string' ? element.backgroundColor : undefined
+  return normalizeFillColor(color, theme, type)
+}
+
+function normalizeFillColor(color: string | undefined, theme: Theme, type: string): string {
+  const fallback = type === 'ellipse' || type === 'diamond' ? WB_ACCENT_NODE_FILL : WB_DEFAULT_NODE_FILL
+  if (!color || color === 'transparent') return fallback
+  if (theme !== 'dark') return color
+  const luminance = getHexLuminance(color)
+  if (luminance !== null && luminance < 0.45) return fallback
+  return color
+}
+
+function getHexLuminance(color: string): number | null {
+  const match = color.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
+  if (!match) return null
+  const raw = match[1]
+  const hex =
+    raw.length === 3
+      ? raw
+          .split('')
+          .map((char) => `${char}${char}`)
+          .join('')
+      : raw
+  const rgb = [0, 2, 4].map((offset) => parseInt(hex.slice(offset, offset + 2), 16) / 255)
+  const [r, g, b] = rgb.map((value) =>
+    value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+  )
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+function sceneHash(elements: readonly { id: string }[]): string {
+  return JSON.stringify(elements.map((el) => el.id).sort())
 }
 
 /**
@@ -237,59 +325,98 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({
 }) => {
   const { theme } = useThemeStore()
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null)
-  const lastSyncedHashRef = useRef<string>('')
+  // `null` is the "not yet seeded" sentinel. The first onChange that
+  // Excalidraw fires after mount is its own echo of the scene we handed
+  // it via initialData — NOT a user edit. We record the hash so future
+  // identical onChanges (e.g. zoom/pan that doesn't change ids) also get
+  // skipped, but we never propagate this first echo upstream. Without this,
+  // opening the modal would round-trip the diagram through the agent and
+  // could blank the canvas on every mount.
+  const lastSyncedHashRef = useRef<string | null>(null)
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const screenshotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const autoFitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const suppressEmptyEchoUntilRef = useRef(0)
   const canvasBg = theme === 'dark' ? WB_DARK_BG : WB_LIGHT_BG
   const exportBg = theme === 'dark' ? WB_DARK_EXPORT_BG : WB_LIGHT_EXPORT_BG
 
-  // Compute initialData once at mount. Excalidraw reads this only on its
-  // initial render, so capture the elements value present at that moment.
-  // Fixes two bugs:
-  //   1. When the shelf tab toggles or the modal opens after elements have
-  //      arrived, ExcalidrawCanvas mounts but the elements useEffect bails
-  //      out while apiRef is still null — so the diagram never paints.
-  //   2. The default Excalidraw canvas background is white; pinning
-  //      viewBackgroundColor here prevents a flash of color mismatch with
-  //      the surrounding container.
-  const [initialData] = useState(() => {
-    const renderable =
-      elements.length > 0
-        ? (buildRenderableElements(elements, theme) as unknown as ExcalidrawElement[])
-        : []
-    return {
-      elements: renderable,
-      appState: { viewBackgroundColor: canvasBg, theme },
-      scrollToContent: renderable.length > 0,
-    }
-  })
-
-  // When the user toggles theme while Excalidraw is mounted, push the
-  // new background and theme into the live scene so the canvas repaints.
-  // Both are needed: the JSX `theme` prop drives Excalidraw's UI chrome but
-  // not the canvas itself — the canvas only flips dark when `appState.theme`
-  // is updated through the API.
+  // Latest elements via ref so the theme-change branch of the
+  // initialData memo can read fresh elements without re-running on every
+  // element delta.
+  const elementsRef = useRef(elements)
   useEffect(() => {
-    const api = apiRef.current
-    if (!api) return
-    api.updateScene({ appState: { viewBackgroundColor: canvasBg, theme } })
-  }, [canvasBg, theme])
+    elementsRef.current = elements
+  }, [elements])
+
+  const markProgrammaticSync = useCallback(() => {
+    suppressEmptyEchoUntilRef.current = Date.now() + 1000
+  }, [])
+
+  const pushElementsToScene = useCallback(
+    (api: ExcalidrawImperativeAPI, sourceElements: WhiteboardElement[]): ExcalidrawElement[] => {
+      const renderable = buildRenderableElements(sourceElements, theme) as ExcalidrawElement[]
+      markProgrammaticSync()
+      api.updateScene({
+        elements: renderable,
+        appState: { viewBackgroundColor: canvasBg, theme: 'light' },
+      })
+      lastSyncedHashRef.current = sceneHash(renderable)
+      return renderable
+    },
+    [canvasBg, markProgrammaticSync, theme]
+  )
+
+  // initialData feeds the inner <Excalidraw> on mount. Later element/theme
+  // updates are pushed through updateScene below.
+  const initialData = useMemo(
+    () => {
+      const renderable = elements.length > 0 ? buildRenderableElements(elements, theme) : []
+      return {
+        elements: renderable as ExcalidrawElement[],
+        appState: { viewBackgroundColor: canvasBg, theme: 'light' },
+        scrollToContent: renderable.length > 0,
+      }
+    },
+    [canvasBg, elements, theme]
+  )
 
   const setApi = useCallback(
     (api: ExcalidrawImperativeAPI | null) => {
-      if (!api) return
+      if (!api) {
+        apiRef.current = null
+        return
+      }
       apiRef.current = api
-      // Excalidraw's `excalidrawAPI` callback typically resolves AFTER React's
-      // mount-phase useEffects, so the [canvasBg, theme] effect already saw a
-      // null apiRef and bailed. Push the current values here so the first
-      // paint after mount honours the active theme — required for the
-      // canvasResetVersion remount and the modal mount.
-      api.updateScene({ appState: { viewBackgroundColor: canvasBg, theme } })
+      // Belt-and-suspenders: even though we already feed elements through
+      // `initialData`, re-push them via `updateScene` once the API is alive.
+      // Two reasons:
+      //   1. On modal mount, initialData alone sometimes leaves the scene
+      //      blank in 0.18 (timing-dependent; suspected resize/observer).
+      //   2. Seeding `lastSyncedHashRef` here means the immediate onChange
+      //      echo Excalidraw fires has a matching hash and gets skipped
+      //      cleanly without going through the null-sentinel branch.
+      const current = elementsRef.current
+      if (current.length > 0) {
+        pushElementsToScene(api, current)
+        setTimeout(() => {
+          const liveApi = apiRef.current
+          if (!liveApi || elementsRef.current.length === 0) return
+          pushElementsToScene(liveApi, elementsRef.current)
+        }, 75)
+        if (!compact) {
+          // Give Excalidraw a frame to commit the scene before centring.
+          // rAF alone was sometimes too early — the canvas was still 0×0
+          // and scrollToContent had nothing to fit to.
+          setTimeout(() => {
+            const liveApi = apiRef.current
+            if (liveApi) liveApi.scrollToContent(undefined, { animate: false })
+          }, 50)
+        }
+      }
       onApiReady?.(api)
     },
-    [canvasBg, onApiReady, theme]
+    [compact, onApiReady, pushElementsToScene]
   )
 
   const scheduleScreenshot = useCallback(() => {
@@ -339,21 +466,23 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({
       // toggle. Update the scene to empty while preserving our background.
       api.updateScene({
         elements: [],
-        appState: { viewBackgroundColor: canvasBg, theme },
+        appState: { viewBackgroundColor: canvasBg, theme: 'light' },
       })
       lastSyncedHashRef.current = ''
       return
     }
 
-    const renderable = buildRenderableElements(elements, theme)
-    api.updateScene({
-      elements: renderable as ExcalidrawElement[],
-      appState: { viewBackgroundColor: canvasBg, theme },
-    })
+    const renderable = pushElementsToScene(api, elements)
 
     // Full-mode: scroll-to-content only on first appearance.
     // Compact mode handles its own continuous auto-fit via a separate effect.
-    if (!compact && renderable.length > 0 && lastSyncedHashRef.current === '') {
+    // Both `null` (never synced) and `''` (cleared because last update was
+    // empty) count as "first appearance".
+    if (
+      !compact &&
+      renderable.length > 0 &&
+      (lastSyncedHashRef.current === null || lastSyncedHashRef.current === '')
+    ) {
       requestAnimationFrame(() => {
         api.scrollToContent(undefined, { animate: false })
       })
@@ -362,10 +491,33 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({
       // Mark that we've synced at least once so the first-time fit above
       // doesn't fire again. Use sorted IDs to keep behavior aligned with
       // handleChange's hash dedup.
-      lastSyncedHashRef.current = JSON.stringify(renderable.map((el) => el.id).sort())
+      lastSyncedHashRef.current = sceneHash(renderable as Array<{ id: string }>)
     }
     scheduleScreenshot()
-  }, [compact, elements, scheduleScreenshot, canvasBg, theme])
+  }, [canvasBg, compact, elements, pushElementsToScene, scheduleScreenshot, theme])
+
+  useEffect(() => {
+    if (elements.length === 0) return
+    const api = apiRef.current
+    if (!api) return
+    const timer = setTimeout(() => {
+      const liveApi = apiRef.current
+      if (!liveApi || elementsRef.current.length === 0) return
+      const liveElements = liveApi.getSceneElements().filter((el) => !el.isDeleted)
+      if (liveElements.length > 0) return
+      pushElementsToScene(liveApi, elementsRef.current)
+      if (compact) {
+        liveApi.scrollToContent(undefined, {
+          animate: false,
+          fitToContent: true,
+          viewportZoomFactor: 0.85,
+        })
+      } else {
+        liveApi.scrollToContent(undefined, { animate: false })
+      }
+    }, 180)
+    return () => clearTimeout(timer)
+  }, [compact, elements, pushElementsToScene, theme])
 
   // ── Compact mode: auto-fit on every element change ────────────────────────
   useEffect(() => {
@@ -449,11 +601,29 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({
     (nativeElements: readonly ExcalidrawElement[]) => {
       if (!onElementsChange) return
 
-      // Hash to prevent redundant updates
       const cleaned = nativeElements.filter(
         (el) => !(el as unknown as Record<string, unknown>).isDeleted
       )
-      const hash = JSON.stringify(cleaned.map((el) => el.id).sort())
+      const hash = sceneHash(cleaned)
+
+      if (
+        cleaned.length === 0 &&
+        elementsRef.current.length > 0 &&
+        Date.now() < suppressEmptyEchoUntilRef.current
+      ) {
+        return
+      }
+
+      // First onChange after mount = Excalidraw echoing the scene we just
+      // gave it via initialData. Record the hash but DO NOT propagate it
+      // upstream — propagating would tell the agent that the user just
+      // "edited" the scene to look exactly like it already does, which can
+      // race with agent updates and blank the diagram on every modal mount.
+      if (lastSyncedHashRef.current === null) {
+        lastSyncedHashRef.current = hash
+        return
+      }
+
       if (hash === lastSyncedHashRef.current) return
       lastSyncedHashRef.current = hash
 
@@ -500,7 +670,7 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({
         onChange={isCompact ? undefined : handleChange}
         viewModeEnabled={isCompact ? true : viewModeEnabled}
         UIOptions={isCompact ? compactUIOptions : fullUIOptions}
-        theme={theme}
+        theme="light"
         initialData={initialData as never}
       >
         {!isCompact && (
