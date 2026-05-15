@@ -32,6 +32,7 @@ This spec is a single subsystem (review-process governance). It touches PR metad
 ### Task 1: Add PR Template Guardrail With TDD
 
 **Files:**
+
 - Create: `src/test/ai-review-collaboration.test.ts`
 - Modify: `.github/pull_request_template.md`
 - Test: `src/test/ai-review-collaboration.test.ts`
@@ -41,27 +42,27 @@ This spec is a single subsystem (review-process governance). It touches PR metad
 Create `src/test/ai-review-collaboration.test.ts`:
 
 ```ts
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { describe, expect, it } from 'vitest'
 
 const readText = (relativePath: string): string =>
-  readFileSync(resolve(process.cwd(), relativePath), "utf8");
+  readFileSync(resolve(process.cwd(), relativePath), 'utf8')
 
-describe("ai review collaboration guardrails", () => {
-  it("requires PR template risk, evidence, and triage sections", () => {
-    const template = readText(".github/pull_request_template.md");
+describe('ai review collaboration guardrails', () => {
+  it('requires PR template risk, evidence, and triage sections', () => {
+    const template = readText('.github/pull_request_template.md')
 
-    expect(template).toContain("## Summary");
-    expect(template).toContain("## Risk Areas");
-    expect(template).toContain("## Test Evidence");
-    expect(template).toContain("## AI Review Triage");
-    expect(template).toContain("must-fix");
-    expect(template).toContain("should-fix");
-    expect(template).toContain("note");
-    expect(template).toContain("## Deferred Follow-Ups");
-  });
-});
+    expect(template).toContain('## Summary')
+    expect(template).toContain('## Risk Areas')
+    expect(template).toContain('## Test Evidence')
+    expect(template).toContain('## AI Review Triage')
+    expect(template).toContain('must-fix')
+    expect(template).toContain('should-fix')
+    expect(template).toContain('note')
+    expect(template).toContain('## Deferred Follow-Ups')
+  })
+})
 ```
 
 - [ ] **Step 2: Run the focused test and confirm failure**
@@ -163,6 +164,7 @@ Expected:
 ### Task 2: Add AGENTS Triage Rules With TDD
 
 **Files:**
+
 - Modify: `src/test/ai-review-collaboration.test.ts`
 - Modify: `AGENTS.md`
 - Test: `src/test/ai-review-collaboration.test.ts`
@@ -172,37 +174,37 @@ Expected:
 Update `src/test/ai-review-collaboration.test.ts` to:
 
 ```ts
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { describe, expect, it } from 'vitest'
 
 const readText = (relativePath: string): string =>
-  readFileSync(resolve(process.cwd(), relativePath), "utf8");
+  readFileSync(resolve(process.cwd(), relativePath), 'utf8')
 
-describe("ai review collaboration guardrails", () => {
-  it("requires PR template risk, evidence, and triage sections", () => {
-    const template = readText(".github/pull_request_template.md");
+describe('ai review collaboration guardrails', () => {
+  it('requires PR template risk, evidence, and triage sections', () => {
+    const template = readText('.github/pull_request_template.md')
 
-    expect(template).toContain("## Summary");
-    expect(template).toContain("## Risk Areas");
-    expect(template).toContain("## Test Evidence");
-    expect(template).toContain("## AI Review Triage");
-    expect(template).toContain("must-fix");
-    expect(template).toContain("should-fix");
-    expect(template).toContain("note");
-    expect(template).toContain("## Deferred Follow-Ups");
-  });
+    expect(template).toContain('## Summary')
+    expect(template).toContain('## Risk Areas')
+    expect(template).toContain('## Test Evidence')
+    expect(template).toContain('## AI Review Triage')
+    expect(template).toContain('must-fix')
+    expect(template).toContain('should-fix')
+    expect(template).toContain('note')
+    expect(template).toContain('## Deferred Follow-Ups')
+  })
 
-  it("requires AGENTS guidance for AI review triage and verification", () => {
-    const agents = readText("AGENTS.md");
+  it('requires AGENTS guidance for AI review triage and verification', () => {
+    const agents = readText('AGENTS.md')
 
-    expect(agents).toContain("Do not treat all AI review comments as correct.");
-    expect(agents).toContain("Investigate every `must-fix` candidate.");
-    expect(agents).toContain("Prefer adding a regression test before fixing a bug.");
-    expect(agents).toContain("Explain any deferred `should-fix` comment in the PR.");
-    expect(agents).toContain("Never mark work complete until verification commands have passed");
-  });
-});
+    expect(agents).toContain('Do not treat all AI review comments as correct.')
+    expect(agents).toContain('Investigate every `must-fix` candidate.')
+    expect(agents).toContain('Prefer adding a regression test before fixing a bug.')
+    expect(agents).toContain('Explain any deferred `should-fix` comment in the PR.')
+    expect(agents).toContain('Never mark work complete until verification commands have passed')
+  })
+})
 ```
 
 - [ ] **Step 2: Run focused test and confirm new AGENTS assertions fail**
@@ -326,6 +328,7 @@ Expected:
 ### Task 3: Bias CodeRabbit Toward Risk Signals With TDD
 
 **Files:**
+
 - Modify: `src/test/ai-review-collaboration.test.ts`
 - Modify: `.coderabbit.yaml`
 - Test: `src/test/ai-review-collaboration.test.ts`
@@ -335,51 +338,51 @@ Expected:
 Update `src/test/ai-review-collaboration.test.ts` to:
 
 ```ts
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { describe, expect, it } from 'vitest'
 
 const readText = (relativePath: string): string =>
-  readFileSync(resolve(process.cwd(), relativePath), "utf8");
+  readFileSync(resolve(process.cwd(), relativePath), 'utf8')
 
-describe("ai review collaboration guardrails", () => {
-  it("requires PR template risk, evidence, and triage sections", () => {
-    const template = readText(".github/pull_request_template.md");
+describe('ai review collaboration guardrails', () => {
+  it('requires PR template risk, evidence, and triage sections', () => {
+    const template = readText('.github/pull_request_template.md')
 
-    expect(template).toContain("## Summary");
-    expect(template).toContain("## Risk Areas");
-    expect(template).toContain("## Test Evidence");
-    expect(template).toContain("## AI Review Triage");
-    expect(template).toContain("must-fix");
-    expect(template).toContain("should-fix");
-    expect(template).toContain("note");
-    expect(template).toContain("## Deferred Follow-Ups");
-  });
+    expect(template).toContain('## Summary')
+    expect(template).toContain('## Risk Areas')
+    expect(template).toContain('## Test Evidence')
+    expect(template).toContain('## AI Review Triage')
+    expect(template).toContain('must-fix')
+    expect(template).toContain('should-fix')
+    expect(template).toContain('note')
+    expect(template).toContain('## Deferred Follow-Ups')
+  })
 
-  it("requires AGENTS guidance for AI review triage and verification", () => {
-    const agents = readText("AGENTS.md");
+  it('requires AGENTS guidance for AI review triage and verification', () => {
+    const agents = readText('AGENTS.md')
 
-    expect(agents).toContain("Do not treat all AI review comments as correct.");
-    expect(agents).toContain("Investigate every `must-fix` candidate.");
-    expect(agents).toContain("Prefer adding a regression test before fixing a bug.");
-    expect(agents).toContain("Explain any deferred `should-fix` comment in the PR.");
-    expect(agents).toContain("Never mark work complete until verification commands have passed");
-  });
+    expect(agents).toContain('Do not treat all AI review comments as correct.')
+    expect(agents).toContain('Investigate every `must-fix` candidate.')
+    expect(agents).toContain('Prefer adding a regression test before fixing a bug.')
+    expect(agents).toContain('Explain any deferred `should-fix` comment in the PR.')
+    expect(agents).toContain('Never mark work complete until verification commands have passed')
+  })
 
-  it("requires CodeRabbit focus on correctness, risk paths, and missing tests", () => {
-    const codeRabbit = readText(".coderabbit.yaml");
+  it('requires CodeRabbit focus on correctness, risk paths, and missing tests', () => {
+    const codeRabbit = readText('.coderabbit.yaml')
 
-    expect(codeRabbit).toContain("profile: assertive");
-    expect(codeRabbit).toContain("request_changes_workflow: true");
-    expect(codeRabbit).toContain("path_instructions:");
-    expect(codeRabbit).toContain("src/renderer/**");
-    expect(codeRabbit).toContain("src/main/whiteboard/**");
-    expect(codeRabbit).toContain("src/main/ipc.ts");
-    expect(codeRabbit).toContain("src/main/proxyService.ts");
-    expect(codeRabbit).toContain("avoid style-only comments");
-    expect(codeRabbit).toContain("ask for regression tests");
-  });
-});
+    expect(codeRabbit).toContain('profile: assertive')
+    expect(codeRabbit).toContain('request_changes_workflow: true')
+    expect(codeRabbit).toContain('path_instructions:')
+    expect(codeRabbit).toContain('src/renderer/**')
+    expect(codeRabbit).toContain('src/main/whiteboard/**')
+    expect(codeRabbit).toContain('src/main/ipc.ts')
+    expect(codeRabbit).toContain('src/main/proxyService.ts')
+    expect(codeRabbit).toContain('avoid style-only comments')
+    expect(codeRabbit).toContain('ask for regression tests')
+  })
+})
 ```
 
 - [ ] **Step 2: Run focused test and confirm CodeRabbit assertions fail**
@@ -411,22 +414,22 @@ reviews:
   review_status: true
   collapse_walkthrough: true
   path_filters:
-    - "!package-lock.json"
-    - "!dist/**"
-    - "!out/**"
-    - "!coverage/**"
+    - '!package-lock.json'
+    - '!dist/**'
+    - '!out/**'
+    - '!coverage/**'
   auto_review:
     enabled: true
     drafts: false
   path_instructions:
-    - path: "src/renderer/**"
-      instructions: "Prioritize UI behavior regressions, state-sync issues, and user-visible failures. Ask for regression tests when behavior changes."
-    - path: "src/main/whiteboard/**"
-      instructions: "Prioritize diagram overlap, lost elements, and compact-preview readability regressions. Ask for regression tests when behavior changes."
-    - path: "src/main/ipc.ts"
-      instructions: "Prioritize renderer/main contract safety, async ordering, and failure handling."
-    - path: "src/main/proxyService.ts"
-      instructions: "Prioritize network failure handling, retries/timeouts, and production-risk behavior."
+    - path: 'src/renderer/**'
+      instructions: 'Prioritize UI behavior regressions, state-sync issues, and user-visible failures. Ask for regression tests when behavior changes.'
+    - path: 'src/main/whiteboard/**'
+      instructions: 'Prioritize diagram overlap, lost elements, and compact-preview readability regressions. Ask for regression tests when behavior changes.'
+    - path: 'src/main/ipc.ts'
+      instructions: 'Prioritize renderer/main contract safety, async ordering, and failure handling.'
+    - path: 'src/main/proxyService.ts'
+      instructions: 'Prioritize network failure handling, retries/timeouts, and production-risk behavior.'
   poem: false
 
 chat:
@@ -479,6 +482,7 @@ Expected:
 ### Task 4: End-to-End Verification and PR Readiness
 
 **Files:**
+
 - Validate only (no file changes)
 
 - [ ] **Step 1: Run full local gate**

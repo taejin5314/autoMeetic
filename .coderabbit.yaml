@@ -7,22 +7,22 @@ reviews:
   review_status: true
   collapse_walkthrough: true
   path_filters:
-    - "!package-lock.json"
-    - "!dist/**"
-    - "!out/**"
-    - "!coverage/**"
+    - '!package-lock.json'
+    - '!dist/**'
+    - '!out/**'
+    - '!coverage/**'
   auto_review:
     enabled: true
     drafts: false
   path_instructions:
-    - path: "src/renderer/**"
-      instructions: "Prioritize UI behavior regressions, state-sync issues, and user-visible failures. Ask for regression tests when behavior changes."
-    - path: "src/main/whiteboard/**"
-      instructions: "Prioritize diagram overlap, lost elements, and compact-preview readability regressions. Ask for regression tests when behavior changes."
-    - path: "src/main/ipc.ts"
-      instructions: "Prioritize renderer/main contract safety, async ordering, and failure handling."
-    - path: "src/main/proxyService.ts"
-      instructions: "Prioritize network failure handling, retries/timeouts, and production-risk behavior."
+    - path: 'src/renderer/**'
+      instructions: 'Prioritize UI behavior regressions, state-sync issues, and user-visible failures. Ask for regression tests when behavior changes.'
+    - path: 'src/main/whiteboard/**'
+      instructions: 'Prioritize diagram overlap, lost elements, and compact-preview readability regressions. Ask for regression tests when behavior changes.'
+    - path: 'src/main/ipc.ts'
+      instructions: 'Prioritize renderer/main contract safety, async ordering, and failure handling.'
+    - path: 'src/main/proxyService.ts'
+      instructions: 'Prioritize network failure handling, retries/timeouts, and production-risk behavior.'
   poem: false
 
 chat:
