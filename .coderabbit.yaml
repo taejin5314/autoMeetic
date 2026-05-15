@@ -1,8 +1,8 @@
 language: en-US
 
 reviews:
-  profile: chill
-  request_changes_workflow: false
+  profile: assertive
+  request_changes_workflow: true
   high_level_summary: true
   review_status: true
   collapse_walkthrough: true
@@ -14,11 +14,27 @@ reviews:
   auto_review:
     enabled: true
     drafts: false
+  path_instructions:
+    - path: "src/renderer/**"
+      instructions: "Prioritize UI behavior regressions, state-sync issues, and user-visible failures. Ask for regression tests when behavior changes."
+    - path: "src/main/whiteboard/**"
+      instructions: "Prioritize diagram overlap, lost elements, and compact-preview readability regressions. Ask for regression tests when behavior changes."
+    - path: "src/main/ipc.ts"
+      instructions: "Prioritize renderer/main contract safety, async ordering, and failure handling."
+    - path: "src/main/proxyService.ts"
+      instructions: "Prioritize network failure handling, retries/timeouts, and production-risk behavior."
+  poem: false
 
 chat:
   auto_reply: true
 
 knowledge_base:
   opt_out: false
+
+# Review policy notes:
+# - Emphasize correctness, tests, security, performance, and maintainability.
+# - avoid style-only comments unless readability or correctness is impacted.
+# - For risky behavior changes, ask for regression tests.
+# - Watch renderer, whiteboard, IPC, and proxy code carefully.
 
 early_access: false

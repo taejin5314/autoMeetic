@@ -40,6 +40,16 @@ Be especially conservative around:
 - dark/light theme rendering
 - renderer/main IPC contracts
 
+## AI Review Triage Loop
+
+- Do not treat all AI review comments as correct.
+- Investigate every `must-fix` candidate.
+- Prefer adding a regression test before fixing a bug.
+- Explain any deferred `should-fix` comment in the PR.
+- Classify review feedback as `must-fix`, `should-fix`, or `note` before action.
+- If findings conflict, prefer the one backed by failing tests, reproducible behavior, or clear production risk.
+- Never mark work complete until verification commands have passed or the failure is clearly documented.
+
 ## Code Review Expectations
 
 Prioritize:
