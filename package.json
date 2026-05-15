@@ -45,7 +45,8 @@
   "optionalDependencies": {
     "@automeetic/moonshine-darwin-arm64": "0.0.59",
     "@automeetic/moonshine-darwin-x64": "0.0.59",
-    "@rolldown/binding-linux-x64-gnu": "^1.0.0"
+    "@rolldown/binding-linux-x64-gnu": "^1.0.0",
+    "lightningcss-linux-x64-gnu": "^1.32.0"
   },
   "devDependencies": {
     "@electron-toolkit/utils": "^4.0.0",
