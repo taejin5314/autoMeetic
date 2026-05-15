@@ -6,6 +6,7 @@ interface AnswerAssistCardProps {
   searchQuery: string | null
   answer: string
   answerKo: string
+  targetLang: string
   errorMessage: string | null
   onDismiss: () => void
   onCopy: (section: 'source' | 'ko') => Promise<void>
@@ -16,6 +17,7 @@ export function AnswerAssistCard({
   searchQuery,
   answer,
   answerKo,
+  targetLang,
   errorMessage,
   onDismiss,
   onCopy,
@@ -74,6 +76,7 @@ export function AnswerAssistCard({
   if (status === 'idle') return null
 
   const posStyle = pos ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' } : {}
+  const targetLabel = targetLang === 'off' ? 'Translation' : targetLang.toUpperCase()
 
   return (
     <div
@@ -142,13 +145,15 @@ export function AnswerAssistCard({
           >
             {copiedSection === 'source' ? 'Copied!' : 'Copy Source'}
           </button>
-          <button
-            type="button"
-            className="answer-assist-copy-btn"
-            onClick={() => void handleCopy('ko')}
-          >
-            {copiedSection === 'ko' ? 'Copied!' : 'Copy KR'}
-          </button>
+          {answerKo && (
+            <button
+              type="button"
+              className="answer-assist-copy-btn primary"
+              onClick={() => void handleCopy('ko')}
+            >
+              {copiedSection === 'ko' ? 'Copied!' : `Copy ${targetLabel}`}
+            </button>
+          )}
         </div>
       )}
     </div>

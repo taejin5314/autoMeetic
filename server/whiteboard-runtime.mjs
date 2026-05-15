@@ -30,7 +30,11 @@ const FILLER_WORDS = new Set([
 const SHAPE_TYPES = new Set(['rectangle', 'ellipse', 'diamond'])
 const DRAWING_TYPES = new Set(['rectangle', 'ellipse', 'diamond', 'arrow', 'text'])
 const CHAR_WIDTH_RATIO = 0.6
-const PADDING_PER_SIDE = 24
+const PADDING_PER_SIDE = 28
+const MIN_SHAPE_WIDTH = 220
+const MIN_SHAPE_HEIGHT = 84
+const MIN_SHAPE_GAP = 56
+const ARROW_LABEL_PADDING = 12
 
 export function createTranscriptTurnQueue({
   runTurn,
@@ -143,7 +147,7 @@ export function isTrivialTranscript(text) {
 
 export function normalizeWhiteboardElements(elements) {
   if (!Array.isArray(elements)) return []
-  return elements.flatMap((element) => {
+  const normalized = elements.flatMap((element) => {
     if (!element || typeof element !== 'object') return []
     if (typeof element.id !== 'string' || typeof element.type !== 'string') return []
     if (!['rectangle', 'ellipse', 'diamond', 'arrow', 'text'].includes(element.type)) return []
@@ -166,8 +170,10 @@ export function normalizeWhiteboardElements(elements) {
         fontSize: next.label.fontSize ?? 18,
       }
     }
+    fitShapeToLabel(next)
     return [next]
   })
+  return dedupeElementsById(normalized)
 }
 
 export function formatLineNumberedWhiteboard(elements) {
@@ -189,7 +195,7 @@ export function applyWhiteboardEditOperations(elements, operations) {
     const op = normalizeOperationType(operation)
 
     if (op && DRAWING_TYPES.has(op.type)) {
-      nextElements.push(op)
+      upsertElementById(nextElements, op)
       continue
     }
 
@@ -229,6 +235,24 @@ export function applyWhiteboardEditOperations(elements, operations) {
     )
   }
   return normalizeWhiteboardElements(nextElements)
+}
+
+function upsertElementById(elements, element) {
+  if (!element || typeof element.id !== 'string') return
+  const existingIndex = elements.findIndex((candidate) => candidate?.id === element.id)
+  if (existingIndex >= 0) {
+    elements[existingIndex] = element
+    return
+  }
+  elements.push(element)
+}
+
+function dedupeElementsById(elements) {
+  const byId = new Map()
+  for (const element of elements) {
+    byId.set(element.id, element)
+  }
+  return [...byId.values()]
 }
 
 /**
@@ -307,6 +331,7 @@ function detectMalformedLayoutWarnings(elements) {
   const warnings = []
   const shapes = elements.filter((element) => SHAPE_TYPES.has(element?.type))
   const texts = elements.filter((element) => element?.type === 'text')
+  const arrows = elements.filter((element) => element?.type === 'arrow')
 
   for (const text of texts) {
     if (typeof text.x !== 'number' || typeof text.y !== 'number') continue
@@ -346,11 +371,195 @@ function detectMalformedLayoutWarnings(elements) {
     }
   }
 
+  for (let i = 0; i < shapes.length; i += 1) {
+    const a = shapes[i]
+    if (!hasRect(a)) continue
+    for (let j = i + 1; j < shapes.length; j += 1) {
+      const b = shapes[j]
+      if (!hasRect(b)) continue
+      if (rectanglesOverlap(a, b)) {
+        warnings.push(
+          `Shapes "${a.id}" and "${b.id}" overlap. Rebuild the diagram with fewer nodes, larger gaps, or a simpler layout.`
+        )
+        continue
+      }
+      if (rectanglesGap(a, b) < MIN_SHAPE_GAP) {
+        warnings.push(
+          `Shapes "${a.id}" and "${b.id}" are too close. Keep at least ${MIN_SHAPE_GAP}px of whitespace so labels and arrows stay readable.`
+        )
+      }
+    }
+  }
+
+  for (const arrow of arrows) {
+    const arrowLine = getArrowLine(arrow)
+    if (!arrowLine) continue
+
+    for (const shape of shapes) {
+      if (lineIntersectsInterior(arrowLine, shape)) {
+        warnings.push(
+          `Arrow "${arrow.id}" crosses through shape "${shape.id}". Move the connected nodes so the arrow sits in the gap between adjacent shapes, or replace the relation with proximity/grouping.`
+        )
+        break
+      }
+    }
+
+    const labelText = arrow?.label?.text
+    if (typeof labelText !== 'string' || !labelText.trim()) continue
+    const labelBox = estimateArrowLabelBox(arrow, arrowLine)
+    if (!labelBox) continue
+    for (const shape of shapes) {
+      if (!rectanglesOverlap(labelBox, shape)) continue
+      warnings.push(
+        `Arrow label "${labelText.slice(0, 40)}" on arrow "${arrow.id}" overlaps shape "${shape.id}". Move the arrow or shorten/remove the label.`
+      )
+      break
+    }
+  }
+
   return warnings
+}
+
+function hasRect(element) {
+  return (
+    typeof element?.x === 'number' &&
+    typeof element?.y === 'number' &&
+    typeof element?.width === 'number' &&
+    typeof element?.height === 'number'
+  )
+}
+
+function fitShapeToLabel(element) {
+  if (!SHAPE_TYPES.has(element?.type)) return
+  const labelText = element?.label?.text
+  if (typeof labelText !== 'string' || !labelText.trim()) return
+  const estimated = estimateTextBox(labelText, element.label.fontSize)
+  element.width = Math.max(element.width ?? 0, estimated.width + PADDING_PER_SIDE * 2, MIN_SHAPE_WIDTH)
+  element.height = Math.max(
+    element.height ?? 0,
+    estimated.height + PADDING_PER_SIDE * 2,
+    MIN_SHAPE_HEIGHT
+  )
 }
 
 function rectanglesOverlap(a, b) {
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
+}
+
+function rectanglesGap(a, b) {
+  const horizontalGap = Math.max(a.x - (b.x + b.width), b.x - (a.x + a.width), 0)
+  const verticalGap = Math.max(a.y - (b.y + b.height), b.y - (a.y + a.height), 0)
+  if (horizontalGap === 0) return verticalGap
+  if (verticalGap === 0) return horizontalGap
+  return Math.hypot(horizontalGap, verticalGap)
+}
+
+function getArrowLine(arrow) {
+  if (typeof arrow.x !== 'number' || typeof arrow.y !== 'number') return null
+  const points = Array.isArray(arrow.points) ? arrow.points : null
+  const first = points?.[0]
+  const last = points?.[points.length - 1]
+  if (
+    Array.isArray(first) &&
+    Array.isArray(last) &&
+    typeof first[0] === 'number' &&
+    typeof first[1] === 'number' &&
+    typeof last[0] === 'number' &&
+    typeof last[1] === 'number'
+  ) {
+    return {
+      x1: arrow.x + first[0],
+      y1: arrow.y + first[1],
+      x2: arrow.x + last[0],
+      y2: arrow.y + last[1],
+    }
+  }
+  if (typeof arrow.width === 'number' && typeof arrow.height === 'number') {
+    return {
+      x1: arrow.x,
+      y1: arrow.y,
+      x2: arrow.x + arrow.width,
+      y2: arrow.y + arrow.height,
+    }
+  }
+  return null
+}
+
+function lineIntersectsInterior(line, shape) {
+  if (
+    typeof shape.x !== 'number' ||
+    typeof shape.y !== 'number' ||
+    typeof shape.width !== 'number' ||
+    typeof shape.height !== 'number'
+  ) {
+    return false
+  }
+  const inset = 10
+  const rect = {
+    x: shape.x + inset,
+    y: shape.y + inset,
+    width: Math.max(shape.width - inset * 2, 0),
+    height: Math.max(shape.height - inset * 2, 0),
+  }
+  if (pointInsideRect(line.x1, line.y1, rect) || pointInsideRect(line.x2, line.y2, rect)) {
+    return true
+  }
+  return (
+    segmentsIntersect(line.x1, line.y1, line.x2, line.y2, rect.x, rect.y, rect.x + rect.width, rect.y) ||
+    segmentsIntersect(
+      line.x1,
+      line.y1,
+      line.x2,
+      line.y2,
+      rect.x + rect.width,
+      rect.y,
+      rect.x + rect.width,
+      rect.y + rect.height
+    ) ||
+    segmentsIntersect(
+      line.x1,
+      line.y1,
+      line.x2,
+      line.y2,
+      rect.x + rect.width,
+      rect.y + rect.height,
+      rect.x,
+      rect.y + rect.height
+    ) ||
+    segmentsIntersect(line.x1, line.y1, line.x2, line.y2, rect.x, rect.y + rect.height, rect.x, rect.y)
+  )
+}
+
+function estimateArrowLabelBox(arrow, line) {
+  const labelText = arrow?.label?.text
+  if (typeof labelText !== 'string') return null
+  const estimated = estimateTextBox(labelText, arrow.label.fontSize ?? 14)
+  const centerX = (line.x1 + line.x2) / 2
+  const centerY = (line.y1 + line.y2) / 2
+  return {
+    x: centerX - estimated.width / 2 - ARROW_LABEL_PADDING,
+    y: centerY - estimated.height / 2 - ARROW_LABEL_PADDING,
+    width: estimated.width + ARROW_LABEL_PADDING * 2,
+    height: estimated.height + ARROW_LABEL_PADDING * 2,
+  }
+}
+
+function pointInsideRect(x, y, rect) {
+  return x > rect.x && x < rect.x + rect.width && y > rect.y && y < rect.y + rect.height
+}
+
+function segmentsIntersect(ax, ay, bx, by, cx, cy, dx, dy) {
+  const o1 = orientation(ax, ay, bx, by, cx, cy)
+  const o2 = orientation(ax, ay, bx, by, dx, dy)
+  const o3 = orientation(cx, cy, dx, dy, ax, ay)
+  const o4 = orientation(cx, cy, dx, dy, bx, by)
+  return o1 !== o2 && o3 !== o4
+}
+
+function orientation(ax, ay, bx, by, cx, cy) {
+  const value = (by - ay) * (cx - bx) - (bx - ax) * (cy - by)
+  if (Math.abs(value) < 0.0001) return 0
+  return value > 0 ? 1 : 2
 }
 
 function estimateTextBox(text, fontSize) {
@@ -409,7 +618,7 @@ export function buildWhiteboardAgentMessages({
 }
 
 function formatCurrentCanvasTask(elements, latestScreenshot) {
-  const text = `Current line-numbered whiteboard content:\n${formatLineNumberedWhiteboard(elements)}\n\nTask:\nUse the provided key points to update the canvas. Each key point has already been validated as worth visualizing.\n\nIf updating, use whiteboard_apply for targeted changes (operations + viewport in ONE call). Use whiteboard_overwrite only when you need to clear, reset, or start fresh. Keep the canvas to 5 nodes maximum \u2014 when adding new points, consolidate or replace existing nodes. In the same whiteboard_apply call, also include viewport with action "scroll_to_content" AND focus_ids naming the most relevant elements \u2014 never call scroll_to_content without focus_ids. Make ONE whiteboard_apply call per turn. The attached screenshot (when present) shows the audience's current viewport \u2014 use it to verify labels are visible and the layout is readable.\n\nLabel quality:\n- Labels must be 1-4 word keywords \u2014 never sentences or transcript quotes.\n- Every relationship between key_points must be shown as a labeled arrow.\n- Follow the diagram type layout pattern strictly.`
+  const text = `Current line-numbered whiteboard content:\n${formatLineNumberedWhiteboard(elements)}\n\nTask:\nThis is the scheduled 30-second whiteboard review. First inspect the existing diagram for overlap, clipping, weak labels, confusing arrows, and stale or redundant components. Then use the provided transcript or key points to add, replace, or consolidate components only when they improve the diagram.\n\nIf updating, use whiteboard_apply for targeted changes (operations + viewport in ONE call). Use whiteboard_overwrite when the existing diagram needs cleanup, relayout, or consolidation before adding new content. Keep the canvas to 5 nodes maximum - when adding new points, consolidate or replace existing nodes. In the same whiteboard_apply call, also include viewport with action "scroll_to_content" AND focus_ids naming the most relevant elements - never call scroll_to_content without focus_ids. Make ONE whiteboard_apply call per turn. The attached screenshot (when present) shows the audience's current viewport - use it to verify labels are visible and the layout is readable.\n\nLabel quality:\n- Labels must be 1-4 word keywords - never sentences or transcript quotes.\n- Every relationship from transcript or key_points should be shown as a labeled arrow when it improves the diagram.\n- Follow the diagram type layout pattern strictly.`
   if (typeof latestScreenshot === 'string' && latestScreenshot) {
     return [
       { type: 'text', text },
@@ -471,9 +680,10 @@ When receiving raw transcript (no pre-filtered key points):
 - Choose the most fitting diagram type based on content.
 
 Canvas rules:
-- Maximum 5 primary nodes. When adding new points, consolidate or replace existing nodes rather than appending.
+- Prefer 3-4 primary nodes. Maximum 5 primary nodes. When adding new points, consolidate or replace existing nodes rather than appending.
 - Build one dominant structure, not scattered mini-diagrams.
 - Keep important content inside an approximate 1000 px wide by 780 px tall frame.
+- If the current canvas has layout warnings, prefer whiteboard_overwrite with a cleaner rebuilt diagram instead of patching one crowded element.
 
 When updating the canvas:
 - Use whiteboard_apply for normal incremental changes.
@@ -501,17 +711,19 @@ Label rules:
 - NEVER place standalone "text" on top of a shape.
 - Standalone text is only for canvas title, section headers outside shapes, and axis labels.
 - Keep labels 1-4 words, 2-3 lines max. NEVER use transcript sentences as labels.
-- Make shapes large enough for labels plus 24px padding.
+- Make shapes large enough for labels plus 28px padding; default shape size should be about 220x84.
 - Every shape must have a non-empty label.
 
 Arrow rules:
 - Connect visually adjacent shapes only. Prefer horizontal or vertical arrows.
-- Do not let arrows cross other shapes or labels.
-- Avoid long-distance arrows; restructure layout instead.
+- Start and end arrows at shape edges, in the whitespace between shapes. Never start an arrow in the middle of a shape.
+- Do not let arrows cross other shapes, node labels, or arrow labels.
+- Use short 1-2 word arrow labels and place them centered in open whitespace, not on top of a node.
+- Avoid long-distance or diagonal arrows; restructure layout instead.
 
 Layout rules:
-- Font sizes >= 16. At least 60px between shapes, 80px between columns.
-- Generous spacing. Prefer a small clear diagram over a crowded canvas.
+- Font sizes >= 16. At least 56px clear whitespace between shapes, 120px between columns.
+- Generous spacing. Prefer a small clear diagram over a crowded canvas. If 5 nodes makes the diagram cramped, merge concepts until it fits cleanly.
 
 Viewport:
 - After every update, pass viewport with action "scroll_to_content" and focus_ids (1-5 element IDs).

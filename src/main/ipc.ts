@@ -25,11 +25,19 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   // Answer assist
   ipcMain.handle(
     'start-answer-assist',
-    async (_event, args: { transcript: string; lang: string }) => {
+    async (
+      _event,
+      args: { transcript: string; sourceLang: string; targetLang: string }
+    ) => {
       const { startAnswerAssist } = await import('./proxyService')
-      await startAnswerAssist(args.transcript, args.lang, (event: unknown) => {
-        mainWindowRef?.webContents.send('answer-assist:event', event)
-      })
+      await startAnswerAssist(
+        args.transcript,
+        args.sourceLang,
+        args.targetLang,
+        (event: unknown) => {
+          mainWindowRef?.webContents.send('answer-assist:event', event)
+        }
+      )
     }
   )
 
@@ -52,6 +60,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('reset-action-items', async () => {
     const { resetActionItems } = await import('./actionItemService')
     resetActionItems()
+  })
+
+  ipcMain.handle('reset-whiteboard', async () => {
+    const { resetWhiteboard } = await import('./whiteboardService')
+    resetWhiteboard()
   })
 
   ipcMain.handle(

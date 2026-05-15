@@ -34,12 +34,14 @@ app.use(express.json())
 const TRANSLATION_MODEL = process.env.TRANSLATION_MODEL ?? 'gpt-4.1-mini'
 const GATEKEEPER_MODEL = process.env.GATEKEEPER_MODEL ?? 'gpt-4.1-nano'
 const RENDERER_MODEL = process.env.RENDERER_MODEL ?? 'gpt-4.1-mini'
-const GATEKEEPER_ENABLED = process.env.GATEKEEPER_ENABLED !== 'false'
-const BUFFER_MAX_WORDS = Number(process.env.WB_BUFFER_MAX_WORDS ?? 200)
-const BUFFER_MAX_MS = Number(process.env.WB_BUFFER_MAX_MS ?? 30000)
-const BUFFER_MIN_WORDS = Number(process.env.WB_BUFFER_MIN_WORDS ?? 40)
-const GATEKEEPER_COOLDOWN_MS = Number(process.env.WB_GATEKEEPER_COOLDOWN_MS ?? 15000)
-const RENDERER_COOLDOWN_MS = Number(process.env.WB_RENDERER_COOLDOWN_MS ?? 30000)
+const GATEKEEPER_ENABLED = process.env.GATEKEEPER_ENABLED === 'true'
+const WHITEBOARD_UPDATE_INTERVAL_MS = Number(process.env.WB_UPDATE_INTERVAL_MS ?? 30000)
+const GATEKEEPER_COOLDOWN_MS = Number(
+  process.env.WB_GATEKEEPER_COOLDOWN_MS ?? WHITEBOARD_UPDATE_INTERVAL_MS
+)
+const RENDERER_COOLDOWN_MS = Number(
+  process.env.WB_RENDERER_COOLDOWN_MS ?? WHITEBOARD_UPDATE_INTERVAL_MS
+)
 const OPENAI_TRANSLATION_URL = 'https://api.openai.com/v1/chat/completions'
 const LANGUAGE_NAME_BY_CODE = new Map([
   ['ko', 'Korean'],
@@ -131,16 +133,23 @@ app.post('/api/translate', async (req, res) => {
 const ANSWER_ASSIST_MODEL = process.env.ANSWER_ASSIST_MODEL ?? 'gpt-4.1-mini'
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses'
 
-function buildAnswerAssistPrompt(lang) {
-  const langName = LANGUAGE_NAME_BY_CODE.get(lang) ?? lang
+function buildAnswerAssistPrompt(sourceLang, targetLang) {
+  const sourceLangName = LANGUAGE_NAME_BY_CODE.get(sourceLang) ?? sourceLang
+  const langName = sourceLangName
+  const targetLangName =
+    targetLang === 'off' ? '' : (LANGUAGE_NAME_BY_CODE.get(targetLang) ?? targetLang)
+  const translationInstructions =
+    targetLang !== 'off' && targetLang !== sourceLang
+      ? `4. Then write "---" on its own line.
+5. Then write the ${targetLangName} translation of your response.`
+      : '4. Do not write a translation section.'
   return `You are a real-time meeting answer coach. The user is in a live meeting and needs help responding to what is being discussed.
 
 Your job:
 1. Read the transcript and identify the most recent topic, question, or point that the user might need to respond to.
 2. If you need factual information to answer well, use web_search_preview to look it up.
 3. Write a concise response (3-5 sentences) in ${langName} that the user can speak aloud naturally. This should be a thoughtful contribution to the discussion — an answer if there was a question, or a relevant comment if there was a statement.
-4. Then write "---" on its own line.
-5. Then write the Korean translation of your response.
+${translationInstructions}
 
 Rules:
 - Be concise and direct — this is for speaking aloud, not reading.
@@ -152,7 +161,7 @@ Rules:
 }
 
 app.post('/api/answer-assist', async (req, res) => {
-  const { transcript, lang = 'en' } = req.body
+  const { transcript, sourceLang = 'en', targetLang = 'ko' } = req.body
   if (!transcript || typeof transcript !== 'string' || transcript.trim().length < 20) {
     res.status(400).json({ error: 'transcript must be a string of at least 20 characters' })
     return
@@ -179,7 +188,7 @@ app.post('/api/answer-assist', async (req, res) => {
       model: ANSWER_ASSIST_MODEL,
       tools: [{ type: 'web_search_preview' }],
       input: [
-        { role: 'system', content: buildAnswerAssistPrompt(lang) },
+        { role: 'system', content: buildAnswerAssistPrompt(sourceLang, targetLang) },
         { role: 'user', content: `Meeting transcript (most recent 3 minutes):\n\n${transcript.trim()}` },
       ],
       stream: true,
@@ -479,18 +488,13 @@ function shouldFlushBuffer() {
   const now = Date.now()
   const sinceGatekeeper = now - whiteboardBuffer.lastGatekeeperMs
   if (whiteboardBuffer.wordCount === 0) return false
-  // Volume trigger: >= 200 words
-  if (whiteboardBuffer.wordCount >= BUFFER_MAX_WORDS) return true
-  // Time trigger: >= 30s since last gatekeeper + enough words accumulated
-  if (sinceGatekeeper >= BUFFER_MAX_MS && whiteboardBuffer.wordCount >= BUFFER_MIN_WORDS)
-    return true
-  // Sentence-complete trigger: >= 100 words + sentence ending
-  if (
-    whiteboardBuffer.wordCount >= BUFFER_MIN_WORDS &&
-    /[.!?。？！]\s*$/.test(whiteboardBuffer.text)
-  )
-    return true
-  return false
+  return sinceGatekeeper >= WHITEBOARD_UPDATE_INTERVAL_MS
+  // Fixed cadence only.
+}
+
+function msUntilNextWhiteboardUpdate() {
+  const elapsed = Date.now() - whiteboardBuffer.lastGatekeeperMs
+  return Math.max(WHITEBOARD_UPDATE_INTERVAL_MS - elapsed, 1000)
 }
 
 function scheduleBufferCheck() {
@@ -502,10 +506,15 @@ function scheduleBufferCheck() {
     } else if (whiteboardBuffer.wordCount > 0) {
       scheduleBufferCheck()
     }
-  }, 5000)
+  }, msUntilNextWhiteboardUpdate())
 }
 
 async function flushWhiteboardBuffer() {
+  if (whiteboardState.agentBusy) {
+    scheduleBufferCheck()
+    return
+  }
+
   const now = Date.now()
   // Gatekeeper cooldown check
   if (now - whiteboardBuffer.lastGatekeeperMs < GATEKEEPER_COOLDOWN_MS) {

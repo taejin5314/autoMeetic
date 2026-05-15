@@ -14,6 +14,12 @@ import {
 } from '@excalidraw/excalidraw'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { ViewportCommand, WhiteboardElement } from '../../main/whiteboard/types'
+import { useThemeStore, type Theme } from '../theme/useThemeStore'
+
+const WB_LIGHT_BG = '#fafafa'
+const WB_DARK_BG = '#101216'
+const WB_LIGHT_EXPORT_BG = '#ffffff'
+const WB_DARK_EXPORT_BG = '#101216'
 
 // Excalidraw types — use inline types to avoid deep import path issues
 interface ExcalidrawImperativeAPI {
@@ -83,7 +89,9 @@ function isRenderableWhiteboardElement(el: unknown): el is WhiteboardElement {
   return typeof candidate.id === 'string' && typeof candidate.type === 'string'
 }
 
-function toExcalidrawElement(el: WhiteboardElement): Record<string, unknown> {
+function toExcalidrawElement(el: WhiteboardElement, theme: Theme): Record<string, unknown> {
+  const isDark = theme === 'dark'
+  const strokeColor = el.type === 'arrow' || el.type === 'text' ? (isDark ? '#f4f4f5' : '#1e1e1e') : '#1e1e1e'
   const base: Record<string, unknown> = {
     id: el.id,
     type: el.type,
@@ -91,11 +99,11 @@ function toExcalidrawElement(el: WhiteboardElement): Record<string, unknown> {
     y: el.y,
     width: el.width ?? 0,
     height: el.height ?? 0,
-    strokeColor: '#1e1e1e',
+    strokeColor,
     backgroundColor: el.backgroundColor ?? 'transparent',
     fillStyle: el.fillStyle ?? 'solid',
-    strokeWidth: 2,
-    roughness: 1,
+    strokeWidth: el.type === 'arrow' ? 3 : 2,
+    roughness: 0.8,
     opacity: 100,
     isDeleted: false,
     groupIds: [],
@@ -150,8 +158,10 @@ function toExcalidrawElement(el: WhiteboardElement): Record<string, unknown> {
  * Build renderable elements using Excalidraw's own converter.
  * This matches autopreso/public/app.js applyScene().
  */
-function buildRenderableElements(elements: WhiteboardElement[]): Record<string, unknown>[] {
-  const skeleton = elements.filter(isRenderableWhiteboardElement).map(toExcalidrawElement)
+function buildRenderableElements(elements: WhiteboardElement[], theme: Theme): Record<string, unknown>[] {
+  const skeleton = elements
+    .filter(isRenderableWhiteboardElement)
+    .map((element) => toExcalidrawElement(element, theme))
   return convertToExcalidrawElements(skeleton as never, {
     regenerateIds: false,
   }) as Record<string, unknown>[]
@@ -225,12 +235,15 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({
   compact = false,
   onMaximize,
 }) => {
+  const { theme } = useThemeStore()
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null)
   const lastSyncedHashRef = useRef<string>('')
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const screenshotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const autoFitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const canvasBg = theme === 'dark' ? WB_DARK_BG : WB_LIGHT_BG
+  const exportBg = theme === 'dark' ? WB_DARK_EXPORT_BG : WB_LIGHT_EXPORT_BG
 
   // Compute initialData once at mount. Excalidraw reads this only on its
   // initial render, so capture the elements value present at that moment.
@@ -240,26 +253,43 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({
   //      out while apiRef is still null — so the diagram never paints.
   //   2. The default Excalidraw canvas background is white; pinning
   //      viewBackgroundColor here prevents a flash of color mismatch with
-  //      the surrounding cream-paper container.
+  //      the surrounding container.
   const [initialData] = useState(() => {
     const renderable =
       elements.length > 0
-        ? (buildRenderableElements(elements) as unknown as ExcalidrawElement[])
+        ? (buildRenderableElements(elements, theme) as unknown as ExcalidrawElement[])
         : []
     return {
       elements: renderable,
-      appState: { viewBackgroundColor: '#fbf8f1' },
+      appState: { viewBackgroundColor: canvasBg, theme },
       scrollToContent: renderable.length > 0,
     }
   })
+
+  // When the user toggles theme while Excalidraw is mounted, push the
+  // new background and theme into the live scene so the canvas repaints.
+  // Both are needed: the JSX `theme` prop drives Excalidraw's UI chrome but
+  // not the canvas itself — the canvas only flips dark when `appState.theme`
+  // is updated through the API.
+  useEffect(() => {
+    const api = apiRef.current
+    if (!api) return
+    api.updateScene({ appState: { viewBackgroundColor: canvasBg, theme } })
+  }, [canvasBg, theme])
 
   const setApi = useCallback(
     (api: ExcalidrawImperativeAPI | null) => {
       if (!api) return
       apiRef.current = api
+      // Excalidraw's `excalidrawAPI` callback typically resolves AFTER React's
+      // mount-phase useEffects, so the [canvasBg, theme] effect already saw a
+      // null apiRef and bailed. Push the current values here so the first
+      // paint after mount honours the active theme — required for the
+      // canvasResetVersion remount and the modal mount.
+      api.updateScene({ appState: { viewBackgroundColor: canvasBg, theme } })
       onApiReady?.(api)
     },
-    [onApiReady]
+    [canvasBg, onApiReady, theme]
   )
 
   const scheduleScreenshot = useCallback(() => {
@@ -275,7 +305,7 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({
         appState: {
           ...api.getAppState(),
           exportBackground: true,
-          viewBackgroundColor: '#fffdf8',
+          viewBackgroundColor: exportBg,
         },
         files: null,
         getDimensions: () => ({ width: 960, height: 540, scale: 0.5 }),
@@ -296,7 +326,7 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({
           // Screenshot feedback is best-effort; drawing updates should never fail because of it.
         })
     }, 500)
-  }, [onScreenshot])
+  }, [exportBg, onScreenshot])
 
   // ── Sync agent elements → Excalidraw ──────────────────────────────────────
   useEffect(() => {
@@ -304,15 +334,21 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({
     if (!api) return
 
     if (elements.length === 0) {
-      api.resetScene()
+      // Don't call resetScene here — it wipes appState back to Excalidraw's
+      // built-in defaults (cream viewBackgroundColor), which fights the theme
+      // toggle. Update the scene to empty while preserving our background.
+      api.updateScene({
+        elements: [],
+        appState: { viewBackgroundColor: canvasBg, theme },
+      })
       lastSyncedHashRef.current = ''
       return
     }
 
-    const renderable = buildRenderableElements(elements)
+    const renderable = buildRenderableElements(elements, theme)
     api.updateScene({
       elements: renderable as ExcalidrawElement[],
-      appState: { viewBackgroundColor: '#fbf8f1' },
+      appState: { viewBackgroundColor: canvasBg, theme },
     })
 
     // Full-mode: scroll-to-content only on first appearance.
@@ -329,7 +365,7 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({
       lastSyncedHashRef.current = JSON.stringify(renderable.map((el) => el.id).sort())
     }
     scheduleScreenshot()
-  }, [compact, elements, scheduleScreenshot])
+  }, [compact, elements, scheduleScreenshot, canvasBg, theme])
 
   // ── Compact mode: auto-fit on every element change ────────────────────────
   useEffect(() => {
@@ -464,7 +500,7 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({
         onChange={isCompact ? undefined : handleChange}
         viewModeEnabled={isCompact ? true : viewModeEnabled}
         UIOptions={isCompact ? compactUIOptions : fullUIOptions}
-        theme="light"
+        theme={theme}
         initialData={initialData as never}
       >
         {!isCompact && (

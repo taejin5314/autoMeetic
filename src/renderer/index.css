@@ -12,16 +12,18 @@ body,
 
 body {
   font-family:
+    'Geist',
     Inter,
     ui-sans-serif,
     system-ui,
     -apple-system,
     'Segoe UI',
     sans-serif;
-  background: #f8f7f4;
-  color: #1e1e1e;
+  background: var(--p-bg, #f8f7f4);
+  color: var(--p-text, #1e1e1e);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }

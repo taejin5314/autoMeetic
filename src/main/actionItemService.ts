@@ -45,6 +45,7 @@ export function enqueueTranscript(text: string): void {
   const trimmed = String(text ?? '').trim()
   if (!trimmed) return
   buffer = trimBatch([buffer, trimmed].filter(Boolean).join(' '))
+  console.log(`[actions] queued transcript: ${buffer.length} chars`)
   if (flushTimer && !flushTimerIsFast && shouldFastFlush(buffer)) {
     clearTimeout(flushTimer)
     flushTimer = null
@@ -98,6 +99,8 @@ async function flushActionItemBuffer(): Promise<void> {
     })
     if (freshItems.length > 0) {
       mainWindowRef?.webContents.send('actions:suggested', { items: freshItems })
+    } else {
+      console.log('[actions] no actionable items found in batch')
     }
   } catch (err) {
     if (retryCount < 1) {
