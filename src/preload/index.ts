@@ -14,9 +14,10 @@ function createEventListener(channel: string) {
 const electronAPI: ElectronAPI = {
   // Actions
   translate: (text, targetLang) => ipcRenderer.invoke('translate', { text, targetLang }),
-  startAnswerAssist: (transcript, lang) =>
-    ipcRenderer.invoke('start-answer-assist', { transcript, lang }),
+  startAnswerAssist: (transcript, sourceLang, targetLang) =>
+    ipcRenderer.invoke('start-answer-assist', { transcript, sourceLang, targetLang }),
   resetActionItems: () => ipcRenderer.invoke('reset-action-items'),
+  resetWhiteboard: () => ipcRenderer.invoke('reset-whiteboard'),
   updateVocabulary: (keywords) => ipcRenderer.invoke('update-vocabulary', { keywords }),
   checkHealth: () => ipcRenderer.invoke('check-health'),
   setTranscriptLanguages: (args) => ipcRenderer.invoke('stt:set-languages', args),
@@ -37,6 +38,7 @@ const electronAPI: ElectronAPI = {
   onSttPartial: createEventListener('stt:partial') as ElectronAPI['onSttPartial'],
   onSttCommitted: createEventListener('stt:committed') as ElectronAPI['onSttCommitted'],
   onSttProcessed: createEventListener('stt:processed') as ElectronAPI['onSttProcessed'],
+  onSttSourcePatch: createEventListener('stt:source-patch') as ElectronAPI['onSttSourcePatch'],
   onSttTranslationPatch: createEventListener(
     'stt:translation-patch'
   ) as ElectronAPI['onSttTranslationPatch'],

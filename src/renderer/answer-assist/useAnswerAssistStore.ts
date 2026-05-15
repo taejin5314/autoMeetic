@@ -85,48 +85,49 @@ export function useAnswerAssistStore() {
   const cleanupElectronListenerRef = useRef<(() => void) | null>(null)
   const sectionRef = useRef<'source' | 'ko'>('source')
 
-  const requestAnswer = useCallback(async (transcript: string, lang: string) => {
-    if (abortRef.current) abortRef.current.abort()
-    if (cleanupElectronListenerRef.current) cleanupElectronListenerRef.current()
-    const controller = new AbortController()
-    abortRef.current = controller
-    sectionRef.current = 'source'
+  const requestAnswer = useCallback(
+    async (transcript: string, sourceLang: string, targetLang: string) => {
+      if (abortRef.current) abortRef.current.abort()
+      if (cleanupElectronListenerRef.current) cleanupElectronListenerRef.current()
+      const controller = new AbortController()
+      abortRef.current = controller
+      sectionRef.current = 'source'
 
-    dispatch({ type: 'start' })
+      dispatch({ type: 'start' })
 
-    try {
-      if (window.electronAPI) {
-        let fullAnswer = ''
-        let fullAnswerKo = ''
-        cleanupElectronListenerRef.current = window.electronAPI.onAnswerAssistEvent(
-          (rawEvent: unknown) => {
-            const handled = handleAnswerAssistEvent(rawEvent as SSEEvent, {
-              dispatch,
-              sectionRef,
-              appendSource: (content) => {
-                fullAnswer += content
-              },
-              appendKo: (content) => {
-                fullAnswerKo += content
-              },
-            })
-            if (handled === 'done') {
-              cleanupElectronListenerRef.current?.()
-              cleanupElectronListenerRef.current = null
+      try {
+        if (window.electronAPI) {
+          let fullAnswer = ''
+          let fullAnswerKo = ''
+          cleanupElectronListenerRef.current = window.electronAPI.onAnswerAssistEvent(
+            (rawEvent: unknown) => {
+              const handled = handleAnswerAssistEvent(rawEvent as SSEEvent, {
+                dispatch,
+                sectionRef,
+                appendSource: (content) => {
+                  fullAnswer += content
+                },
+                appendKo: (content) => {
+                  fullAnswerKo += content
+                },
+              })
+              if (handled === 'done') {
+                cleanupElectronListenerRef.current?.()
+                cleanupElectronListenerRef.current = null
+              }
             }
+          )
+          await window.electronAPI.startAnswerAssist(transcript, sourceLang, targetLang)
+          if (fullAnswer || fullAnswerKo) {
+            dispatch({ type: 'done', answer: fullAnswer, answerKo: fullAnswerKo })
           }
-        )
-        await window.electronAPI.startAnswerAssist(transcript, lang)
-        if (fullAnswer || fullAnswerKo) {
-          dispatch({ type: 'done', answer: fullAnswer, answerKo: fullAnswerKo })
+          return
         }
-        return
-      }
 
-      const res = await fetch(ANSWER_ASSIST_URL, {
+        const res = await fetch(ANSWER_ASSIST_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-        body: JSON.stringify({ transcript, lang }),
+        body: JSON.stringify({ transcript, sourceLang, targetLang }),
         signal: controller.signal,
       })
 
@@ -189,8 +190,10 @@ export function useAnswerAssistStore() {
     } catch (err) {
       if ((err as Error).name === 'AbortError') return
       dispatch({ type: 'error', message: err instanceof Error ? err.message : String(err) })
-    }
-  }, [])
+      }
+    },
+    []
+  )
 
   const dismiss = useCallback(() => {
     if (abortRef.current) abortRef.current.abort()

@@ -93,20 +93,27 @@ export function getVocabulary(): string[] {
 
 export async function startAnswerAssist(
   transcript: string,
-  lang: string,
+  sourceLang: string,
+  targetLang: string,
   sendEvent: (event: unknown) => void
 ): Promise<void> {
   const apiKey = getApiKey()
-  const langName = LANGUAGE_NAME_BY_CODE.get(lang) ?? lang
+  const sourceLangName = LANGUAGE_NAME_BY_CODE.get(sourceLang) ?? sourceLang
+  const targetLangName =
+    targetLang === 'off' ? '' : (LANGUAGE_NAME_BY_CODE.get(targetLang) ?? targetLang)
+  const translationInstructions =
+    targetLang !== 'off' && targetLang !== sourceLang
+      ? `4. Then write "---" on its own line.
+5. Then write the ${targetLangName} translation of your response.`
+      : '4. Do not write a translation section.'
 
   const systemPrompt = `You are a real-time meeting answer coach. The user is in a live meeting and needs help responding to what is being discussed.
 
 Your job:
 1. Read the transcript and identify the most recent topic, question, or point that the user might need to respond to.
 2. If you need factual information to answer well, use web_search_preview to look it up.
-3. Write a concise response (3-5 sentences) in ${langName} that the user can speak aloud naturally.
-4. Then write "---" on its own line.
-5. Then write the Korean translation of your response.
+3. Write a concise response (3-5 sentences) in ${sourceLangName} that the user can speak aloud naturally.
+${translationInstructions}
 
 Rules:
 - Be concise and direct — this is for speaking aloud, not reading.

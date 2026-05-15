@@ -7,11 +7,10 @@ interface UseFeedTypewriterArgs {
   completeTyping: (id: string) => void
 }
 
-/** Characters revealed per RAF tick by source language. CJK = slower (more dense). */
-function charsPerTickForLang(lang: string | undefined): number {
-  if (!lang) return 8
-  if (lang === 'ko' || lang === 'ja' || lang === 'zh') return 5
-  return 8
+/** Chat-like cadence: reveal a small number of characters based on elapsed time. */
+function charsPerSecondForLang(lang: string | undefined): number {
+  if (lang === 'ko' || lang === 'ja' || lang === 'zh') return 26
+  return 36
 }
 
 /**
@@ -27,11 +26,18 @@ export function useFeedTypewriter({
   advanceTyping,
   completeTyping,
 }: UseFeedTypewriterArgs): void {
-  const stateRef = useRef<{ id: string; src: number; tr: number } | null>(null)
+  const stateRef = useRef<{
+    id: string
+    src: number
+    tr: number
+    srcCarry: number
+    trCarry: number
+    lastTickMs: number
+  } | null>(null)
   const frameRef = useRef<number | null>(null)
 
   useEffect(() => {
-    const tick = (): void => {
+    const tick = (nowMs: number): void => {
       const typingItem = items.find((item) => item.typing)
       if (!typingItem) {
         stateRef.current = null
@@ -46,17 +52,31 @@ export function useFeedTypewriter({
           id: typingItem.id,
           src: typingItem.displayedSource.length,
           tr: typingItem.displayedTranslation.length,
+          srcCarry: 0,
+          trCarry: 0,
+          lastTickMs: nowMs,
         }
       }
 
-      const step = charsPerTickForLang(typingItem.sourceLanguage)
       const cursor = stateRef.current
       const fullSrcLen = typingItem.fullSource.length
       const fullTrLen = typingItem.fullTranslation?.length ?? 0
+      const elapsedSeconds = Math.min(Math.max(nowMs - cursor.lastTickMs, 0), 120) / 1000
+      cursor.lastTickMs = nowMs
 
-      cursor.src = Math.min(cursor.src + step, fullSrcLen)
+      const charsPerSecond = charsPerSecondForLang(typingItem.sourceLanguage)
+      cursor.srcCarry += charsPerSecond * elapsedSeconds
+      const sourceStep = Math.floor(cursor.srcCarry)
+      cursor.srcCarry = Math.max(cursor.srcCarry - sourceStep, 0)
+
+      cursor.src = Math.min(cursor.src + sourceStep, fullSrcLen)
       if (cursor.src >= fullSrcLen) {
-        if (fullTrLen > 0) cursor.tr = Math.min(cursor.tr + step, fullTrLen)
+        if (fullTrLen > 0) {
+          cursor.trCarry += charsPerSecond * elapsedSeconds
+          const translationStep = Math.floor(cursor.trCarry)
+          cursor.trCarry = Math.max(cursor.trCarry - translationStep, 0)
+          cursor.tr = Math.min(cursor.tr + translationStep, fullTrLen)
+        }
       } else if (fullTrLen > 0) {
         const ratio = cursor.src / fullSrcLen
         if (ratio >= 0.3) {

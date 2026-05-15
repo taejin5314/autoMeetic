@@ -5,11 +5,17 @@ export interface TranslationPatchEvent {
   translation: string
 }
 
+export interface SourcePatchEvent {
+  id: string
+  text: string
+}
+
 export interface ElectronAPI {
   // Actions
   translate(text: string, targetLang: string): Promise<{ translation: string }>
-  startAnswerAssist(transcript: string, lang: string): Promise<void>
+  startAnswerAssist(transcript: string, sourceLang: string, targetLang: string): Promise<void>
   resetActionItems(): Promise<void>
+  resetWhiteboard(): Promise<void>
   resetTranscriptPostProcessor(): Promise<void>
   updateVocabulary(keywords: string[]): Promise<{ count: number }>
   checkHealth(): Promise<{ status: string; ts: number }>
@@ -29,6 +35,7 @@ export interface ElectronAPI {
   onSttPartial(callback: (text: string) => void): () => void
   onSttCommitted(callback: (text: string) => void): () => void
   onSttProcessed(callback: (event: ProcessedTurnsEvent) => void): () => void
+  onSttSourcePatch(callback: (event: SourcePatchEvent) => void): () => void
   onSttTranslationPatch(callback: (event: TranslationPatchEvent) => void): () => void
   onSttError(callback: (message: string) => void): () => void
   onWhiteboardUpdate(callback: (elements: unknown[]) => void): () => void

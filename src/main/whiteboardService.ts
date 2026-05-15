@@ -11,7 +11,11 @@
 import type { BrowserWindow } from 'electron'
 import type { WhiteboardElement, ViewportCommand } from './whiteboard/types'
 import { formatLineNumberedWhiteboard } from './whiteboard/tools'
-import { appendLayoutWarnings, normalizeWhiteboardElements } from './whiteboard/elements'
+import {
+  appendLayoutWarnings,
+  normalizeWhiteboardElements,
+  repairWhiteboardLayout,
+} from './whiteboard/elements'
 import { isTrivialTranscript } from './whiteboard/session'
 import { whiteboardSystemPrompt, type WhiteboardViewport } from './whiteboard/prompt'
 
@@ -23,12 +27,14 @@ const WHITEBOARD_VIEWPORT: WhiteboardViewport = { width: 1280, height: 720 }
 
 const GATEKEEPER_MODEL = process.env.GATEKEEPER_MODEL ?? 'gpt-4.1-nano'
 const RENDERER_MODEL = process.env.RENDERER_MODEL ?? 'gpt-4.1-mini'
-const GATEKEEPER_ENABLED = process.env.GATEKEEPER_ENABLED !== 'false'
-const GATEKEEPER_COOLDOWN_MS = Number(process.env.WB_GATEKEEPER_COOLDOWN_MS ?? 15000)
-const RENDERER_COOLDOWN_MS = Number(process.env.WB_RENDERER_COOLDOWN_MS ?? 8000)
-const BUFFER_MIN_WORDS = Number(process.env.WB_BUFFER_MIN_WORDS ?? 100)
-const BUFFER_MAX_WORDS = Number(process.env.WB_BUFFER_MAX_WORDS ?? 200)
-const BUFFER_MAX_MS = Number(process.env.WB_BUFFER_MAX_MS ?? 30000)
+const GATEKEEPER_ENABLED = process.env.GATEKEEPER_ENABLED === 'true'
+const WHITEBOARD_UPDATE_INTERVAL_MS = Number(process.env.WB_UPDATE_INTERVAL_MS ?? 30000)
+const GATEKEEPER_COOLDOWN_MS = Number(
+  process.env.WB_GATEKEEPER_COOLDOWN_MS ?? WHITEBOARD_UPDATE_INTERVAL_MS
+)
+const RENDERER_COOLDOWN_MS = Number(
+  process.env.WB_RENDERER_COOLDOWN_MS ?? WHITEBOARD_UPDATE_INTERVAL_MS
+)
 
 const DRAWING_TYPES = new Set(['rectangle', 'ellipse', 'diamond', 'arrow', 'text'])
 
@@ -99,6 +105,11 @@ export function enqueueTranscript(text: string): void {
   if (!trimmed) return
   buffer.text += (buffer.text ? ' ' : '') + trimmed
   buffer.wordCount = countWords(buffer.text)
+  console.log(
+    `[whiteboard] queued transcript: ${buffer.wordCount} words; next review in ${Math.ceil(
+      msUntilNextWhiteboardUpdate() / 1000
+    )}s`
+  )
   if (shouldFlushBuffer()) {
     void flushWhiteboardBuffer()
   } else {
@@ -110,9 +121,13 @@ export function resetWhiteboard(): void {
   state.elements = []
   state.agentHistory = []
   state.resetVersion++
+  state.agentBusy = false
+  state.latestScreenshot = null
   state.canvasDirtyForAgent = false
   buffer.text = ''
   buffer.wordCount = 0
+  buffer.lastGatekeeperMs = Date.now()
+  buffer.lastRendererMs = 0
   if (buffer.flushTimer) {
     clearTimeout(buffer.flushTimer)
     buffer.flushTimer = null
@@ -130,13 +145,12 @@ function shouldFlushBuffer(): boolean {
   const now = Date.now()
   const sinceGatekeeper = now - buffer.lastGatekeeperMs
   if (buffer.wordCount === 0) return false
-  if (buffer.wordCount >= BUFFER_MAX_WORDS) return true
-  if (sinceGatekeeper >= BUFFER_MAX_MS && buffer.wordCount >= BUFFER_MIN_WORDS) return true
-  if (
-    buffer.wordCount >= BUFFER_MIN_WORDS &&
-    /[.!?。？！]\s*$/.test(buffer.text)
-  ) return true
-  return false
+  return sinceGatekeeper >= WHITEBOARD_UPDATE_INTERVAL_MS
+}
+
+function msUntilNextWhiteboardUpdate(): number {
+  const elapsed = Date.now() - buffer.lastGatekeeperMs
+  return Math.max(WHITEBOARD_UPDATE_INTERVAL_MS - elapsed, 1000)
 }
 
 function scheduleBufferCheck(): void {
@@ -148,12 +162,17 @@ function scheduleBufferCheck(): void {
     } else if (buffer.wordCount > 0) {
       scheduleBufferCheck()
     }
-  }, 5000)
+  }, msUntilNextWhiteboardUpdate())
 }
 
 // ── Pipeline: gatekeeper → renderer ─────────────────────────────────────────
 
 async function flushWhiteboardBuffer(): Promise<void> {
+  if (state.agentBusy) {
+    scheduleBufferCheck()
+    return
+  }
+
   const now = Date.now()
   if (now - buffer.lastGatekeeperMs < GATEKEEPER_COOLDOWN_MS) {
     scheduleBufferCheck()
@@ -166,6 +185,7 @@ async function flushWhiteboardBuffer(): Promise<void> {
   buffer.lastGatekeeperMs = now
 
   if (!transcript || isTrivialTranscript(transcript)) return
+  console.log(`[whiteboard] scheduled review: ${countWords(transcript)} words`)
 
   const turnResetVersion = state.resetVersion
   const apiKey = process.env.OPENAI_API_KEY
@@ -247,7 +267,6 @@ async function flushWhiteboardBuffer(): Promise<void> {
     console.error('[whiteboard] pipeline error:', error.message)
     sendToRenderer('whiteboard:agent-status', { status: 'error', message: error.message })
     state.agentBusy = false
-    sendToRenderer('whiteboard:agent-status', { status: 'idle' })
   }
 }
 
@@ -255,13 +274,14 @@ function applyResult(result: { elements: WhiteboardElement[] | null; viewport: V
   if (result.elements) {
     state.elements = result.elements
     sendToRenderer('whiteboard:update', { elements: result.elements })
+    console.log(`[whiteboard] applied update: ${result.elements.length} elements`)
   }
   if (result.viewport) {
     sendToRenderer('whiteboard:viewport', result.viewport)
   }
 }
 
-function sendToRenderer(channel: string, data: Record<string, unknown>): void {
+function sendToRenderer(channel: string, data: unknown): void {
   mainWindowRef?.webContents.send(channel, data)
 }
 
@@ -397,6 +417,23 @@ interface RendererResult {
   viewport: ViewportCommand | null
 }
 
+interface RendererToolCall {
+  type: string
+  function: { name: string; arguments: string }
+}
+
+interface RendererChoice {
+  content?: string
+  tool_calls?: RendererToolCall[]
+}
+
+interface RendererParseResult extends RendererResult {
+  assistantText: string
+  operationCount: number
+  toolCallCount: number
+  toolResults: string[]
+}
+
 async function runRenderer(
   keyPoints: GatekeeperKeyPoint[] | null,
   diagramHint: string | null,
@@ -448,12 +485,13 @@ async function runRenderer(
       function: {
         name: 'whiteboard_apply',
         description:
-          'Apply edits and/or move the viewport in a SINGLE call. Either operations, viewport, or both must be provided.',
+          'Apply drawing edits in a SINGLE call. Provide at least one operation whenever you call this tool.',
         parameters: {
           type: 'object',
           properties: {
             operations: {
               type: 'array',
+              minItems: 1,
               items: {
                 type: 'object',
                 properties: {
@@ -491,6 +529,7 @@ async function runRenderer(
               },
             },
           },
+          required: ['operations'],
         },
       },
     },
@@ -512,20 +551,87 @@ async function runRenderer(
     },
   ]
 
-  const body = {
-    model: RENDERER_MODEL,
-    max_tokens: 2048,
-    messages: openaiMessages,
-    tools,
-    tool_choice:
-      state.elements.length === 0
-        ? { type: 'function', function: { name: 'whiteboard_apply' } }
-        : 'auto',
+  const initialDiagramRequired = state.elements.length === 0 && Boolean(rawTranscript?.trim())
+  let parsed: RendererParseResult | null = null
+  const maxRenderAttempts = initialDiagramRequired ? 2 : 1
+
+  for (let renderAttempt = 0; renderAttempt < maxRenderAttempts; renderAttempt += 1) {
+    const attemptMessages =
+      renderAttempt === 0
+        ? openaiMessages
+        : [
+            ...openaiMessages,
+            {
+              role: 'user',
+              content: [
+                'The previous renderer response did not create any drawing operations.',
+                'The canvas is empty, so this turn MUST create an initial diagram from the transcript.',
+                'Call whiteboard_apply with 3-4 labeled shapes, 2-3 labeled arrows, and a scroll_to_content viewport.',
+                'Do not answer DONE and do not provide viewport-only output.',
+              ].join(' '),
+            },
+          ]
+
+    const body = {
+      model: RENDERER_MODEL,
+      max_tokens: 2048,
+      messages: attemptMessages,
+      tools,
+      tool_choice:
+        state.elements.length === 0
+          ? { type: 'function', function: { name: 'whiteboard_apply' } }
+          : 'auto',
+    }
+
+    const data = await requestWhiteboardCompletion(body, apiKey, expectedResetVersion)
+    if (!data) return { elements: null, viewport: null }
+    if (expectedResetVersion !== state.resetVersion) return { elements: null, viewport: null }
+
+    const choice = data.choices?.[0]?.message
+    parsed = parseRendererChoice(choice)
+    console.log(
+      `[whiteboard] renderer response: toolCalls=${parsed.toolCallCount}, operations=${parsed.operationCount}, elements=${parsed.elements?.length ?? 0}`
+    )
+
+    if (parsed.elements || !initialDiagramRequired) {
+      break
+    }
+
+    console.warn('[whiteboard] initial renderer returned no drawing operations; retrying')
   }
 
-  // Retry loop for rate limits
+  if (!parsed) return { elements: null, viewport: null }
+  if (initialDiagramRequired && !parsed.elements) {
+    throw new Error('Whiteboard renderer returned no drawing operations for the initial diagram')
+  }
+
+  const turnSummary = rawTranscript
+    ? `Speaker turn:\n${rawTranscript}`
+    : `Key points:\n${JSON.stringify(keyPoints)}\nDiagram hint: ${diagramHint}`
+  state.agentHistory.push({ role: 'user', content: turnSummary })
+  state.agentHistory.push({
+    role: 'assistant',
+    content:
+      parsed.toolResults.length > 0
+        ? parsed.toolResults.join('\n\n')
+        : parsed.assistantText || 'DONE',
+  })
+  state.agentHistory = state.agentHistory.slice(-4)
+
+  return { elements: parsed.elements, viewport: parsed.viewport }
+}
+
+async function requestWhiteboardCompletion(
+  body: Record<string, unknown>,
+  apiKey: string,
+  expectedResetVersion: number
+): Promise<{
+  choices?: Array<{
+    message?: RendererChoice
+  }>
+} | null> {
   let res: Response | undefined
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -540,7 +646,7 @@ async function runRenderer(
       const waitMs = Math.min(Math.max(retryAfter * 1000, 2000), 15000)
       console.log(`[whiteboard] 429, retrying in ${waitMs}ms (attempt ${attempt + 1})`)
       await new Promise((r) => setTimeout(r, waitMs))
-      if (expectedResetVersion !== state.resetVersion) return { elements: null, viewport: null }
+      if (expectedResetVersion !== state.resetVersion) return null
       continue
     }
     break
@@ -551,27 +657,20 @@ async function runRenderer(
     throw new Error(`OpenAI whiteboard API error ${res?.status ?? 0}: ${errText}`)
   }
 
-  const data = (await res.json()) as {
+  return (await res.json()) as {
     choices?: Array<{
-      message?: {
-        content?: string
-        tool_calls?: Array<{
-          type: string
-          function: { name: string; arguments: string }
-        }>
-      }
+      message?: RendererChoice
     }>
   }
+}
 
-  if (expectedResetVersion !== state.resetVersion) return { elements: null, viewport: null }
-
-  const choice = data.choices?.[0]?.message
+function parseRendererChoice(choice: RendererChoice | undefined): RendererParseResult {
   const result: RendererResult = { elements: null, viewport: null }
   const toolResults: string[] = []
+  let operationCount = 0
   let workingElements = state.elements
 
   for (const call of choice?.tool_calls ?? []) {
-    if (expectedResetVersion !== state.resetVersion) return { elements: null, viewport: null }
     if (call.type !== 'function') continue
     let input: Record<string, unknown>
     try {
@@ -581,9 +680,10 @@ async function runRenderer(
     }
 
     if (call.function.name === 'whiteboard_overwrite') {
-      const normalized = normalizeWhiteboardElements(input.elements ?? [])
+      const normalized = repairWhiteboardLayout(normalizeWhiteboardElements(input.elements ?? []))
       workingElements = normalized
       result.elements = normalized
+      operationCount += normalized.length
       const formatted = appendLayoutWarnings(formatLineNumberedWhiteboard(normalized), normalized)
       toolResults.push(formatted)
     }
@@ -594,7 +694,8 @@ async function runRenderer(
 
       let nextElements = workingElements
       if (Array.isArray(operations) && operations.length > 0) {
-        nextElements = applyEditOperations(workingElements, operations)
+        operationCount += operations.length
+        nextElements = repairWhiteboardLayout(applyEditOperations(workingElements, operations))
         workingElements = nextElements
         result.elements = nextElements
       }
@@ -610,19 +711,14 @@ async function runRenderer(
     }
   }
 
-  // Update agent history
-  const assistantText = choice?.content ?? ''
-  const turnSummary = rawTranscript
-    ? `Speaker turn:\n${rawTranscript}`
-    : `Key points:\n${JSON.stringify(keyPoints)}\nDiagram hint: ${diagramHint}`
-  state.agentHistory.push({ role: 'user', content: turnSummary })
-  state.agentHistory.push({
-    role: 'assistant',
-    content: toolResults.length > 0 ? toolResults.join('\n\n') : assistantText || 'DONE',
-  })
-  state.agentHistory = state.agentHistory.slice(-4)
-
-  return result
+  return {
+    elements: result.elements,
+    viewport: result.viewport,
+    assistantText: choice?.content ?? '',
+    operationCount,
+    toolCallCount: choice?.tool_calls?.length ?? 0,
+    toolResults,
+  }
 }
 
 // ── Agent message building (ported from whiteboard-runtime.mjs) ─────────────
@@ -658,6 +754,18 @@ function buildAgentMessages(opts: {
     messages.push({ role: 'user', content: `Speaker turn:\n${opts.rawTranscript}` })
   }
 
+  if (opts.elements.length === 0 && opts.rawTranscript) {
+    messages.push({
+      role: 'user',
+      content: [
+        'The canvas is empty.',
+        'If the speaker turn contains concrete content, create the first diagram now instead of waiting.',
+        'Use 3-4 concise concept nodes and labeled arrows that show relationships.',
+        'Call whiteboard_apply with drawing operations and viewport in the same call.',
+      ].join(' '),
+    })
+  }
+
   messages.push({
     role: 'user',
     content: formatCanvasTask(opts.elements, opts.latestScreenshot),
@@ -670,7 +778,7 @@ function formatCanvasTask(
   elements: WhiteboardElement[],
   latestScreenshot: string | null
 ): string | Array<Record<string, unknown>> {
-  const text = `Current line-numbered whiteboard content:\n${formatLineNumberedWhiteboard(elements)}\n\nTask:\nUse the provided key points to update the canvas. Each key point has already been validated as worth visualizing.\n\nIf updating, use whiteboard_apply for targeted changes (operations + viewport in ONE call). Use whiteboard_overwrite only when you need to clear, reset, or start fresh. Keep the canvas to 5 nodes maximum — when adding new points, consolidate or replace existing nodes. In the same whiteboard_apply call, also include viewport with action "scroll_to_content" AND focus_ids naming the most relevant elements — never call scroll_to_content without focus_ids. Make ONE whiteboard_apply call per turn. The attached screenshot (when present) shows the audience's current viewport — use it to verify labels are visible and the layout is readable.\n\nLabel quality:\n- Labels must be 1-4 word keywords — never sentences or transcript quotes.\n- Every relationship between key_points must be shown as a labeled arrow.\n- Follow the diagram type layout pattern strictly.`
+  const text = `Current line-numbered whiteboard content:\n${formatLineNumberedWhiteboard(elements)}\n\nTask:\nThis is the scheduled 30-second whiteboard review. First inspect the existing diagram for overlap, clipping, weak labels, confusing arrows, and stale or redundant components. Then use the provided transcript or key points to add, replace, or consolidate components only when they improve the diagram.\n\nIf updating, use whiteboard_apply for targeted changes (operations + viewport in ONE call). Use whiteboard_overwrite when the existing diagram needs cleanup, relayout, or consolidation before adding new content. Keep the canvas to 5 nodes maximum - when adding new points, consolidate or replace existing nodes. In the same whiteboard_apply call, also include viewport with action "scroll_to_content" AND focus_ids naming the most relevant elements - never call scroll_to_content without focus_ids. Make ONE whiteboard_apply call per turn. The attached screenshot (when present) shows the audience's current viewport - use it to verify labels are visible and the layout is readable.\n\nLabel quality:\n- Labels must be 1-4 word keywords - never sentences or transcript quotes.\n- Every relationship from transcript or key_points should be shown as a labeled arrow when it improves the diagram.\n- Follow the diagram type layout pattern strictly.`
 
   if (typeof latestScreenshot === 'string' && latestScreenshot) {
     return [
@@ -701,7 +809,7 @@ function applyEditOperations(
     const op = normalizeOperationType(raw as Record<string, unknown>)
 
     if (op && DRAWING_TYPES.has(op.type as string)) {
-      nextElements.push(op as unknown as WhiteboardElement)
+      upsertElementById(nextElements, op as unknown as WhiteboardElement)
       continue
     }
 
@@ -736,6 +844,16 @@ function applyEditOperations(
     console.warn(`[whiteboard] skipping unknown edit operation "${(op as Record<string, unknown>).type ?? 'unknown'}"`)
   }
   return normalizeWhiteboardElements(nextElements)
+}
+
+function upsertElementById(elements: WhiteboardElement[], element: WhiteboardElement): void {
+  if (!element || typeof element.id !== 'string') return
+  const existingIndex = elements.findIndex((candidate) => candidate?.id === element.id)
+  if (existingIndex >= 0) {
+    elements[existingIndex] = element
+    return
+  }
+  elements.push(element)
 }
 
 /**

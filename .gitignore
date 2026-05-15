@@ -12,6 +12,7 @@ dist
 dist-ssr
 out
 release
+coverage
 *.local
 
 # Editor directories and files

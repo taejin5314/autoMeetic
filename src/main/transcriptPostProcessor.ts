@@ -6,7 +6,17 @@ import { enqueueTranscript as enqueueWhiteboardTranscript } from './whiteboardSe
 const STT_POSTPROCESS_MODEL = process.env.STT_POSTPROCESS_MODEL ?? 'gpt-4.1-nano'
 const STT_POSTPROCESS_MIN_CHARS = Number(process.env.STT_POSTPROCESS_MIN_CHARS ?? 1)
 const STT_POSTPROCESS_FLOOR_FLUSH_MS = Number(process.env.STT_POSTPROCESS_FLOOR_FLUSH_MS ?? 2000)
+const STT_LIVE_SENTENCE_FINALIZE_MS = Number(process.env.STT_LIVE_SENTENCE_FINALIZE_MS ?? 3200)
+const STT_LIVE_SENTENCE_SHORT_FINALIZE_MS = Number(
+  process.env.STT_LIVE_SENTENCE_SHORT_FINALIZE_MS ?? 5200
+)
+const STT_LIVE_SENTENCE_MAX_CHARS = Number(process.env.STT_LIVE_SENTENCE_MAX_CHARS ?? 220)
+const STT_TRANSLATION_DEBOUNCE_MS = Number(process.env.STT_TRANSLATION_DEBOUNCE_MS ?? 650)
 const OPENAI_CHAT_COMPLETIONS_URL = 'https://api.openai.com/v1/chat/completions'
+const SENTENCE_END_RE = /[.!?。？！]\s*$/
+const NO_SPACE_BEFORE_RE = /^[.!?,;:。？！、，；：]+/
+const INCOMPLETE_ENGLISH_END_RE =
+  /\b(a|an|and|are|as|at|because|but|for|from|if|in|is|of|or|so|that|the|then|to|uh|um|with|who|what|when|where|which|while|would|you|your)$/i
 
 interface LanguageHints {
   sourceLanguageHint: string
@@ -17,6 +27,18 @@ interface PendingTranslation {
   id: string
   text: string
   hints: LanguageHints
+  version: number
+}
+
+interface ActiveSourceTurn {
+  id: string
+  text: string
+  hints: LanguageHints
+  createdAtMs: number
+  finalizeTimer: ReturnType<typeof setTimeout> | null
+  translationTimer: ReturnType<typeof setTimeout> | null
+  translationVersion: number
+  downstreamSent: boolean
 }
 
 interface TranslationResponse {
@@ -31,8 +53,10 @@ let coalesceHints: LanguageHints = { sourceLanguageHint: 'auto', targetLanguage:
 let coalesceTimer: ReturnType<typeof setTimeout> | null = null
 
 const translationQueue: PendingTranslation[] = []
+const translationVersionsById = new Map<string, number>()
 let translationInFlight = false
 let warnedMissingApiKey = false
+let activeSourceTurn: ActiveSourceTurn | null = null
 
 export function init(mainWindow: BrowserWindow): void {
   mainWindowRef = mainWindow
@@ -56,7 +80,7 @@ export function enqueueRoughTranscript(text: string, hints: LanguageHints): void
     coalesceTimer = null
   }
   coalesceBuffer = ''
-  emitSourceAndQueueTranslation(combined, hints)
+  emitSourceFragment(combined, hints)
 }
 
 export async function flushPendingTranscript(options: { force?: boolean } = {}): Promise<void> {
@@ -65,14 +89,18 @@ export async function flushPendingTranscript(options: { force?: boolean } = {}):
     coalesceTimer = null
   }
   const pending = coalesceBuffer.trim()
-  if (!pending) return
+  if (!pending) {
+    if (options.force) finalizeActiveSourceTurn({ translateImmediately: true })
+    return
+  }
   if (!options.force && pending.length < STT_POSTPROCESS_MIN_CHARS) {
     coalesceBuffer = pending
     scheduleCoalesceFlush()
     return
   }
   coalesceBuffer = ''
-  emitSourceAndQueueTranslation(pending, coalesceHints)
+  emitSourceFragment(pending, coalesceHints)
+  if (options.force) finalizeActiveSourceTurn({ translateImmediately: true })
 }
 
 export function resetTranscriptPostProcessor(): void {
@@ -82,7 +110,9 @@ export function resetTranscriptPostProcessor(): void {
     clearTimeout(coalesceTimer)
     coalesceTimer = null
   }
+  clearActiveSourceTurn()
   translationQueue.length = 0
+  translationVersionsById.clear()
   translationInFlight = false
 }
 
@@ -116,9 +146,49 @@ export function parseProcessedTranscriptResponse(
   ]
 }
 
-function emitSourceAndQueueTranslation(text: string, hints: LanguageHints): void {
+function emitSourceFragment(text: string, hints: LanguageHints): void {
+  const fragment = text.trim()
+  if (!fragment) return
+
+  if (
+    activeSourceTurn &&
+    (activeSourceTurn.hints.sourceLanguageHint !== hints.sourceLanguageHint ||
+      activeSourceTurn.hints.targetLanguage !== hints.targetLanguage)
+  ) {
+    finalizeActiveSourceTurn({ translateImmediately: true })
+  }
+
+  if (!activeSourceTurn) {
+    startActiveSourceTurn(fragment, hints)
+  } else {
+    appendActiveSourceTurn(fragment)
+  }
+
+  const active = activeSourceTurn
+  if (!active) return
+
+  if (shouldFinalizeSourceTurn(active.text)) {
+    finalizeActiveSourceTurn({ translateImmediately: true })
+    return
+  }
+
+  scheduleSourceFinalization(active)
+  scheduleTranslation(active, STT_TRANSLATION_DEBOUNCE_MS)
+}
+
+function startActiveSourceTurn(text: string, hints: LanguageHints): void {
   const createdAtMs = Date.now()
   const id = makeTurnId(createdAtMs)
+  activeSourceTurn = {
+    id,
+    text,
+    hints,
+    createdAtMs,
+    finalizeTimer: null,
+    translationTimer: null,
+    translationVersion: 0,
+    downstreamSent: false,
+  }
 
   const turn = buildTurn({
     id,
@@ -129,20 +199,104 @@ function emitSourceAndQueueTranslation(text: string, hints: LanguageHints): void
     createdAtMs,
   })
 
-  emitProcessedTurn(turn)
+  emitProcessedTurn(turn, { sendDownstream: false })
+}
 
+function appendActiveSourceTurn(fragment: string): void {
+  const active = activeSourceTurn
+  if (!active) return
+  active.text = joinSourceFragments(active.text, fragment)
+  emitSourcePatch(active.id, active.text)
+}
+
+function finalizeActiveSourceTurn(options: { translateImmediately: boolean }): void {
+  const active = activeSourceTurn
+  if (!active) return
+  activeSourceTurn = null
+  clearActiveTimers(active)
+  emitSourcePatch(active.id, active.text)
+  emitFinalDownstream(active)
+  if (options.translateImmediately) scheduleTranslation(active, 0)
+}
+
+function clearActiveSourceTurn(): void {
+  if (!activeSourceTurn) return
+  clearActiveTimers(activeSourceTurn)
+  activeSourceTurn = null
+}
+
+function clearActiveTimers(active: ActiveSourceTurn): void {
+  if (active.finalizeTimer) {
+    clearTimeout(active.finalizeTimer)
+    active.finalizeTimer = null
+  }
+  if (active.translationTimer) {
+    clearTimeout(active.translationTimer)
+    active.translationTimer = null
+  }
+}
+
+function scheduleSourceFinalization(active: ActiveSourceTurn): void {
+  if (active.finalizeTimer) clearTimeout(active.finalizeTimer)
+  active.finalizeTimer = setTimeout(() => {
+    if (activeSourceTurn?.id !== active.id) return
+    finalizeActiveSourceTurn({ translateImmediately: true })
+  }, sourceFinalizeDelayMs(active.text))
+}
+
+function scheduleTranslation(active: ActiveSourceTurn, delayMs: number): void {
   const wantsTranslation =
-    hints.targetLanguage !== 'off' && hints.targetLanguage !== hints.sourceLanguageHint
+    active.hints.targetLanguage !== 'off' &&
+    active.hints.targetLanguage !== active.hints.sourceLanguageHint
   if (!wantsTranslation) return
 
-  translationQueue.push({ id, text, hints })
-  void drainTranslationQueue()
+  if (active.translationTimer) clearTimeout(active.translationTimer)
+  active.translationVersion += 1
+  const version = active.translationVersion
+  translationVersionsById.set(active.id, version)
+  active.translationTimer = setTimeout(() => {
+    active.translationTimer = null
+    translationQueue.push({ id: active.id, text: active.text, hints: active.hints, version })
+    void drainTranslationQueue()
+  }, delayMs)
+}
+
+function shouldFinalizeSourceTurn(text: string): boolean {
+  return text.length >= STT_LIVE_SENTENCE_MAX_CHARS || SENTENCE_END_RE.test(text)
+}
+
+function sourceFinalizeDelayMs(text: string): number {
+  const normalized = text.trim()
+  if (isLikelyIncompleteSource(normalized)) return STT_LIVE_SENTENCE_SHORT_FINALIZE_MS
+  return STT_LIVE_SENTENCE_FINALIZE_MS
+}
+
+function isLikelyIncompleteSource(text: string): boolean {
+  if (!text) return false
+  if (SENTENCE_END_RE.test(text)) return false
+  const words = text.split(/\s+/).filter(Boolean)
+  if (words.length <= 3) return true
+  if (/[,\-–—]\s*$/.test(text)) return true
+  return INCOMPLETE_ENGLISH_END_RE.test(text)
+}
+
+function joinSourceFragments(previous: string, next: string): string {
+  const trimmedPrevious = previous.trim()
+  const trimmedNext = next.trim()
+  if (!trimmedPrevious) return trimmedNext
+  if (!trimmedNext) return trimmedPrevious
+  if (NO_SPACE_BEFORE_RE.test(trimmedNext)) return `${trimmedPrevious}${trimmedNext}`
+  return `${trimmedPrevious} ${trimmedNext}`
 }
 
 async function drainTranslationQueue(): Promise<void> {
   if (translationInFlight) return
   const next = translationQueue.shift()
   if (!next) return
+  if (translationVersionsById.get(next.id) !== next.version) {
+    if (translationQueue.length > 0) void drainTranslationQueue()
+    return
+  }
 
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
@@ -157,7 +311,9 @@ async function drainTranslationQueue(): Promise<void> {
   translationInFlight = true
   try {
     const response = await callTranslationApi(next.text, next.hints, apiKey)
-    if (response.translation) emitTranslationPatch(next.id, response.translation)
+    if (translationVersionsById.get(next.id) === next.version && response.translation) {
+      emitTranslationPatch(next.id, response.translation)
+    }
   } catch (err) {
     console.warn(
       '[stt-postprocess] translation failed:',
@@ -265,12 +421,28 @@ function makeTurnId(createdAtMs: number): string {
   return `turn_${createdAtMs}_${Math.random().toString(36).slice(2, 8)}`
 }
 
-function emitProcessedTurn(turn: ProcessedTranscriptTurn): void {
+function emitProcessedTurn(
+  turn: ProcessedTranscriptTurn,
+  options: { sendDownstream: boolean } = { sendDownstream: true }
+): void {
   if (!turn.text.trim()) return
   mainWindowRef?.webContents.send('stt:processed', { turns: [turn] })
+  if (!options.sendDownstream) return
   const downstream = `${turn.speakerLabel}: ${turn.text}`
   enqueueWhiteboardTranscript(downstream)
   enqueueActionTranscript(downstream)
+}
+
+function emitFinalDownstream(active: ActiveSourceTurn): void {
+  if (active.downstreamSent || !active.text.trim()) return
+  active.downstreamSent = true
+  const downstream = `Unknown: ${active.text.trim()}`
+  enqueueWhiteboardTranscript(downstream)
+  enqueueActionTranscript(downstream)
+}
+
+function emitSourcePatch(id: string, text: string): void {
+  mainWindowRef?.webContents.send('stt:source-patch', { id, text })
 }
 
 function emitTranslationPatch(id: string, translation: string): void {
@@ -284,7 +456,7 @@ function scheduleCoalesceFlush(): void {
     const pending = coalesceBuffer.trim()
     if (!pending) return
     coalesceBuffer = ''
-    emitSourceAndQueueTranslation(pending, coalesceHints)
+    emitSourceFragment(pending, coalesceHints)
   }, STT_POSTPROCESS_FLOOR_FLUSH_MS)
 }
 

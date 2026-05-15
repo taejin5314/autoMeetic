@@ -31,6 +31,7 @@ import { useFeedTypewriter } from './feed/useFeedTypewriter'
 import { CaptionOverlay } from './overlay/CaptionOverlay'
 import { useCaptionStore } from './overlay/useCaptionStore'
 import { Waveform } from './overlay/Waveform'
+import { useThemeStore, type Theme } from './theme/useThemeStore'
 import { ExcalidrawCanvas } from './whiteboard/ExcalidrawCanvas'
 import { WhiteboardModal } from './whiteboard/WhiteboardModal'
 
@@ -113,6 +114,63 @@ function getInitialTranslationTarget(): string {
   return DEFAULT_TRANSLATION_TARGET
 }
 
+const THEME_OPTIONS: ReadonlyArray<{
+  value: Theme
+  label: string
+  title: string
+  icon: React.ReactNode
+}> = [
+  {
+    value: 'light',
+    label: 'Light',
+    title: 'Light — Linear-grade pro',
+    icon: (
+      <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="7" cy="7" r="2.4" />
+        <path d="M7 1v1.5M7 11.5V13M1 7h1.5M11.5 7H13M2.6 2.6l1 1M10.4 10.4l1 1M2.6 11.4l1-1M10.4 3.6l1-1" />
+      </svg>
+    ),
+  },
+  {
+    value: 'dark',
+    label: 'Dark',
+    title: 'Dark — Linear-grade pro',
+    icon: (
+      <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 8.2A5 5 0 1 1 5.8 2 4 4 0 0 0 12 8.2z" />
+      </svg>
+    ),
+  },
+]
+
+function ThemeToggle({
+  theme,
+  onSelect,
+}: {
+  theme: Theme
+  onSelect: (next: Theme) => void
+}) {
+  return (
+    <div className="v4p-theme-toggle" role="group" aria-label="Theme">
+      {THEME_OPTIONS.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          className={`v4p-theme-btn ${theme === option.value ? 'on' : ''}`}
+          onClick={() => onSelect(option.value)}
+          title={option.title}
+          aria-pressed={theme === option.value}
+          aria-label={option.label}
+        >
+          <span className="v4p-theme-icon" aria-hidden="true">
+            {option.icon}
+          </span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function App() {
   const shellRef = useRef<HTMLElement | null>(null)
   const resetTimeoutRef = useRef<number | null>(null)
@@ -139,11 +197,13 @@ function App() {
   const enColRef = useRef<HTMLDivElement>(null)
   const koColRef = useRef<HTMLDivElement>(null)
   const syncingScrollRef = useRef(false)
+  const programmaticScrollUntilRef = useRef(0)
   const {
     items,
     currentPartial,
     applyPartial,
     appendProcessed,
+    patchSource,
     patchTranslation,
     advanceTyping,
     completeTyping,
@@ -152,6 +212,7 @@ function App() {
   } = useCaptionStore()
   useFeedTypewriter({ items, advanceTyping, completeTyping })
   const [captionText, setCaptionText] = useState('')
+  const { theme, setTheme } = useThemeStore()
   const answerAssist = useAnswerAssistStore()
   const {
     items: actionItemList,
@@ -245,6 +306,11 @@ function App() {
       appendProcessed(event.turns)
     })
 
+    const offSourcePatch = api.onSttSourcePatch((event) => {
+      if (!event?.id || !event.text) return
+      patchSource(event.id, event.text)
+    })
+
     const offTranslationPatch = api.onSttTranslationPatch((event) => {
       if (!event?.id || !event.translation) return
       patchTranslation(event.id, event.translation)
@@ -254,9 +320,10 @@ function App() {
       offPartial()
       offCommitted()
       offProcessed()
+      offSourcePatch()
       offTranslationPatch()
     }
-  }, [applyPartial, appendProcessed, patchTranslation])
+  }, [applyPartial, appendProcessed, patchSource, patchTranslation])
 
   // V4: auto-scroll bilingual columns to bottom when content changes.
   useEffect(() => {
@@ -264,8 +331,13 @@ function App() {
     const en = enColRef.current
     const ko = koColRef.current
     requestAnimationFrame(() => {
+      programmaticScrollUntilRef.current = performance.now() + 250
+      syncingScrollRef.current = true
       if (en) en.scrollTop = en.scrollHeight
       if (ko) ko.scrollTop = ko.scrollHeight
+      requestAnimationFrame(() => {
+        syncingScrollRef.current = false
+      })
     })
   }, [items, currentPartial, autoScroll])
 
@@ -277,6 +349,9 @@ function App() {
     if (!en) return
 
     const updateAutoScroll = (el: HTMLDivElement) => {
+      if (syncingScrollRef.current || performance.now() < programmaticScrollUntilRef.current) {
+        return
+      }
       const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60
       setAutoScroll(isNearBottom)
     }
@@ -288,6 +363,7 @@ function App() {
       const denom = from.scrollHeight - from.clientHeight || 1
       const ratio = from.scrollTop / denom
       to.scrollTop = ratio * (to.scrollHeight - to.clientHeight)
+      programmaticScrollUntilRef.current = performance.now() + 120
       requestAnimationFrame(() => {
         syncingScrollRef.current = false
       })
@@ -608,6 +684,7 @@ function App() {
     resetActionItems()
     if (isElectron) {
       void window.electronAPI?.resetActionItems()
+      void window.electronAPI?.resetWhiteboard()
       void window.electronAPI?.resetTranscriptPostProcessor()
     }
     if (captionTimerRef.current !== null) {
@@ -647,9 +724,17 @@ function App() {
     if (answerAssist.status === 'loading' || answerAssist.status === 'streaming') return
     const transcript = getRecentTranscript(180_000)
     if (!transcript) return
-    const sourceLang = sttLanguage === 'auto' ? (lockedLanguageRef.current ?? 'en') : sttLanguage
-    void answerAssist.requestAnswer(transcript, sourceLang)
-  }, [answerAssist, getRecentTranscript, sttLanguage])
+    const sourceLang =
+      sttLanguage === 'auto' ? (languageLock ?? detectedLanguage ?? 'en') : sttLanguage
+    void answerAssist.requestAnswer(transcript, sourceLang, translationTarget)
+  }, [
+    answerAssist,
+    detectedLanguage,
+    getRecentTranscript,
+    languageLock,
+    sttLanguage,
+    translationTarget,
+  ])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -772,6 +857,7 @@ function App() {
         </div>
 
         <div className="v4p-head-right">
+          <ThemeToggle theme={theme} onSelect={setTheme} />
           <div className="v4p-lang">
             <select
               className="v4p-lang-select"
@@ -989,7 +1075,13 @@ function App() {
                         Math.max(item.createdAtMs - (sessionStartMs ?? item.createdAtMs), 0)
                       )}
                     </div>
-                    <div className={`v4p-line-text${item.typing ? ' v4p-line-typing' : ''}`}>
+                    <div
+                      className={`v4p-line-text${
+                        item.typing && item.displayedSource.length < item.fullSource.length
+                          ? ' v4p-line-typing'
+                          : ''
+                      }`}
+                    >
                       {item.displayedSource}
                     </div>
                   </div>
@@ -1023,7 +1115,14 @@ function App() {
                             Math.max(item.createdAtMs - (sessionStartMs ?? item.createdAtMs), 0)
                           )}
                         </div>
-                        <div className={`v4p-line-text${item.typing ? ' v4p-line-typing' : ''}`}>
+                        <div
+                          className={`v4p-line-text${
+                            item.typing &&
+                            item.displayedTranslation.length < item.fullTranslation.length
+                              ? ' v4p-line-typing'
+                              : ''
+                          }`}
+                        >
                           {item.displayedTranslation}
                         </div>
                       </div>
@@ -1115,6 +1214,9 @@ function App() {
                       <span className="v4p-wb-spinner" /> Agent thinking
                     </div>
                   )}
+                  {agentStatus === 'error' && (
+                    <div className="v4p-wb-badge error">Diagram failed</div>
+                  )}
                 </div>
               </div>
               <div
@@ -1193,6 +1295,7 @@ function App() {
             searchQuery={answerAssist.searchQuery}
             answer={answerAssist.answer}
             answerKo={answerAssist.answerKo}
+            targetLang={translationTarget}
             errorMessage={answerAssist.errorMessage}
             onDismiss={answerAssist.dismiss}
             onCopy={answerAssist.copyAnswer}
