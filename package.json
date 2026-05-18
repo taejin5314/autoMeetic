@@ -30,10 +30,14 @@
     "build:mac": "electron-vite build && electron-builder --mac",
     "preview": "vite preview",
     "server": "node server/proxy.mjs",
-    "start": "npm run dev"
+    "start": "npm run dev",
+    "postinstall": "node scripts/postinstall-memory-deps.mjs",
+    "smoke:memory-deps": "node scripts/smoke-test-memory-deps.mjs"
   },
   "dependencies": {
     "@excalidraw/excalidraw": "^0.18.0",
+    "@xenova/transformers": "^2.17.2",
+    "better-sqlite3": "^11.5.0",
     "concurrently": "^9.2.1",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
@@ -50,7 +54,9 @@
   },
   "devDependencies": {
     "@electron-toolkit/utils": "^4.0.0",
+    "@electron/rebuild": "3.7.1",
     "@eslint/js": "^10.0.1",
+    "@types/better-sqlite3": "^7.6.11",
     "@types/express": "^5.0.6",
     "@types/node": "^24.12.3",
     "@types/react": "^19.2.14",
