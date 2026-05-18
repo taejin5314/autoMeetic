@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3'
 import { SCHEMA_SQL, SCHEMA_VERSION } from './schema'
-import type { Meeting, MeetingStatus, Segment } from './types'
+import type { Meeting, MeetingStatus, Segment, SegmentEmbedding, Summary } from './types'
 
 export class MemoryRepository {
   private db: Database.Database
@@ -135,6 +135,102 @@ export class MemoryRepository {
 
   updateTranslation(segmentId: string, translated: string): void {
     this.db.prepare('UPDATE segments SET translated_text = ? WHERE id = ?').run(translated, segmentId)
+  }
+
+  upsertSummary(s: Summary): void {
+    this.db
+      .prepare(
+        `INSERT INTO summaries(meeting_id, short_summary, detailed_summary, key_points,
+                               action_items, generated_at, model, prompt_version, status)
+         VALUES (@meetingId, @shortSummary, @detailedSummary, @keyPointsJson,
+                 @actionItemsJson, @generatedAt, @model, @promptVersion, @status)
+         ON CONFLICT(meeting_id) DO UPDATE SET
+           short_summary = excluded.short_summary,
+           detailed_summary = excluded.detailed_summary,
+           key_points = excluded.key_points,
+           action_items = excluded.action_items,
+           generated_at = excluded.generated_at,
+           model = excluded.model,
+           prompt_version = excluded.prompt_version,
+           status = excluded.status`
+      )
+      .run({
+        ...s,
+        keyPointsJson: JSON.stringify(s.keyPoints),
+        actionItemsJson: JSON.stringify(s.actionItems),
+      })
+  }
+
+  getSummary(meetingId: string): Summary | null {
+    const row = this.db
+      .prepare(
+        `SELECT meeting_id AS meetingId, short_summary AS shortSummary, detailed_summary AS detailedSummary,
+                key_points AS keyPointsJson, action_items AS actionItemsJson,
+                generated_at AS generatedAt, model, prompt_version AS promptVersion, status
+         FROM summaries WHERE meeting_id = ?`
+      )
+      .get(meetingId) as
+      | (Omit<Summary, 'keyPoints' | 'actionItems'> & {
+          keyPointsJson: string
+          actionItemsJson: string
+        })
+      | undefined
+    if (!row) return null
+    return {
+      meetingId: row.meetingId,
+      shortSummary: row.shortSummary,
+      detailedSummary: row.detailedSummary,
+      keyPoints: JSON.parse(row.keyPointsJson) as string[],
+      actionItems: JSON.parse(row.actionItemsJson) as Summary['actionItems'],
+      generatedAt: row.generatedAt,
+      model: row.model,
+      promptVersion: row.promptVersion,
+      status: row.status,
+    }
+  }
+
+  saveEmbedding(segmentId: string, vector: Float32Array, model: string): void {
+    const buf = Buffer.from(vector.buffer, vector.byteOffset, vector.byteLength)
+    this.db
+      .prepare(
+        `INSERT INTO segment_embeddings(segment_id, vector, model) VALUES (?, ?, ?)
+         ON CONFLICT(segment_id) DO UPDATE SET vector = excluded.vector, model = excluded.model`
+      )
+      .run(segmentId, buf, model)
+  }
+
+  saveEmbeddings(rows: { segmentId: string; vector: Float32Array; model: string }[]): void {
+    const stmt = this.db.prepare(
+      `INSERT INTO segment_embeddings(segment_id, vector, model) VALUES (?, ?, ?)
+       ON CONFLICT(segment_id) DO UPDATE SET vector = excluded.vector, model = excluded.model`
+    )
+    const tx = this.db.transaction((items: typeof rows) => {
+      for (const r of items) {
+        stmt.run(r.segmentId, Buffer.from(r.vector.buffer, r.vector.byteOffset, r.vector.byteLength), r.model)
+      }
+    })
+    tx(rows)
+  }
+
+  getAllEmbeddings(): SegmentEmbedding[] {
+    const rows = this.db
+      .prepare('SELECT segment_id AS segmentId, vector, model FROM segment_embeddings')
+      .all() as { segmentId: string; vector: Buffer; model: string }[]
+    return rows.map((r) => ({
+      segmentId: r.segmentId,
+      vector: new Float32Array(r.vector.buffer, r.vector.byteOffset, r.vector.byteLength / 4).slice(),
+      model: r.model,
+    }))
+  }
+
+  getMissingEmbeddings(): { segmentId: string; text: string }[] {
+    return this.db
+      .prepare(
+        `SELECT s.id AS segmentId, s.source_text AS text
+         FROM segments s LEFT JOIN segment_embeddings e ON e.segment_id = s.id
+         WHERE e.segment_id IS NULL`
+      )
+      .all() as { segmentId: string; text: string }[]
   }
 
   close(): void {
