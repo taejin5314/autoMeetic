@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3'
 import { SCHEMA_SQL, SCHEMA_VERSION } from './schema'
-import type { Meeting, MeetingStatus, Segment, SegmentEmbedding, Summary } from './types'
+import type { Meeting, MeetingStatus, SearchHit, Segment, SegmentEmbedding, Summary } from './types'
 
 export class MemoryRepository {
   private db: Database.Database
@@ -231,6 +231,47 @@ export class MemoryRepository {
          WHERE e.segment_id IS NULL`
       )
       .all() as { segmentId: string; text: string }[]
+  }
+
+  lookupSearchHits(rows: { segmentId: string; score: number }[]): SearchHit[] {
+    if (rows.length === 0) return []
+    const placeholders = rows.map(() => '?').join(',')
+    const found = this.db
+      .prepare(
+        `SELECT s.id AS segmentId, s.seq AS seq, s.speaker_label AS speakerLabel,
+                s.source_text AS sourceText, s.translated_text AS translatedText,
+                m.id AS meetingId, m.title AS meetingTitle, m.started_at AS startedAt
+         FROM segments s JOIN meetings m ON m.id = s.meeting_id
+         WHERE s.id IN (${placeholders})`
+      )
+      .all(...rows.map((r) => r.segmentId)) as Array<{
+      segmentId: string
+      seq: number
+      speakerLabel: string | null
+      sourceText: string
+      translatedText: string | null
+      meetingId: string
+      meetingTitle: string
+      startedAt: number
+    }>
+    const byId = new Map(found.map((f) => [f.segmentId, f]))
+    return rows
+      .map((r) => {
+        const f = byId.get(r.segmentId)
+        if (!f) return null
+        return {
+          meetingId: f.meetingId,
+          meetingTitle: f.meetingTitle,
+          startedAt: f.startedAt,
+          segmentId: f.segmentId,
+          seq: f.seq,
+          speakerLabel: f.speakerLabel,
+          sourceText: f.sourceText,
+          translatedText: f.translatedText,
+          score: r.score,
+        } satisfies SearchHit
+      })
+      .filter((h): h is SearchHit => h !== null)
   }
 
   close(): void {
