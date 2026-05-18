@@ -15,12 +15,16 @@ function dot(a: Float32Array, b: Float32Array): number {
 
 export class SearchService {
   private threshold: number
+  private repo: MemoryRepository
+  private embedder: Pick<EmbeddingService, 'embedQuery'>
 
   constructor(
-    private repo: MemoryRepository,
-    private embedder: Pick<EmbeddingService, 'embedQuery'>,
+    repo: MemoryRepository,
+    embedder: Pick<EmbeddingService, 'embedQuery'>,
     options: SearchOptions = {}
   ) {
+    this.repo = repo
+    this.embedder = embedder
     this.threshold = options.threshold ?? 0.5
   }
 

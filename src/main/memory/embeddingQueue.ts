@@ -18,12 +18,18 @@ export class EmbeddingQueue {
   private readonly batchSize: number
   private readonly completed = new Set<string>()
   private waiters: { segmentIds: Set<string>; resolve: () => void }[] = []
+  private embedder: Pick<EmbeddingService, 'embedPassages'>
+  private repo: Pick<MemoryRepository, 'saveEmbeddings'>
+  private opts: QueueOptions
 
   constructor(
-    private embedder: Pick<EmbeddingService, 'embedPassages'>,
-    private repo: Pick<MemoryRepository, 'saveEmbeddings'>,
-    private opts: QueueOptions
+    embedder: Pick<EmbeddingService, 'embedPassages'>,
+    repo: Pick<MemoryRepository, 'saveEmbeddings'>,
+    opts: QueueOptions
   ) {
+    this.embedder = embedder
+    this.repo = repo
+    this.opts = opts
     this.batchSize = opts.batchSize ?? 16
   }
 

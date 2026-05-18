@@ -1,6 +1,16 @@
 import { ipcMain, type BrowserWindow } from 'electron'
+import { buildMemoryHandlers } from './ipc-memory-handlers'
+import type { MemoryService } from './memory/memoryService'
 
 let mainWindowRef: BrowserWindow | null = null
+let memoryServiceRef: MemoryService | null = null
+
+export function setMemoryService(svc: MemoryService): void {
+  memoryServiceRef = svc
+  svc.onMeetingUpdated((evt) => {
+    mainWindowRef?.webContents.send('memory:meeting-updated', evt)
+  })
+}
 
 export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   mainWindowRef = mainWindow
@@ -45,11 +55,20 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('start-transcription', async (_event, args: { language: string }) => {
     const { startTranscription } = await import('./sttService')
     startTranscription(args.language, mainWindowRef!)
+    if (memoryServiceRef) {
+      memoryServiceRef.beginMeeting({
+        sourceLanguage: args.language,
+        targetLanguage: 'unknown',
+      })
+    }
   })
 
   ipcMain.handle('stop-transcription', async () => {
     const { stopTranscription } = await import('./sttService')
     await stopTranscription()
+    if (memoryServiceRef) {
+      await memoryServiceRef.endMeeting(3000)
+    }
   })
 
   ipcMain.handle('reset-transcript-postprocessor', async () => {
@@ -94,6 +113,22 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       handleScreenshot(args.image)
     })
   })
+
+  const memHandlers = buildMemoryHandlers({
+    listMeetings: (limit, offset) => memoryServiceRef!.listMeetings(limit, offset),
+    getMeeting: (id) => memoryServiceRef!.getMeeting(id),
+    search: (query, limit) => memoryServiceRef!.search(query, limit),
+    renameMeeting: (id, title) => memoryServiceRef!.renameMeeting(id, title),
+    deleteMeeting: (id) => memoryServiceRef!.deleteMeeting(id),
+    exportMeeting: (id, format) => memoryServiceRef!.exportMeeting(id, format),
+    regenerateSummary: (id) => memoryServiceRef!.regenerateSummary(id),
+  })
+  for (const [channel, handler] of Object.entries(memHandlers)) {
+    ipcMain.handle(channel, async (_event, args) => {
+      if (!memoryServiceRef) throw new Error('Memory service not initialized')
+      return handler(args as never)
+    })
+  }
 }
 
 export function registerWindowNotifiers(_mainWindow: BrowserWindow): void {

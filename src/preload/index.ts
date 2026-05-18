@@ -12,6 +12,20 @@ function createEventListener(channel: string) {
 }
 
 const electronAPI: ElectronAPI = {
+  memory: {
+    listMeetings: (args = {}) => ipcRenderer.invoke('memory:list-meetings', args),
+    getMeeting: (id) => ipcRenderer.invoke('memory:get-meeting', { id }),
+    search: (query, limit) => ipcRenderer.invoke('memory:search', { query, limit }),
+    renameMeeting: (id, title) => ipcRenderer.invoke('memory:rename-meeting', { id, title }),
+    deleteMeeting: (id) => ipcRenderer.invoke('memory:delete-meeting', { id }),
+    exportMeeting: (id, format = 'markdown') =>
+      ipcRenderer.invoke('memory:export-meeting', { id, format }),
+    regenerateSummary: (id) => ipcRenderer.invoke('memory:regenerate-summary', { id }),
+    onMeetingUpdated: createEventListener(
+      'memory:meeting-updated'
+    ) as ElectronAPI['memory']['onMeetingUpdated'],
+  },
+
   // Actions
   translate: (text, targetLang) => ipcRenderer.invoke('translate', { text, targetLang }),
   startAnswerAssist: (transcript, sourceLang, targetLang) =>

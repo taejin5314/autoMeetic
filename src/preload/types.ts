@@ -1,4 +1,5 @@
 import type { ProcessedTurnsEvent } from '../main/stt/types'
+import type { MeetingDetail, MeetingSummary, MeetingUpdatedEvent, SearchHit } from '../main/memory/types'
 
 export interface TranslationPatchEvent {
   id: string
@@ -10,7 +11,20 @@ export interface SourcePatchEvent {
   text: string
 }
 
+export interface MemoryAPI {
+  listMeetings(args?: { limit?: number; offset?: number }): Promise<MeetingSummary[]>
+  getMeeting(id: string): Promise<MeetingDetail | null>
+  search(query: string, limit?: number): Promise<SearchHit[]>
+  renameMeeting(id: string, title: string): Promise<void>
+  deleteMeeting(id: string): Promise<void>
+  exportMeeting(id: string, format?: 'markdown'): Promise<string>
+  regenerateSummary(id: string): Promise<void>
+  onMeetingUpdated(callback: (event: MeetingUpdatedEvent) => void): () => void
+}
+
 export interface ElectronAPI {
+  memory: MemoryAPI
+
   // Actions
   translate(text: string, targetLang: string): Promise<{ translation: string }>
   startAnswerAssist(transcript: string, sourceLang: string, targetLang: string): Promise<void>

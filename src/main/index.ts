@@ -12,8 +12,9 @@ import {
   Tray,
 } from 'electron'
 import { join } from 'path'
-import { registerIpcHandlers, registerWindowNotifiers } from './ipc'
+import { registerIpcHandlers, registerWindowNotifiers, setMemoryService } from './ipc'
 import { init as initActionItems } from './actionItemService'
+import { MemoryService, defaultWorkerPath } from './memory/memoryService'
 import { init as initTranscriptPostProcessor } from './transcriptPostProcessor'
 import { init as initWhiteboard } from './whiteboardService'
 
@@ -131,6 +132,22 @@ app.whenReady().then(() => {
   initActionItems(mainWindow!)
   createTray()
   registerGlobalShortcuts()
+
+  void (async () => {
+    try {
+      const userData = app.getPath('userData')
+      const memoryService = await MemoryService.initialize({
+        dbPath: join(userData, 'memory.db'),
+        workerPath: defaultWorkerPath(),
+        modelEnvCacheDir: join(userData, 'embedding-cache'),
+      })
+      const recovered = memoryService.recoverInterruptedMeetings()
+      if (recovered > 0) console.log(`[memory] recovered ${recovered} interrupted meeting(s)`)
+      setMemoryService(memoryService)
+    } catch (err) {
+      console.error('[memory] init failed:', err)
+    }
+  })()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

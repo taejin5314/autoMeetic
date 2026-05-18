@@ -9,6 +9,7 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/main/index.ts'),
+          embeddingWorker: resolve(__dirname, 'src/main/memory/embeddingWorker.ts'),
         },
       },
     },

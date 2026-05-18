@@ -1,5 +1,6 @@
 import type { BrowserWindow } from 'electron'
 import { enqueueTranscript as enqueueActionTranscript } from './actionItemService'
+import { notifyTranslation, notifyTurnFinalized } from './memory/transcriptHook'
 import type { ProcessedTranscriptTurn } from './stt/types'
 import { enqueueTranscript as enqueueWhiteboardTranscript } from './whiteboardService'
 
@@ -216,6 +217,15 @@ function finalizeActiveSourceTurn(options: { translateImmediately: boolean }): v
   clearActiveTimers(active)
   emitSourcePatch(active.id, active.text)
   emitFinalDownstream(active)
+  notifyTurnFinalized({
+    id: active.id,
+    text: active.text.trim(),
+    sourceLanguage: active.hints.sourceLanguageHint,
+    targetLanguage: active.hints.targetLanguage,
+    createdAtMs: active.createdAtMs,
+    speakerId: 'unknown',
+    speakerLabel: 'Unknown',
+  })
   if (options.translateImmediately) scheduleTranslation(active, 0)
 }
 
@@ -313,6 +323,7 @@ async function drainTranslationQueue(): Promise<void> {
     const response = await callTranslationApi(next.text, next.hints, apiKey)
     if (translationVersionsById.get(next.id) === next.version && response.translation) {
       emitTranslationPatch(next.id, response.translation)
+      notifyTranslation(next.id, response.translation)
     }
   } catch (err) {
     console.warn(

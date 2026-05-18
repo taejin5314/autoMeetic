@@ -10,13 +10,15 @@ const QUERY_PREFIX = 'query: '
 
 export class EmbeddingService {
   private nextId = 0
+  private worker: EmbeddingWorkerLike
   private pending = new Map<
     number,
     { resolve: (vectors: Float32Array[]) => void; reject: (err: Error) => void }
   >()
   public readonly modelId = 'Xenova/multilingual-e5-small'
 
-  constructor(private worker: EmbeddingWorkerLike) {
+  constructor(worker: EmbeddingWorkerLike) {
+    this.worker = worker
     this.worker.on('message', (msg: { id: number; vectors?: Float32Array[]; error?: string }) => {
       const pending = this.pending.get(msg.id)
       if (!pending) return

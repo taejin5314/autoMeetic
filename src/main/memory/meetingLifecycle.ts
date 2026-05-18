@@ -25,12 +25,11 @@ function defaultTitle(now: number): string {
 
 export class MeetingLifecycle {
   private currentMeetingId: string | null = null
+  private repo: MemoryRepository
   private now: () => number
 
-  constructor(
-    private repo: MemoryRepository,
-    options: LifecycleOptions = {}
-  ) {
+  constructor(repo: MemoryRepository, options: LifecycleOptions = {}) {
+    this.repo = repo
     this.now = options.now ?? (() => Date.now())
   }
 

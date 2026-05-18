@@ -79,16 +79,16 @@ export function chunkByTime(segments: Segment[], windowMs: number, overlapMs: nu
 }
 
 export class SummaryService {
+  private repo: MemoryRepository
+  private call: SummarizeCall
   private now: () => number
   private maxInputTokens: number
   private autoEnabled: boolean
   private model: string
 
-  constructor(
-    private repo: MemoryRepository,
-    private call: SummarizeCall,
-    opts: SummaryOptions = {}
-  ) {
+  constructor(repo: MemoryRepository, call: SummarizeCall, opts: SummaryOptions = {}) {
+    this.repo = repo
+    this.call = call
     this.now = opts.now ?? (() => Date.now())
     this.maxInputTokens = opts.maxInputTokens ?? DEFAULT_MAX_INPUT_TOKENS
     this.autoEnabled = opts.autoEnabled ?? process.env.MEMORY_SUMMARY_AUTO !== 'false'

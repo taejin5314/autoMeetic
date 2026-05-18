@@ -28,6 +28,7 @@ import { isElectron } from './api'
 import './App.css'
 import { ElectronSttClient } from './electronSttClient'
 import { useFeedTypewriter } from './feed/useFeedTypewriter'
+import { MemoryLibraryPanel } from './library/MemoryLibraryPanel'
 import { CaptionOverlay } from './overlay/CaptionOverlay'
 import { useCaptionStore } from './overlay/useCaptionStore'
 import { Waveform } from './overlay/Waveform'
@@ -194,6 +195,7 @@ function App() {
   // V4: collapsible right shelf — 'whiteboard' | 'actions' | 'closed'
   const [shelf, setShelf] = useState<'whiteboard' | 'actions' | 'closed'>('whiteboard')
   const [whiteboardMaximized, setWhiteboardMaximized] = useState(false)
+  const [memoryLibraryOpen, setMemoryLibraryOpen] = useState(false)
   const enColRef = useRef<HTMLDivElement>(null)
   const koColRef = useRef<HTMLDivElement>(null)
   const syncingScrollRef = useRef(false)
@@ -937,6 +939,29 @@ function App() {
           </button>
 
           <button
+            className={`v4p-iconbtn ghost ${memoryLibraryOpen ? 'on' : ''}`}
+            type="button"
+            onClick={() => setMemoryLibraryOpen(true)}
+            title="Meeting library"
+            aria-label="Meeting library"
+            aria-pressed={memoryLibraryOpen}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M2 2.5h3.2L6.3 4H12v7.5H2z" />
+              <path d="M4 7h6M4 9h4" />
+            </svg>
+          </button>
+
+          <button
             className="v4p-iconbtn ghost"
             type="button"
             onClick={() => {
@@ -1316,6 +1341,8 @@ function App() {
         onScreenshot={handleWhiteboardScreenshot}
         onClose={() => setWhiteboardMaximized(false)}
       />
+
+      <MemoryLibraryPanel open={memoryLibraryOpen} onClose={() => setMemoryLibraryOpen(false)} />
     </main>
   )
 }
