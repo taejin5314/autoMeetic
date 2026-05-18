@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3'
 import { SCHEMA_SQL, SCHEMA_VERSION } from './schema'
+import type { Meeting, MeetingStatus } from './types'
 
 export class MemoryRepository {
   private db: Database.Database
@@ -32,6 +33,72 @@ export class MemoryRepository {
   getJournalMode(): string {
     const row = this.db.pragma('journal_mode', { simple: true }) as string
     return row
+  }
+
+  insertMeeting(m: Meeting): void {
+    this.db
+      .prepare(
+        `INSERT INTO meetings(id, title, started_at, ended_at, source_language, target_language, status, segment_count, duration_ms)
+         VALUES (@id, @title, @startedAt, @endedAt, @sourceLanguage, @targetLanguage, @status, @segmentCount, @durationMs)`
+      )
+      .run(m)
+  }
+
+  getMeeting(id: string): Meeting | null {
+    const row = this.db
+      .prepare(
+        `SELECT id, title, started_at AS startedAt, ended_at AS endedAt,
+                source_language AS sourceLanguage, target_language AS targetLanguage,
+                status, segment_count AS segmentCount, duration_ms AS durationMs
+         FROM meetings WHERE id = ?`
+      )
+      .get(id) as Meeting | undefined
+    return row ?? null
+  }
+
+  listMeetings(limit: number, offset: number): Meeting[] {
+    return this.db
+      .prepare(
+        `SELECT id, title, started_at AS startedAt, ended_at AS endedAt,
+                source_language AS sourceLanguage, target_language AS targetLanguage,
+                status, segment_count AS segmentCount, duration_ms AS durationMs
+         FROM meetings ORDER BY started_at DESC LIMIT ? OFFSET ?`
+      )
+      .all(limit, offset) as Meeting[]
+  }
+
+  updateTitle(id: string, title: string): void {
+    this.db.prepare('UPDATE meetings SET title = ? WHERE id = ?').run(title, id)
+  }
+
+  markMeetingEnded(id: string, endedAt: number, status: MeetingStatus): void {
+    const row = this.db.prepare('SELECT started_at AS startedAt FROM meetings WHERE id = ?').get(id) as
+      | { startedAt: number }
+      | undefined
+    if (!row) return
+    const duration = endedAt - row.startedAt
+    this.db
+      .prepare('UPDATE meetings SET ended_at = ?, duration_ms = ?, status = ? WHERE id = ?')
+      .run(endedAt, duration, status, id)
+  }
+
+  markMeetingStatus(id: string, status: MeetingStatus): void {
+    this.db.prepare('UPDATE meetings SET status = ? WHERE id = ?').run(status, id)
+  }
+
+  findMeetingsByStatus(status: MeetingStatus): Meeting[] {
+    return this.db
+      .prepare(
+        `SELECT id, title, started_at AS startedAt, ended_at AS endedAt,
+                source_language AS sourceLanguage, target_language AS targetLanguage,
+                status, segment_count AS segmentCount, duration_ms AS durationMs
+         FROM meetings WHERE status = ? ORDER BY started_at DESC`
+      )
+      .all(status) as Meeting[]
+  }
+
+  deleteMeeting(id: string): void {
+    this.db.prepare('DELETE FROM meetings WHERE id = ?').run(id)
   }
 
   close(): void {
