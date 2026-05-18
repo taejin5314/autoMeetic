@@ -239,3 +239,59 @@ Rules:
     answer_ko: (parts[1] ?? '').trim(),
   })
 }
+
+export interface SummarizeOptions {
+  systemPrompt: string
+  userPrompt: string
+  model?: string
+  maxOutputTokens?: number
+}
+
+export async function summarizeMeeting(opts: SummarizeOptions): Promise<string> {
+  const apiKey = getApiKey()
+  const model = opts.model ?? process.env.OPENAI_SUMMARY_MODEL ?? 'gpt-4o-mini'
+  const controller = new AbortController()
+  const timeoutMs = Number(process.env.MEMORY_SUMMARY_TIMEOUT_MS ?? 60_000)
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(OPENAI_TRANSLATION_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0,
+        response_format: { type: 'json_object' },
+        max_tokens: opts.maxOutputTokens ?? 2000,
+        messages: [
+          { role: 'system', content: opts.systemPrompt },
+          { role: 'user', content: opts.userPrompt },
+        ],
+      }),
+      signal: controller.signal,
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      throw new Error(`OpenAI summarize ${res.status}: ${body.slice(0, 300)}`)
+    }
+    const payload = (await res.json()) as {
+      choices?: Array<{ message?: { content?: string } }>
+      usage?: { prompt_tokens?: number; completion_tokens?: number }
+    }
+    const content = payload.choices?.[0]?.message?.content?.trim() ?? ''
+    if (!content) throw new Error('Empty summary response')
+    if (payload.usage) {
+      console.log(
+        '[proxy] summarizeMeeting tokens prompt=',
+        payload.usage.prompt_tokens,
+        'completion=',
+        payload.usage.completion_tokens
+      )
+    }
+    return content
+  } finally {
+    clearTimeout(timeout)
+  }
+}
