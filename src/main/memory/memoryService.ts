@@ -8,7 +8,14 @@ import { MeetingLifecycle } from './meetingLifecycle'
 import { MemoryRepository } from './repository'
 import { SearchService } from './searchService'
 import { SummaryService, type SummarizeCall } from './summaryService'
-import type { MeetingDetail, MeetingSummary, MeetingUpdatedEvent, SearchHit } from './types'
+import type {
+  GlossaryEntry,
+  GlossaryEntryInput,
+  MeetingDetail,
+  MeetingSummary,
+  MeetingUpdatedEvent,
+  SearchHit,
+} from './types'
 
 interface MemoryServiceOptions {
   dbPath: string
@@ -158,6 +165,26 @@ export class MemoryService {
   async regenerateSummary(id: string): Promise<void> {
     await this.summaryService.generate(id)
     this.emitSummaryStatus(id)
+  }
+
+  getCurrentMeetingId(): string | null {
+    return this.lifecycle.getCurrentMeetingId()
+  }
+
+  listGlossary(scope: 'global' | 'meeting', meetingId?: string): GlossaryEntry[] {
+    return this.repo.listGlossary(scope, meetingId)
+  }
+
+  upsertGlossary(input: GlossaryEntryInput): GlossaryEntry {
+    return this.repo.upsertGlossary(input)
+  }
+
+  deleteGlossary(id: string): void {
+    this.repo.deleteGlossary(id)
+  }
+
+  activeGlossary(meetingId: string | null): GlossaryEntry[] {
+    return this.repo.activeGlossary(meetingId)
   }
 
   async dispose(): Promise<void> {
