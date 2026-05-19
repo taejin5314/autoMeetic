@@ -234,6 +234,122 @@ export class MemoryRepository {
     return (meetingId ? stmt.all(meetingId) : stmt.all()) as { segmentId: string; text: string }[]
   }
 
+  searchByText(query: string, limit: number): { segmentId: string; score: number }[] {
+    const trimmed = query.trim()
+    if (!trimmed) return []
+    const escaped = trimmed.replace(/[\\%_]/g, (c) => '\\' + c)
+    const pattern = `%${escaped}%`
+    const rows = this.db
+      .prepare(
+        `SELECT id AS segmentId FROM segments
+         WHERE source_text LIKE ? ESCAPE '\\'
+            OR translated_text LIKE ? ESCAPE '\\'
+         ORDER BY created_at DESC
+         LIMIT ?`
+      )
+      .all(pattern, pattern, limit) as { segmentId: string }[]
+    return rows.map((r) => ({ segmentId: r.segmentId, score: 1 }))
+  }
+
+  searchMeetingTitlesByText(query: string, limit: number): SearchHit[] {
+    const trimmed = query.trim()
+    if (!trimmed) return []
+    const escaped = trimmed.replace(/[\\%_]/g, (c) => '\\' + c)
+    const pattern = `%${escaped}%`
+    const rows = this.db
+      .prepare(
+        `SELECT id AS meetingId, title AS meetingTitle, started_at AS startedAt
+         FROM meetings
+         WHERE title LIKE ? ESCAPE '\\'
+         ORDER BY started_at DESC
+         LIMIT ?`
+      )
+      .all(pattern, limit) as Array<{
+      meetingId: string
+      meetingTitle: string
+      startedAt: number
+    }>
+    return rows.map(
+      (r): SearchHit => ({
+        kind: 'title',
+        meetingId: r.meetingId,
+        meetingTitle: r.meetingTitle,
+        startedAt: r.startedAt,
+        segmentId: null,
+        seq: -1,
+        speakerLabel: null,
+        sourceText: r.meetingTitle,
+        translatedText: null,
+        score: 1,
+      })
+    )
+  }
+
+  searchSummariesByText(query: string, limit: number): SearchHit[] {
+    const trimmed = query.trim()
+    if (!trimmed) return []
+    const escaped = trimmed.replace(/[\\%_]/g, (c) => '\\' + c)
+    const pattern = `%${escaped}%`
+    const lower = trimmed.toLowerCase()
+    const rows = this.db
+      .prepare(
+        `SELECT m.id AS meetingId, m.title AS meetingTitle, m.started_at AS startedAt,
+                s.short_summary AS shortSummary, s.detailed_summary AS detailedSummary,
+                s.key_points AS keyPointsJson, s.action_items AS actionItemsJson
+         FROM summaries s JOIN meetings m ON m.id = s.meeting_id
+         WHERE s.status = 'ok' AND (
+              s.short_summary LIKE ? ESCAPE '\\'
+           OR s.detailed_summary LIKE ? ESCAPE '\\'
+           OR s.key_points LIKE ? ESCAPE '\\'
+           OR s.action_items LIKE ? ESCAPE '\\'
+         )
+         ORDER BY m.started_at DESC
+         LIMIT ?`
+      )
+      .all(pattern, pattern, pattern, pattern, limit) as Array<{
+      meetingId: string
+      meetingTitle: string
+      startedAt: number
+      shortSummary: string
+      detailedSummary: string
+      keyPointsJson: string
+      actionItemsJson: string
+    }>
+
+    return rows.map((r): SearchHit => {
+      let matchedText = r.shortSummary
+      const candidates: string[] = [r.shortSummary, r.detailedSummary]
+      try {
+        const kps = JSON.parse(r.keyPointsJson) as string[]
+        candidates.push(...kps.filter((v): v is string => typeof v === 'string'))
+      } catch {
+        // ignore malformed JSON; fall back to summary candidates
+      }
+      try {
+        const items = JSON.parse(r.actionItemsJson) as Array<{ text?: unknown }>
+        for (const item of items) {
+          if (item && typeof item.text === 'string') candidates.push(item.text)
+        }
+      } catch {
+        // ignore malformed JSON
+      }
+      const hit = candidates.find((c) => c.toLowerCase().includes(lower))
+      if (hit) matchedText = hit
+      return {
+        kind: 'summary',
+        meetingId: r.meetingId,
+        meetingTitle: r.meetingTitle,
+        startedAt: r.startedAt,
+        segmentId: null,
+        seq: -1,
+        speakerLabel: null,
+        sourceText: matchedText,
+        translatedText: null,
+        score: 1,
+      }
+    })
+  }
+
   lookupSearchHits(rows: { segmentId: string; score: number }[]): SearchHit[] {
     if (rows.length === 0) return []
     const placeholders = rows.map(() => '?').join(',')
@@ -261,6 +377,7 @@ export class MemoryRepository {
         const f = byId.get(r.segmentId)
         if (!f) return null
         return {
+          kind: 'segment',
           meetingId: f.meetingId,
           meetingTitle: f.meetingTitle,
           startedAt: f.startedAt,

@@ -26,6 +26,9 @@ export function setMemoryServicePromise(promise: Promise<MemoryService>): void {
     setMemoryService(svc)
     return svc
   })
+  void memoryServicePromise.catch(() => {
+    // Handlers await the same promise and surface the real initialization error.
+  })
 }
 
 async function getMemoryService(): Promise<MemoryService> {

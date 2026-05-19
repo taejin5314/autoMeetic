@@ -85,4 +85,46 @@ describe('SearchService', () => {
     expect(await svc.search('q', 10)).toEqual([])
     repo.close()
   })
+
+  it('returns literal substring matches first, bypassing the threshold', async () => {
+    const repo = setup()
+    const embedder = { embedQuery: vi.fn(async () => new Float32Array([0, 0])) }
+    const svc = new SearchService(repo, embedder as never, { threshold: 0.5 })
+    const hits = await svc.search('pizza', 10)
+    expect(hits[0].segmentId).toBe('s2')
+    expect(hits[0].score).toBe(1)
+    repo.close()
+  })
+
+  it('finds segments with no embedding via literal search', async () => {
+    const repo = new MemoryRepository(':memory:')
+    repo.insertMeeting({
+      id: 'mtg_1',
+      title: 'T',
+      startedAt: 1,
+      endedAt: 2,
+      sourceLanguage: 'ko',
+      targetLanguage: 'en',
+      status: 'completed',
+      segmentCount: 0,
+      durationMs: 1,
+    })
+    repo.insertSegment({
+      id: 's1',
+      meetingId: 'mtg_1',
+      seq: 0,
+      createdAt: 10,
+      speakerId: null,
+      speakerLabel: null,
+      sourceText: '맞아요 그렇습니다',
+      translatedText: null,
+      sourceLanguage: 'ko',
+    })
+    const embedder = { embedQuery: vi.fn(async () => new Float32Array([1, 0])) }
+    const svc = new SearchService(repo, embedder as never, { threshold: 0.5 })
+    const hits = await svc.search('맞아요', 10)
+    expect(hits.map((h) => h.segmentId)).toEqual(['s1'])
+    expect(embedder.embedQuery).not.toHaveBeenCalled()
+    repo.close()
+  })
 })

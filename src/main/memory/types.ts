@@ -56,11 +56,14 @@ export interface MeetingDetail {
   segments: Segment[]
 }
 
+export type SearchHitKind = 'segment' | 'summary' | 'title'
+
 export interface SearchHit {
+  kind: SearchHitKind
   meetingId: string
   meetingTitle: string
   startedAt: number
-  segmentId: string
+  segmentId: string | null
   seq: number
   speakerLabel: string | null
   sourceText: string

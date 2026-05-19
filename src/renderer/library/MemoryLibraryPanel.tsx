@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { MeetingDetail, MeetingSummary, SearchHit } from '../../main/memory/types'
 
 interface MemoryLibraryPanelProps {
@@ -31,6 +31,31 @@ function getMemoryApi() {
   return window.electronAPI?.memory ?? null
 }
 
+function highlightMatches(text: string, query: string): ReactNode {
+  const trimmed = query.trim()
+  if (!trimmed) return text
+  const lowerText = text.toLowerCase()
+  const lowerQuery = trimmed.toLowerCase()
+  const parts: ReactNode[] = []
+  let cursor = 0
+  let key = 0
+  while (cursor < text.length) {
+    const idx = lowerText.indexOf(lowerQuery, cursor)
+    if (idx === -1) {
+      parts.push(<Fragment key={key++}>{text.slice(cursor)}</Fragment>)
+      break
+    }
+    if (idx > cursor) parts.push(<Fragment key={key++}>{text.slice(cursor, idx)}</Fragment>)
+    parts.push(
+      <mark className="memory-match" key={key++}>
+        {text.slice(idx, idx + trimmed.length)}
+      </mark>
+    )
+    cursor = idx + trimmed.length
+  }
+  return parts.length > 0 ? parts : text
+}
+
 export function MemoryLibraryPanel({ open, onClose }: MemoryLibraryPanelProps) {
   const [meetings, setMeetings] = useState<MeetingSummary[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -39,6 +64,10 @@ export function MemoryLibraryPanel({ open, onClose }: MemoryLibraryPanelProps) {
   const [hits, setHits] = useState<SearchHit[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [renameDraft, setRenameDraft] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [focusSegmentId, setFocusSegmentId] = useState<string | null>(null)
+  const segmentRefs = useRef<Map<string, HTMLElement>>(new Map())
 
   const api = getMemoryApi()
 
@@ -95,14 +124,51 @@ export function MemoryLibraryPanel({ open, onClose }: MemoryLibraryPanelProps) {
   }, [api, loadDetail, loadMeetings, open, selectedId])
 
   useEffect(() => {
+    setRenameDraft(null)
+    setConfirmDelete(false)
+  }, [selectedId])
+
+  useEffect(() => {
+    if (!focusSegmentId) return
+    const el = segmentRefs.current.get(focusSegmentId)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    const timeout = window.setTimeout(() => {
+      setFocusSegmentId((current) => (current === focusSegmentId ? null : current))
+    }, 1800)
+    return () => window.clearTimeout(timeout)
+  }, [focusSegmentId, detail.meeting?.meeting.id])
+
+  function jumpToHit(hit: SearchHit) {
+    const targetSegment = hit.kind === 'segment' ? hit.segmentId : null
+    if (hit.meetingId !== selectedId) setSelectedId(hit.meetingId)
+    setFocusSegmentId(targetSegment)
+  }
+
+  useEffect(() => {
     if (!api || !open) return
     const trimmed = query.trim()
-    if (!trimmed) return
+    if (!trimmed) {
+      setHits([])
+      setError(null)
+      return
+    }
     let cancelled = false
     const timeout = window.setTimeout(() => {
-      void api.search(trimmed, 12).then((next) => {
-        if (!cancelled) setHits(next)
-      })
+      api
+        .search(trimmed, 12)
+        .then((next) => {
+          if (cancelled) return
+          setHits(next)
+          setError(null)
+        })
+        .catch((err: unknown) => {
+          if (cancelled) return
+          const message = err instanceof Error ? err.message : String(err)
+          console.error('[memory] search failed:', err)
+          setHits([])
+          setError(`Search failed: ${message}`)
+        })
     }, 250)
     return () => {
       cancelled = true
@@ -122,13 +188,19 @@ export function MemoryLibraryPanel({ open, onClose }: MemoryLibraryPanelProps) {
     await Promise.all([loadMeetings(), loadDetail(selectedId)])
   }
 
-  async function renameSelected() {
-    if (!api || !selectedMeeting) return
-    const nextTitle = window.prompt('Rename meeting', selectedMeeting.meeting.title)?.trim()
-    if (!nextTitle || nextTitle === selectedMeeting.meeting.title) return
+  function startRename() {
+    if (!selectedMeeting) return
+    setRenameDraft(selectedMeeting.meeting.title)
+  }
+
+  async function commitRename() {
+    if (!api || !selectedMeeting || renameDraft === null) return
+    const next = renameDraft.trim()
+    setRenameDraft(null)
+    if (!next || next === selectedMeeting.meeting.title) return
     setBusy(true)
     try {
-      await api.renameMeeting(selectedMeeting.meeting.id, nextTitle)
+      await api.renameMeeting(selectedMeeting.meeting.id, next)
       await refreshSelected()
     } finally {
       setBusy(false)
@@ -137,25 +209,17 @@ export function MemoryLibraryPanel({ open, onClose }: MemoryLibraryPanelProps) {
 
   async function deleteSelected() {
     if (!api || !selectedMeeting) return
-    const ok = window.confirm(`Delete "${selectedMeeting.meeting.title}"?`)
-    if (!ok) return
+    if (!confirmDelete) {
+      setConfirmDelete(true)
+      return
+    }
     setBusy(true)
     try {
       await api.deleteMeeting(selectedMeeting.meeting.id)
+      setConfirmDelete(false)
       setSelectedId(null)
       setDetail({ status: 'idle', meeting: null })
       await loadMeetings()
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function exportSelected() {
-    if (!api || !selectedMeeting) return
-    setBusy(true)
-    try {
-      const markdown = await api.exportMeeting(selectedMeeting.meeting.id, 'markdown')
-      await navigator.clipboard.writeText(markdown)
     } finally {
       setBusy(false)
     }
@@ -204,18 +268,34 @@ export function MemoryLibraryPanel({ open, onClose }: MemoryLibraryPanelProps) {
               {error && <div className="memory-error">{error}</div>}
               {query.trim() ? (
                 <div className="memory-hit-list amw-scroll">
-                  {hits.map((hit) => (
-                    <button
-                      key={`${hit.meetingId}-${hit.segmentId}`}
-                      type="button"
-                      className="memory-hit"
-                      onClick={() => setSelectedId(hit.meetingId)}
-                    >
-                      <span>{hit.meetingTitle}</span>
-                      <mark>{Math.round(hit.score * 100)}%</mark>
-                      <small>{hit.sourceText}</small>
-                    </button>
-                  ))}
+                  {hits.map((hit, index) => {
+                    const previousMeetingId = index > 0 ? hits[index - 1].meetingId : null
+                    const showMeetingHeader =
+                      hit.kind !== 'title' && hit.meetingId !== previousMeetingId
+                    const pct = `${Math.round(hit.score * 100)}%`
+                    const meta =
+                      hit.kind === 'title'
+                        ? `TITLE · ${pct}`
+                        : hit.kind === 'summary'
+                          ? `SUMMARY · ${pct}`
+                          : `#${hit.seq + 1} · ${pct}`
+                    return (
+                      <button
+                        key={`${hit.meetingId}-${hit.kind}-${hit.segmentId ?? 'summary'}`}
+                        type="button"
+                        className="memory-hit"
+                        onClick={() => jumpToHit(hit)}
+                      >
+                        {showMeetingHeader && (
+                          <span className="memory-hit-meeting">{hit.meetingTitle}</span>
+                        )}
+                        <span className="memory-hit-snippet">
+                          {highlightMatches(hit.sourceText, query)}
+                        </span>
+                        <small className="memory-hit-meta">{meta}</small>
+                      </button>
+                    )
+                  })}
                   {hits.length === 0 && <div className="memory-empty compact">No matches</div>}
                 </div>
               ) : (
@@ -246,7 +326,26 @@ export function MemoryLibraryPanel({ open, onClose }: MemoryLibraryPanelProps) {
                 <>
                   <div className="memory-detail-top">
                     <div>
-                      <h3>{titleDraft}</h3>
+                      {renameDraft !== null ? (
+                        <input
+                          className="memory-rename-input"
+                          autoFocus
+                          value={renameDraft}
+                          onChange={(event) => setRenameDraft(event.target.value)}
+                          onBlur={() => void commitRename()}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault()
+                              void commitRename()
+                            } else if (event.key === 'Escape') {
+                              event.preventDefault()
+                              setRenameDraft(null)
+                            }
+                          }}
+                        />
+                      ) : (
+                        <h3>{titleDraft}</h3>
+                      )}
                       <p>
                         {formatMeetingTime(selectedMeeting.meeting.startedAt)} ·{' '}
                         {formatDuration(selectedMeeting.meeting.durationMs)} ·{' '}
@@ -254,18 +353,26 @@ export function MemoryLibraryPanel({ open, onClose }: MemoryLibraryPanelProps) {
                       </p>
                     </div>
                     <div className="memory-actions">
-                      <button type="button" onClick={renameSelected} disabled={busy} title="Rename" aria-label="Rename meeting">
+                      <button type="button" onClick={startRename} disabled={busy || renameDraft !== null} title="Rename" aria-label="Rename meeting">
                         Rename
                       </button>
                       <button type="button" onClick={regenerateSummary} disabled={busy} title="Regenerate summary">
                         Summarize
                       </button>
-                      <button type="button" onClick={exportSelected} disabled={busy} title="Copy Markdown export">
-                        Export
+                      <button
+                        type="button"
+                        onClick={deleteSelected}
+                        disabled={busy}
+                        className="danger"
+                        title={confirmDelete ? 'Click again to confirm' : 'Delete meeting'}
+                      >
+                        {confirmDelete ? 'Confirm delete' : 'Delete'}
                       </button>
-                      <button type="button" onClick={deleteSelected} disabled={busy} className="danger" title="Delete meeting">
-                        Delete
-                      </button>
+                      {confirmDelete && (
+                        <button type="button" onClick={() => setConfirmDelete(false)} disabled={busy}>
+                          Cancel
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -273,12 +380,20 @@ export function MemoryLibraryPanel({ open, onClose }: MemoryLibraryPanelProps) {
 
                   <section className="memory-summary-band">
                     <h4>Summary</h4>
-                    <p>{summary?.shortSummary ?? 'Summary pending'}</p>
-                    {summary?.detailedSummary && <p className="memory-detail-summary">{summary.detailedSummary}</p>}
+                    <p>
+                      {summary?.shortSummary
+                        ? highlightMatches(summary.shortSummary, query)
+                        : 'Summary pending'}
+                    </p>
+                    {summary?.detailedSummary && (
+                      <p className="memory-detail-summary">
+                        {highlightMatches(summary.detailedSummary, query)}
+                      </p>
+                    )}
                     {summary && summary.keyPoints.length > 0 && (
                       <ul>
                         {summary.keyPoints.map((point) => (
-                          <li key={point}>{point}</li>
+                          <li key={point}>{highlightMatches(point, query)}</li>
                         ))}
                       </ul>
                     )}
@@ -289,7 +404,7 @@ export function MemoryLibraryPanel({ open, onClose }: MemoryLibraryPanelProps) {
                       <h4>Action Items</h4>
                       {actionItems.map((item) => (
                         <div className="memory-action-item" key={`${item.text}-${item.owner ?? ''}`}>
-                          <span>{item.text}</span>
+                          <span>{highlightMatches(item.text, query)}</span>
                           {(item.owner || item.due) && (
                             <small>
                               {[item.owner, item.due].filter(Boolean).join(' · ')}
@@ -301,16 +416,34 @@ export function MemoryLibraryPanel({ open, onClose }: MemoryLibraryPanelProps) {
                   )}
 
                   <section className="memory-transcript amw-scroll">
-                    {segments.map((segment) => (
-                      <article className="memory-segment" key={segment.id}>
-                        <div>
-                          <span>{segment.speakerLabel ?? 'Unknown'}</span>
-                          <small>#{segment.seq + 1}</small>
-                        </div>
-                        <p>{segment.sourceText}</p>
-                        {segment.translatedText && <blockquote>{segment.translatedText}</blockquote>}
-                      </article>
-                    ))}
+                    {segments.map((segment) => {
+                      const speaker =
+                        segment.speakerLabel && segment.speakerLabel !== 'Unknown'
+                          ? segment.speakerLabel
+                          : null
+                      const isFocused = focusSegmentId === segment.id
+                      return (
+                        <article
+                          className={`memory-segment${isFocused ? ' is-focused' : ''}`}
+                          key={segment.id}
+                          ref={(node) => {
+                            if (node) segmentRefs.current.set(segment.id, node)
+                            else segmentRefs.current.delete(segment.id)
+                          }}
+                        >
+                          <div>
+                            {speaker && <span>{speaker}</span>}
+                            <small>#{segment.seq + 1}</small>
+                          </div>
+                          <p>{highlightMatches(segment.sourceText, query)}</p>
+                          {segment.translatedText && (
+                            <blockquote>
+                              {highlightMatches(segment.translatedText, query)}
+                            </blockquote>
+                          )}
+                        </article>
+                      )
+                    })}
                   </section>
                 </>
               )}

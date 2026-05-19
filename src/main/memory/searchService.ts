@@ -29,12 +29,33 @@ export class SearchService {
   }
 
   async search(query: string, limit: number): Promise<SearchHit[]> {
-    const all = this.repo.getAllEmbeddings()
-    if (all.length === 0) return []
-    const q = await this.embedder.embedQuery(query)
-    const scored = all.map((row) => ({ segmentId: row.segmentId, score: dot(q, row.vector) }))
-    scored.sort((a, b) => b.score - a.score)
-    const top = scored.filter((s) => s.score >= this.threshold).slice(0, limit)
-    return this.repo.lookupSearchHits(top)
+    const trimmed = query.trim()
+    if (!trimmed) return []
+
+    const titleHits = this.repo.searchMeetingTitlesByText(trimmed, limit)
+    let remaining = Math.max(0, limit - titleHits.length)
+
+    const summaryHits = remaining > 0 ? this.repo.searchSummariesByText(trimmed, remaining) : []
+    remaining = Math.max(0, remaining - summaryHits.length)
+
+    const literal = remaining > 0 ? this.repo.searchByText(trimmed, remaining) : []
+    const literalIds = new Set(literal.map((r) => r.segmentId))
+
+    const all = this.repo.getAllEmbeddings().filter((row) => !literalIds.has(row.segmentId))
+    let semantic: { segmentId: string; score: number }[] = []
+    if (all.length > 0 && literal.length < remaining) {
+      const q = await this.embedder.embedQuery(trimmed)
+      semantic = all
+        .map((row) => ({ segmentId: row.segmentId, score: dot(q, row.vector) }))
+        .filter((s) => s.score >= this.threshold)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, remaining - literal.length)
+    }
+
+    const segmentHits = this.repo.lookupSearchHits([...literal, ...semantic])
+    console.log(
+      `[memory] search query=${JSON.stringify(trimmed)} title=${titleHits.length} summary=${summaryHits.length} literal=${literal.length} semantic=${semantic.length}`
+    )
+    return [...titleHits, ...summaryHits, ...segmentHits]
   }
 }

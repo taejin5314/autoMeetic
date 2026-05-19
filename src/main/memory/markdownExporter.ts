@@ -50,8 +50,9 @@ export function exportMeetingMarkdown(repo: MemoryRepository, meetingId: string)
   lines.push('## Transcript')
   const anchor = segments[0]?.createdAt ?? meeting.startedAt
   for (const s of segments) {
-    const speaker = s.speakerLabel ?? 'Unknown'
-    lines.push(`[${formatOffset(s.createdAt - anchor)}] **${speaker}**: ${s.sourceText}`)
+    const offset = formatOffset(s.createdAt - anchor)
+    const speaker = s.speakerLabel && s.speakerLabel !== 'Unknown' ? `**${s.speakerLabel}**: ` : ''
+    lines.push(`[${offset}] ${speaker}${s.sourceText}`)
     if (s.translatedText) lines.push(`  -> ${s.translatedText}`)
   }
   lines.push('')

@@ -25,16 +25,27 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 3.5)
 }
 
+function coerceMarkdownString(value: unknown, field: string): string {
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) {
+    return value
+      .filter((v): v is string => typeof v === 'string')
+      .map((v) => (v.trimStart().startsWith('-') ? v : `- ${v}`))
+      .join('\n')
+  }
+  throw new Error(`${field} missing or wrong type`)
+}
+
 function validateSummaryJson(raw: unknown): SummaryJSON {
-  if (!raw || typeof raw !== 'object') throw new Error('not an object')
+  if (!raw || typeof raw !== 'object') throw new Error('response is not an object')
   const obj = raw as Record<string, unknown>
-  if (typeof obj.shortSummary !== 'string') throw new Error('shortSummary missing')
-  if (typeof obj.detailedSummary !== 'string') throw new Error('detailedSummary missing')
-  if (!Array.isArray(obj.keyPoints)) throw new Error('keyPoints missing')
-  if (!Array.isArray(obj.actionItems)) throw new Error('actionItems missing')
+  if (typeof obj.shortSummary !== 'string') throw new Error('shortSummary missing or wrong type')
+  const detailedSummary = coerceMarkdownString(obj.detailedSummary, 'detailedSummary')
+  if (!Array.isArray(obj.keyPoints)) throw new Error('keyPoints missing or not an array')
+  if (!Array.isArray(obj.actionItems)) throw new Error('actionItems missing or not an array')
   return {
     shortSummary: obj.shortSummary,
-    detailedSummary: obj.detailedSummary,
+    detailedSummary,
     keyPoints: obj.keyPoints.filter((k): k is string => typeof k === 'string'),
     actionItems: obj.actionItems
       .filter((a): a is Record<string, unknown> => !!a && typeof a === 'object')
@@ -128,14 +139,14 @@ export class SummaryService {
   }
 
   private async generateSingleCall(meetingId: string, userPrompt: string): Promise<void> {
-    const parsed = await this.tryParseCall(userPrompt)
-    if (!parsed) {
+    const result = await this.tryParseCall(userPrompt)
+    if (!result.ok) {
       this.repo.upsertSummary(
-        failedSummary(meetingId, this.now(), this.model, 'Summary generation failed. Try again.')
+        failedSummary(meetingId, this.now(), this.model, `Summary failed: ${result.error}`)
       )
       return
     }
-    this.saveOk(meetingId, parsed)
+    this.saveOk(meetingId, result.value)
   }
 
   private async generateMapReduce(
@@ -146,35 +157,39 @@ export class SummaryService {
     const slices = chunkByTime(segments, CHUNK_WINDOW_MS, CHUNK_OVERLAP_MS)
     const chunkSummariesJson: string[] = []
     for (const slice of slices) {
-      const parsed = await this.tryParseCall(buildTranscriptUserPrompt(meetingStartedAt, slice))
-      if (!parsed) {
+      const result = await this.tryParseCall(buildTranscriptUserPrompt(meetingStartedAt, slice))
+      if (!result.ok) {
         this.repo.upsertSummary(
-          failedSummary(meetingId, this.now(), this.model, 'Summary failed: chunk summary failed.')
+          failedSummary(meetingId, this.now(), this.model, `Summary failed (chunk): ${result.error}`)
         )
         return
       }
-      chunkSummariesJson.push(JSON.stringify(parsed))
+      chunkSummariesJson.push(JSON.stringify(result.value))
     }
-    const parsed = await this.tryParseCall(buildReduceUserPrompt(chunkSummariesJson))
-    if (!parsed) {
+    const result = await this.tryParseCall(buildReduceUserPrompt(chunkSummariesJson))
+    if (!result.ok) {
       this.repo.upsertSummary(
-        failedSummary(meetingId, this.now(), this.model, 'Summary failed: reduce step failed.')
+        failedSummary(meetingId, this.now(), this.model, `Summary failed (reduce): ${result.error}`)
       )
       return
     }
-    this.saveOk(meetingId, parsed)
+    this.saveOk(meetingId, result.value)
   }
 
-  private async tryParseCall(userPrompt: string): Promise<SummaryJSON | null> {
+  private async tryParseCall(
+    userPrompt: string
+  ): Promise<{ ok: true; value: SummaryJSON } | { ok: false; error: string }> {
+    let lastError = 'unknown error'
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const raw = await this.call({ systemPrompt: SYSTEM_PROMPT, userPrompt })
-        return validateSummaryJson(JSON.parse(raw))
+        return { ok: true, value: validateSummaryJson(JSON.parse(raw)) }
       } catch (err) {
-        console.warn('[summary] parse failed attempt', attempt, err)
+        lastError = err instanceof Error ? err.message : String(err)
+        console.warn('[summary] parse failed attempt', attempt, lastError)
       }
     }
-    return null
+    return { ok: false, error: lastError }
   }
 
   private saveOk(meetingId: string, parsed: SummaryJSON): void {

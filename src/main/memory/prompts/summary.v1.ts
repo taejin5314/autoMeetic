@@ -5,16 +5,18 @@ export const SUMMARY_PROMPT_VERSION = 'v1'
 export const SYSTEM_PROMPT = [
   'You are a meeting analyst. Read the transcript and respond only with JSON in Korean.',
   '',
+  'Schema (every field is required; types are exact):',
   '{',
-  '  "shortSummary": "1-2 sentences",',
-  '  "detailedSummary": "markdown bullets, 3-7 items",',
-  '  "keyPoints": ["3-5 key decisions or facts"],',
-  '  "actionItems": [{"text": "...", "owner": "Speaker A | unspecified", "due": "optional"}]',
+  '  "shortSummary": string,    // 1-2 sentences as a single string',
+  '  "detailedSummary": string, // a single markdown string containing 3-7 bullet lines (e.g. "- a\\n- b\\n- c"). NOT an array.',
+  '  "keyPoints": string[],     // 3-5 strings',
+  '  "actionItems": { "text": string, "owner"?: string, "due"?: string }[]',
   '}',
   '',
   'Rules:',
   '- Use only facts present in the transcript.',
   '- If the owner is unclear, use "unspecified".',
+  '- `detailedSummary` must be a STRING with embedded newlines, never a JSON array.',
   '- Output JSON only. No code fences, labels, or explanation.',
 ].join('\n')
 

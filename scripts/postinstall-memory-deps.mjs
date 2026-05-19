@@ -10,33 +10,23 @@ function run(cmd, args, options = {}) {
   })
 }
 
-const electronRebuild = path.join(process.cwd(), 'node_modules', '@electron', 'rebuild', 'lib', 'cli.js')
-const rebuild = run(process.execPath, [electronRebuild, '-f', '-w', 'better-sqlite3'])
 const strictElectronRebuild =
   process.env.AUTOMEETIC_STRICT_ELECTRON_REBUILD === '1' ||
   process.env.npm_config_runtime === 'electron' ||
   process.env.npm_lifecycle_event === 'build:win' ||
   process.env.npm_lifecycle_event === 'build:mac'
 
-if (rebuild.status === 0) {
-  process.exit(0)
+const prepareNativeDeps = path.join(process.cwd(), 'scripts', 'prepare-native-deps.mjs')
+const target = strictElectronRebuild ? 'electron' : 'node'
+const prepare = run(process.execPath, [prepareNativeDeps, target])
+
+if (prepare.status !== 0 && strictElectronRebuild) {
+  console.error('[postinstall] failed to prepare better-sqlite3 for Electron in strict mode.')
+  process.exit(prepare.status ?? 1)
 }
 
-if (strictElectronRebuild) {
-  console.error('[postinstall] electron-rebuild failed for better-sqlite3 in strict Electron mode.')
-  process.exit(rebuild.status ?? 1)
-}
-
-console.warn(
-  '[postinstall] electron-rebuild failed for better-sqlite3; restoring the Node prebuild for local tests.'
-)
-
-const betterSqliteDir = path.join(process.cwd(), 'node_modules', 'better-sqlite3')
-const prebuildInstall = path.join(process.cwd(), 'node_modules', 'prebuild-install', 'bin.js')
-const restore = run(process.execPath, [prebuildInstall, '--verbose'], { cwd: betterSqliteDir })
-
-if (restore.status !== 0) {
+if (prepare.status !== 0) {
   console.warn(
-    '[postinstall] failed to restore better-sqlite3 Node prebuild; install will continue, but memory smoke checks may fail.'
+    `[postinstall] failed to prepare better-sqlite3 for ${target}; install will continue, but memory checks may fail.`
   )
 }

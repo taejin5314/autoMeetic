@@ -714,7 +714,7 @@ function App() {
     setSessionStartMs(null)
     updateHealth('capture', 'disconnected', 'session reset')
     updateHealth('stt', 'disconnected', 'session reset')
-    updateHealth('translation', 'disconnected', 'not connected')
+    // translation health is config-driven; let the translationTarget effect manage it
 
     const ws = whiteboardWsRef.current
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -782,11 +782,6 @@ function App() {
   const onTranslationChange = (next: string): void => {
     window.localStorage.setItem(TRANSLATION_TARGET_STORAGE_KEY, next)
     setTranslationTarget(next)
-    updateHealth(
-      'translation',
-      next === 'off' ? 'disconnected' : 'connected',
-      next === 'off' ? 'not connected' : `to ${next}`
-    )
     if (isElectron && window.electronAPI) {
       void window.electronAPI.setTranscriptLanguages({
         sourceLanguage: sttLanguage,
@@ -794,6 +789,14 @@ function App() {
       })
     }
   }
+
+  useEffect(() => {
+    updateHealth(
+      'translation',
+      translationTarget === 'off' ? 'disconnected' : 'connected',
+      translationTarget === 'off' ? 'not connected' : `to ${translationTarget}`
+    )
+  }, [translationTarget, updateHealth])
 
   useEffect(() => {
     if (isElectron && window.electronAPI) {
