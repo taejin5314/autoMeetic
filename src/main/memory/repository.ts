@@ -521,6 +521,48 @@ export class MemoryRepository {
     this.db.prepare('DELETE FROM glossary_entries WHERE id = ?').run(id)
   }
 
+  activeGlossary(meetingId: string | null): GlossaryEntry[] {
+    let rows: Array<
+      Omit<GlossaryEntry, 'translations' | 'preserve'> & {
+        translations: string
+        preserve: number
+      }
+    >
+    if (meetingId) {
+      rows = this.db
+        .prepare(
+          `SELECT id, scope, meeting_id AS meetingId, source_term AS sourceTerm,
+                  translations, preserve, note,
+                  created_at AS createdAt, updated_at AS updatedAt
+           FROM glossary_entries
+           WHERE scope = 'global'
+              OR (scope = 'meeting' AND meeting_id = ?)
+           ORDER BY scope ASC, updated_at DESC, rowid DESC`
+        )
+        .all(meetingId) as typeof rows
+    } else {
+      rows = this.db
+        .prepare(
+          `SELECT id, scope, meeting_id AS meetingId, source_term AS sourceTerm,
+                  translations, preserve, note,
+                  created_at AS createdAt, updated_at AS updatedAt
+           FROM glossary_entries
+           WHERE scope = 'global'
+           ORDER BY updated_at DESC, rowid DESC`
+        )
+        .all() as typeof rows
+    }
+    const parsed: GlossaryEntry[] = rows.map((r) => ({
+      ...r,
+      translations: JSON.parse(r.translations) as Record<string, string>,
+      preserve: r.preserve === 1,
+    }))
+    // 'global' < 'meeting' alphabetically, so meeting rows come last and overwrite globals.
+    const byKey = new Map<string, GlossaryEntry>()
+    for (const e of parsed) byKey.set(e.sourceTerm.toLowerCase(), e)
+    return Array.from(byKey.values())
+  }
+
   getGlossaryEntry(id: string): GlossaryEntry | null {
     const row = this.db
       .prepare(

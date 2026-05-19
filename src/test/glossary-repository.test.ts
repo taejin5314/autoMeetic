@@ -157,3 +157,67 @@ describe('MemoryRepository deleteGlossary', () => {
     repo.close()
   })
 })
+
+describe('MemoryRepository activeGlossary', () => {
+  it('returns only globals when meetingId is null', () => {
+    const repo = makeRepo()
+    repo.upsertGlossary(sampleInput({ sourceTerm: 'g1' }))
+    const list = repo.activeGlossary(null)
+    expect(list.map((e) => e.sourceTerm)).toEqual(['g1'])
+    repo.close()
+  })
+
+  it('merges globals and meeting entries when meetingId is provided', () => {
+    const repo = makeRepo()
+    repo.insertMeeting({
+      id: 'mtg_a',
+      title: 't',
+      startedAt: 1,
+      endedAt: null,
+      sourceLanguage: 'auto',
+      targetLanguage: 'ko',
+      status: 'live',
+      segmentCount: 0,
+      durationMs: null,
+    })
+    repo.upsertGlossary(sampleInput({ sourceTerm: 'global1' }))
+    repo.upsertGlossary(sampleInput({ scope: 'meeting', meetingId: 'mtg_a', sourceTerm: 'meeting1' }))
+    const list = repo.activeGlossary('mtg_a')
+    expect(list.map((e) => e.sourceTerm).sort()).toEqual(['global1', 'meeting1'])
+    repo.close()
+  })
+
+  it('lets meeting entries override a global entry with same case-insensitive source_term', () => {
+    const repo = makeRepo()
+    repo.insertMeeting({
+      id: 'mtg_a',
+      title: 't',
+      startedAt: 1,
+      endedAt: null,
+      sourceLanguage: 'auto',
+      targetLanguage: 'ko',
+      status: 'live',
+      segmentCount: 0,
+      durationMs: null,
+    })
+    repo.upsertGlossary(
+      sampleInput({
+        sourceTerm: 'kunchen',
+        translations: { ko: '쿤 첸 (global)' },
+      })
+    )
+    repo.upsertGlossary(
+      sampleInput({
+        scope: 'meeting',
+        meetingId: 'mtg_a',
+        sourceTerm: 'KunChen',
+        translations: { ko: '쿤 첸 (meeting)' },
+      })
+    )
+    const list = repo.activeGlossary('mtg_a')
+    expect(list).toHaveLength(1)
+    expect(list[0].scope).toBe('meeting')
+    expect(list[0].translations.ko).toBe('쿤 첸 (meeting)')
+    repo.close()
+  })
+})
