@@ -517,6 +517,10 @@ export class MemoryRepository {
     }))
   }
 
+  deleteGlossary(id: string): void {
+    this.db.prepare('DELETE FROM glossary_entries WHERE id = ?').run(id)
+  }
+
   getGlossaryEntry(id: string): GlossaryEntry | null {
     const row = this.db
       .prepare(

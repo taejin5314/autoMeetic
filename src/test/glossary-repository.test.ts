@@ -141,3 +141,19 @@ describe('MemoryRepository listGlossary', () => {
     repo.close()
   })
 })
+
+describe('MemoryRepository deleteGlossary', () => {
+  it('removes an entry by id', () => {
+    const repo = makeRepo()
+    const entry = repo.upsertGlossary(sampleInput())
+    repo.deleteGlossary(entry.id)
+    expect(repo.getGlossaryEntry(entry.id)).toBeNull()
+    repo.close()
+  })
+
+  it('is a no-op when id does not exist', () => {
+    const repo = makeRepo()
+    expect(() => repo.deleteGlossary('does-not-exist')).not.toThrow()
+    repo.close()
+  })
+})
