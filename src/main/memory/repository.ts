@@ -406,6 +406,9 @@ export class MemoryRepository {
     if (!term) throw new Error('sourceTerm must not be empty')
     if (term.length > 100) throw new Error('sourceTerm must be <= 100 chars')
     for (const [lang, val] of Object.entries(input.translations)) {
+      if (!lang || lang.length > 20) {
+        throw new Error(`translations key must be a non-empty string <= 20 chars`)
+      }
       if (typeof val !== 'string' || val.length > 100) {
         throw new Error(`translations[${lang}] must be a string <= 100 chars`)
       }
@@ -438,7 +441,7 @@ export class MemoryRepository {
           input.scope,
           input.meetingId,
           term,
-          JSON.stringify(input.translations ?? {}),
+          JSON.stringify(input.translations),
           input.preserve ? 1 : 0,
           input.note,
           now,
@@ -470,7 +473,7 @@ export class MemoryRepository {
         input.scope,
         input.meetingId,
         term,
-        JSON.stringify(input.translations ?? {}),
+        JSON.stringify(input.translations),
         input.preserve ? 1 : 0,
         input.note,
         now,

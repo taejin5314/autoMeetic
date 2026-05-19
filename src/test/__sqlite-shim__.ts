@@ -12,6 +12,9 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { createRequire } from 'module'
+import type Database from 'better-sqlite3'
+
+type DatabaseCtor = typeof Database
 
 const _require = createRequire(import.meta.url)
 
@@ -21,11 +24,9 @@ const altBinary = path.resolve(
   '../../node_modules/better-sqlite3/build/Release/better_sqlite3_node115.node'
 )
 
-// Load the module itself — may succeed (returns the constructor) or fail (wrong ABI)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mod = _require('better-sqlite3') as any
+const mod = _require('better-sqlite3') as DatabaseCtor
 
-// Try to instantiate with the default binary
+// Probe whether the default native binding works in this environment.
 let defaultWorks = true
 try {
   const db = new mod(':memory:')
@@ -34,21 +35,18 @@ try {
   defaultWorks = false
 }
 
-// Build a Database-like constructor that injects nativeBinding when needed
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let DatabaseExport: any
+let DatabaseExport: DatabaseCtor
 
 if (defaultWorks) {
   DatabaseExport = mod
 } else {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  DatabaseExport = function Database(filename: string, opts: Record<string, any> = {}) {
-    return new mod(filename, { ...opts, nativeBinding: altBinary })
-  }
-  // Copy static properties
-  Object.assign(DatabaseExport, mod)
-  Object.setPrototypeOf(DatabaseExport, Object.getPrototypeOf(mod))
-  DatabaseExport.prototype = mod.prototype
+  const Fallback = function (this: unknown, filename: string, opts: Record<string, unknown> = {}) {
+    return new mod(filename, { ...opts, nativeBinding: altBinary } as Database.Options)
+  } as unknown as DatabaseCtor
+  Object.assign(Fallback, mod)
+  Object.setPrototypeOf(Fallback, Object.getPrototypeOf(mod))
+  Fallback.prototype = mod.prototype
+  DatabaseExport = Fallback
 }
 
 export default DatabaseExport
