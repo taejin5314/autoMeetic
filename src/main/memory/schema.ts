@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY);
@@ -47,4 +47,20 @@ CREATE TABLE IF NOT EXISTS segment_embeddings (
   vector     BLOB NOT NULL,
   model      TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS glossary_entries (
+  id              TEXT PRIMARY KEY,
+  scope           TEXT NOT NULL CHECK (scope IN ('global', 'meeting')),
+  meeting_id      TEXT REFERENCES meetings(id) ON DELETE CASCADE,
+  source_term     TEXT NOT NULL,
+  translations    TEXT NOT NULL DEFAULT '{}',
+  preserve        INTEGER NOT NULL DEFAULT 0,
+  note            TEXT,
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_glossary_scope_meeting
+  ON glossary_entries(scope, meeting_id);
+CREATE INDEX IF NOT EXISTS idx_glossary_source
+  ON glossary_entries(source_term COLLATE NOCASE);
 `
