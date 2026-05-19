@@ -372,24 +372,24 @@ export class MemoryRepository {
       startedAt: number
     }>
     const byId = new Map(found.map((f) => [f.segmentId, f]))
-    return rows
-      .map((r) => {
-        const f = byId.get(r.segmentId)
-        if (!f) return null
-        return {
-          kind: 'segment',
-          meetingId: f.meetingId,
-          meetingTitle: f.meetingTitle,
-          startedAt: f.startedAt,
-          segmentId: f.segmentId,
-          seq: f.seq,
-          speakerLabel: f.speakerLabel,
-          sourceText: f.sourceText,
-          translatedText: f.translatedText,
-          score: r.score,
-        } satisfies SearchHit
+    const hits: SearchHit[] = []
+    for (const row of rows) {
+      const foundRow = byId.get(row.segmentId)
+      if (!foundRow) continue
+      hits.push({
+        kind: 'segment',
+        meetingId: foundRow.meetingId,
+        meetingTitle: foundRow.meetingTitle,
+        startedAt: foundRow.startedAt,
+        segmentId: foundRow.segmentId,
+        seq: foundRow.seq,
+        speakerLabel: foundRow.speakerLabel,
+        sourceText: foundRow.sourceText,
+        translatedText: foundRow.translatedText,
+        score: row.score,
       })
-      .filter((h): h is SearchHit => h !== null)
+    }
+    return hits
   }
 
   close(): void {

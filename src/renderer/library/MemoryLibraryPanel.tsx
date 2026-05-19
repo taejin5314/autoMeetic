@@ -38,16 +38,17 @@ function highlightMatches(text: string, query: string): ReactNode {
   const lowerQuery = trimmed.toLowerCase()
   const parts: ReactNode[] = []
   let cursor = 0
-  let key = 0
   while (cursor < text.length) {
     const idx = lowerText.indexOf(lowerQuery, cursor)
     if (idx === -1) {
-      parts.push(<Fragment key={key++}>{text.slice(cursor)}</Fragment>)
+      parts.push(<Fragment key={`text-${parts.length}`}>{text.slice(cursor)}</Fragment>)
       break
     }
-    if (idx > cursor) parts.push(<Fragment key={key++}>{text.slice(cursor, idx)}</Fragment>)
+    if (idx > cursor) {
+      parts.push(<Fragment key={`text-${parts.length}`}>{text.slice(cursor, idx)}</Fragment>)
+    }
     parts.push(
-      <mark className="memory-match" key={key++}>
+      <mark className="memory-match" key={`match-${parts.length}`}>
         {text.slice(idx, idx + trimmed.length)}
       </mark>
     )
@@ -124,8 +125,11 @@ export function MemoryLibraryPanel({ open, onClose }: MemoryLibraryPanelProps) {
   }, [api, loadDetail, loadMeetings, open, selectedId])
 
   useEffect(() => {
-    setRenameDraft(null)
-    setConfirmDelete(false)
+    const timeout = window.setTimeout(() => {
+      setRenameDraft(null)
+      setConfirmDelete(false)
+    }, 0)
+    return () => window.clearTimeout(timeout)
   }, [selectedId])
 
   useEffect(() => {
@@ -149,9 +153,11 @@ export function MemoryLibraryPanel({ open, onClose }: MemoryLibraryPanelProps) {
     if (!api || !open) return
     const trimmed = query.trim()
     if (!trimmed) {
-      setHits([])
-      setError(null)
-      return
+      const timeout = window.setTimeout(() => {
+        setHits([])
+        setError(null)
+      }, 0)
+      return () => window.clearTimeout(timeout)
     }
     let cancelled = false
     const timeout = window.setTimeout(() => {

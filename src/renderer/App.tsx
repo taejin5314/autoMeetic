@@ -606,7 +606,15 @@ function App() {
     }
   }, [])
 
-  const snapshot = health.getSnapshot()
+  const healthSnapshot = health.getSnapshot()
+  const snapshot = {
+    ...healthSnapshot,
+    translation: {
+      ...healthSnapshot.translation,
+      status: translationTarget === 'off' ? 'disconnected' : 'connected',
+      message: translationTarget === 'off' ? 'not connected' : `to ${translationTarget}`,
+    },
+  } as const
   void healthTick
 
   const transcriptCount = items.length
@@ -809,14 +817,6 @@ function App() {
       })
     }
   }
-
-  useEffect(() => {
-    updateHealth(
-      'translation',
-      translationTarget === 'off' ? 'disconnected' : 'connected',
-      translationTarget === 'off' ? 'not connected' : `to ${translationTarget}`
-    )
-  }, [translationTarget, updateHealth])
 
   useEffect(() => {
     if (isElectron && window.electronAPI) {
