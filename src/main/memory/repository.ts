@@ -1,6 +1,15 @@
 import Database from 'better-sqlite3'
 import { SCHEMA_SQL, SCHEMA_VERSION } from './schema'
-import type { Meeting, MeetingStatus, SearchHit, Segment, SegmentEmbedding, Summary } from './types'
+import type {
+  GlossaryEntry,
+  GlossaryEntryInput,
+  Meeting,
+  MeetingStatus,
+  SearchHit,
+  Segment,
+  SegmentEmbedding,
+  Summary,
+} from './types'
 
 export class MemoryRepository {
   private db: Database.Database
@@ -390,6 +399,106 @@ export class MemoryRepository {
       })
     }
     return hits
+  }
+
+  upsertGlossary(input: GlossaryEntryInput): GlossaryEntry {
+    const term = input.sourceTerm.trim()
+    if (!term) throw new Error('sourceTerm must not be empty')
+    if (term.length > 100) throw new Error('sourceTerm must be <= 100 chars')
+    for (const [lang, val] of Object.entries(input.translations)) {
+      if (typeof val !== 'string' || val.length > 100) {
+        throw new Error(`translations[${lang}] must be a string <= 100 chars`)
+      }
+    }
+    if (input.note != null && input.note.length > 500) {
+      throw new Error('note must be <= 500 chars')
+    }
+    if (input.scope === 'meeting' && !input.meetingId) {
+      throw new Error('meeting-scope entries require a meetingId')
+    }
+    if (input.scope === 'global' && input.meetingId) {
+      throw new Error('global-scope entries must not have a meetingId')
+    }
+
+    const now = Date.now()
+
+    if (input.id) {
+      const existing = this.db
+        .prepare('SELECT created_at AS createdAt FROM glossary_entries WHERE id = ?')
+        .get(input.id) as { createdAt: number } | undefined
+      if (!existing) throw new Error(`glossary entry not found: ${input.id}`)
+      this.db
+        .prepare(
+          `UPDATE glossary_entries
+           SET scope = ?, meeting_id = ?, source_term = ?,
+               translations = ?, preserve = ?, note = ?, updated_at = ?
+           WHERE id = ?`
+        )
+        .run(
+          input.scope,
+          input.meetingId,
+          term,
+          JSON.stringify(input.translations ?? {}),
+          input.preserve ? 1 : 0,
+          input.note,
+          now,
+          input.id
+        )
+      return this.getGlossaryEntry(input.id)!
+    }
+
+    const dup = this.db
+      .prepare(
+        `SELECT id FROM glossary_entries
+         WHERE scope = ?
+           AND (meeting_id IS ? OR meeting_id = ?)
+           AND LOWER(source_term) = LOWER(?)
+         LIMIT 1`
+      )
+      .get(input.scope, input.meetingId, input.meetingId, term) as { id: string } | undefined
+    if (dup) throw new Error(`duplicate glossary entry exists for "${term}"`)
+
+    const id = `gloss_${now.toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+    this.db
+      .prepare(
+        `INSERT INTO glossary_entries
+         (id, scope, meeting_id, source_term, translations, preserve, note, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        id,
+        input.scope,
+        input.meetingId,
+        term,
+        JSON.stringify(input.translations ?? {}),
+        input.preserve ? 1 : 0,
+        input.note,
+        now,
+        now
+      )
+    return this.getGlossaryEntry(id)!
+  }
+
+  getGlossaryEntry(id: string): GlossaryEntry | null {
+    const row = this.db
+      .prepare(
+        `SELECT id, scope, meeting_id AS meetingId, source_term AS sourceTerm,
+                translations, preserve, note,
+                created_at AS createdAt, updated_at AS updatedAt
+         FROM glossary_entries WHERE id = ?`
+      )
+      .get(id) as
+      | (Omit<GlossaryEntry, 'translations' | 'preserve'> & {
+          translations: string
+          preserve: number
+        })
+      | undefined
+    if (!row) return null
+    return {
+      ...row,
+      translations: JSON.parse(row.translations) as Record<string, string>,
+      preserve: row.preserve === 1,
+    }
   }
 
   close(): void {
