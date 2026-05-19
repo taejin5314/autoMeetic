@@ -90,3 +90,25 @@ export interface MeetingUpdatedEvent {
   meetingId: string
   kind: MeetingUpdatedKind
 }
+
+export interface GlossaryEntry {
+  id: string
+  scope: 'global' | 'meeting'
+  meetingId: string | null
+  sourceTerm: string
+  translations: Record<string, string>
+  preserve: boolean
+  note: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+export interface GlossaryEntryInput {
+  id?: string
+  scope: 'global' | 'meeting'
+  meetingId: string | null
+  sourceTerm: string
+  translations: Record<string, string>
+  preserve: boolean
+  note: string | null
+}
