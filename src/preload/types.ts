@@ -1,5 +1,12 @@
 import type { ProcessedTurnsEvent } from '../main/stt/types'
-import type { MeetingDetail, MeetingSummary, MeetingUpdatedEvent, SearchHit } from '../main/memory/types'
+import type {
+  GlossaryEntry,
+  GlossaryEntryInput,
+  MeetingDetail,
+  MeetingSummary,
+  MeetingUpdatedEvent,
+  SearchHit,
+} from '../main/memory/types'
 
 export interface TranslationPatchEvent {
   id: string
@@ -22,8 +29,17 @@ export interface MemoryAPI {
   onMeetingUpdated(callback: (event: MeetingUpdatedEvent) => void): () => void
 }
 
+export interface GlossaryAPI {
+  list(scope: 'global' | 'meeting', meetingId?: string): Promise<GlossaryEntry[]>
+  upsert(entry: GlossaryEntryInput): Promise<GlossaryEntry>
+  delete(id: string): Promise<void>
+  active(meetingId?: string): Promise<GlossaryEntry[]>
+  onChanged(handler: () => void): () => void
+}
+
 export interface ElectronAPI {
   memory: MemoryAPI
+  glossary: GlossaryAPI
 
   // Actions
   translate(text: string, targetLang: string): Promise<{ translation: string }>

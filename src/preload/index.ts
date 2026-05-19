@@ -28,6 +28,13 @@ const electronAPI: ElectronAPI = {
       'memory:meeting-updated'
     ) as ElectronAPI['memory']['onMeetingUpdated'],
   },
+  glossary: {
+    list: (scope, meetingId) => ipcRenderer.invoke('glossary:list', { scope, meetingId }),
+    upsert: (entry) => ipcRenderer.invoke('glossary:upsert', { entry }),
+    delete: (id) => ipcRenderer.invoke('glossary:delete', { id }),
+    active: (meetingId) => ipcRenderer.invoke('glossary:active', { meetingId }),
+    onChanged: createEventListener('glossary:changed') as ElectronAPI['glossary']['onChanged'],
+  },
 
   // Actions
   translate: (text, targetLang) => ipcRenderer.invoke('translate', { text, targetLang }),
