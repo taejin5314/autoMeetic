@@ -82,3 +82,62 @@ describe('MemoryRepository upsertGlossary', () => {
     repo.close()
   })
 })
+
+describe('MemoryRepository listGlossary', () => {
+  it('returns only global entries by default', () => {
+    const repo = makeRepo()
+    repo.upsertGlossary(sampleInput({ sourceTerm: 'g1' }))
+    repo.insertMeeting({
+      id: 'mtg_a',
+      title: 't',
+      startedAt: 1,
+      endedAt: null,
+      sourceLanguage: 'auto',
+      targetLanguage: 'ko',
+      status: 'live',
+      segmentCount: 0,
+      durationMs: null,
+    })
+    repo.upsertGlossary(sampleInput({ scope: 'meeting', meetingId: 'mtg_a', sourceTerm: 'm1' }))
+    const list = repo.listGlossary('global')
+    expect(list.map((e) => e.sourceTerm)).toEqual(['g1'])
+    repo.close()
+  })
+
+  it('returns only meeting entries when scope=meeting and meetingId is provided', () => {
+    const repo = makeRepo()
+    repo.insertMeeting({
+      id: 'mtg_a',
+      title: 't',
+      startedAt: 1,
+      endedAt: null,
+      sourceLanguage: 'auto',
+      targetLanguage: 'ko',
+      status: 'live',
+      segmentCount: 0,
+      durationMs: null,
+    })
+    repo.upsertGlossary(sampleInput({ scope: 'meeting', meetingId: 'mtg_a', sourceTerm: 'm1' }))
+    repo.upsertGlossary(sampleInput({ sourceTerm: 'g1' }))
+    const list = repo.listGlossary('meeting', 'mtg_a')
+    expect(list.map((e) => e.sourceTerm)).toEqual(['m1'])
+    repo.close()
+  })
+
+  it('returns empty array when no matching entries', () => {
+    const repo = makeRepo()
+    expect(repo.listGlossary('global')).toEqual([])
+    repo.close()
+  })
+
+  it('orders by updated_at DESC within scope', () => {
+    const repo = makeRepo()
+    repo.upsertGlossary(sampleInput({ sourceTerm: 'a' }))
+    repo.upsertGlossary(sampleInput({ sourceTerm: 'b' }))
+    repo.upsertGlossary(sampleInput({ sourceTerm: 'c' }))
+    const list = repo.listGlossary('global')
+    expect(list[0].sourceTerm).toBe('c')
+    expect(list[list.length - 1].sourceTerm).toBe('a')
+    repo.close()
+  })
+})

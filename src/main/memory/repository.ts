@@ -479,6 +479,44 @@ export class MemoryRepository {
     return this.getGlossaryEntry(id)!
   }
 
+  listGlossary(scope: 'global' | 'meeting', meetingId?: string): GlossaryEntry[] {
+    let rows: Array<
+      Omit<GlossaryEntry, 'translations' | 'preserve'> & {
+        translations: string
+        preserve: number
+      }
+    >
+    if (scope === 'global') {
+      rows = this.db
+        .prepare(
+          `SELECT id, scope, meeting_id AS meetingId, source_term AS sourceTerm,
+                  translations, preserve, note,
+                  created_at AS createdAt, updated_at AS updatedAt
+           FROM glossary_entries
+           WHERE scope = 'global'
+           ORDER BY updated_at DESC, rowid DESC`
+        )
+        .all() as typeof rows
+    } else {
+      if (!meetingId) return []
+      rows = this.db
+        .prepare(
+          `SELECT id, scope, meeting_id AS meetingId, source_term AS sourceTerm,
+                  translations, preserve, note,
+                  created_at AS createdAt, updated_at AS updatedAt
+           FROM glossary_entries
+           WHERE scope = 'meeting' AND meeting_id = ?
+           ORDER BY updated_at DESC, rowid DESC`
+        )
+        .all(meetingId) as typeof rows
+    }
+    return rows.map((r) => ({
+      ...r,
+      translations: JSON.parse(r.translations) as Record<string, string>,
+      preserve: r.preserve === 1,
+    }))
+  }
+
   getGlossaryEntry(id: string): GlossaryEntry | null {
     const row = this.db
       .prepare(
