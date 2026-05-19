@@ -4,7 +4,7 @@ import { MemoryRepository } from '../main/memory/repository'
 describe('MemoryRepository init', () => {
   it('creates schema and reports version 1 on a fresh in-memory db', () => {
     const repo = new MemoryRepository(':memory:')
-    expect(repo.getSchemaVersion()).toBe(1)
+    expect(repo.getSchemaVersion()).toBe(2)
     repo.close()
   })
 
@@ -12,7 +12,7 @@ describe('MemoryRepository init', () => {
     const repo = new MemoryRepository(':memory:')
     repo.close()
     const repo2 = new MemoryRepository(':memory:')
-    expect(repo2.getSchemaVersion()).toBe(1)
+    expect(repo2.getSchemaVersion()).toBe(2)
     repo2.close()
   })
 
