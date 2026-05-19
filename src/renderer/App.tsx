@@ -97,12 +97,6 @@ function conflictsWithLockedLanguage(text: string, lockedLanguage: string): bool
   return false
 }
 
-function statusClass(status: 'connected' | 'degraded' | 'disconnected'): string {
-  if (status === 'connected') return 'dot active'
-  if (status === 'degraded') return 'dot degraded'
-  return 'dot'
-}
-
 function isWhiteboardElement(value: unknown): value is WhiteboardElement {
   if (!value || typeof value !== 'object') return false
   const element = value as Partial<WhiteboardElement>
@@ -169,6 +163,33 @@ function ThemeToggle({
         </button>
       ))}
     </div>
+  )
+}
+
+type PipelineStatus = 'connected' | 'degraded' | 'disconnected'
+
+function PipelineStage({
+  name,
+  status,
+  message,
+}: {
+  name: string
+  status: PipelineStatus
+  message?: string
+}) {
+  const cls =
+    status === 'connected'
+      ? 'cc-pipeline-stage ok'
+      : status === 'degraded'
+        ? 'cc-pipeline-stage warn'
+        : 'cc-pipeline-stage idle'
+  const note = message ?? (status === 'connected' ? 'ok' : status)
+  return (
+    <span className={cls} title={`${name}: ${message ?? status}`}>
+      <span className="cc-pipeline-dot" />
+      <span className="cc-pipeline-name">{name}</span>
+      <span className="cc-pipeline-note">{note}</span>
+    </span>
   )
 }
 
@@ -756,7 +777,6 @@ function App() {
   const showTranslationColumn = translationTarget !== 'off' && targetLang !== sourceLang
   const hasFeedContent = items.length > 0
   const heroSourceText = compactHeroCaption(captionText)
-  const heroTargetText = ''
   const heroDurationLabel = sessionStartMs ? formatDuration(totalAudioMs) : '00:00'
   const langCode = (code: string) => (code === 'auto' || code === 'off' ? '—' : code.toUpperCase())
   const answerBusy = answerAssist.status === 'loading' || answerAssist.status === 'streaming'
@@ -820,30 +840,34 @@ function App() {
             </span>
             <span className="v4p-live-time amw-mono">{heroDurationLabel}</span>
           </span>
-          <div className="v4p-statusdots" title="capture · stt · translate · agent">
-            <span
-              className={statusClass(snapshot.capture.status)}
-              title={`Capture: ${snapshot.capture.message ?? snapshot.capture.status}`}
+          <div className="cc-pipeline" role="group" aria-label="Pipeline status">
+            <PipelineStage
+              name="Capture"
+              status={snapshot.capture.status}
+              message={snapshot.capture.message}
             />
-            <span
-              className={statusClass(snapshot.stt.status)}
-              title={`STT: ${snapshot.stt.message ?? snapshot.stt.status}`}
+            <PipelineStage
+              name="STT"
+              status={snapshot.stt.status}
+              message={snapshot.stt.message}
             />
-            <span
-              className={statusClass(snapshot.translation.status)}
-              title={`Translate: ${snapshot.translation.message ?? snapshot.translation.status}`}
+            <PipelineStage
+              name="Translate"
+              status={snapshot.translation.status}
+              message={snapshot.translation.message}
             />
-            <span
-              className={
+            <PipelineStage
+              name="Agent"
+              status={
                 agentStatus === 'thinking'
-                  ? 'dot active'
+                  ? 'connected'
                   : agentStatus === 'error'
-                    ? 'dot degraded'
+                    ? 'degraded'
                     : whiteboardConnected
-                      ? 'dot active'
-                      : 'dot'
+                      ? 'connected'
+                      : 'disconnected'
               }
-              title={`Agent: ${
+              message={
                 agentStatus === 'thinking'
                   ? 'generating'
                   : agentStatus === 'error'
@@ -851,7 +875,7 @@ function App() {
                     : whiteboardConnected
                       ? 'ready'
                       : 'idle'
-              }`}
+              }
             />
           </div>
         </div>
@@ -1172,12 +1196,20 @@ function App() {
                 onClick={() => setShelf('whiteboard')}
               >
                 Whiteboard
+                {whiteboardElements.length > 0 && (
+                  <span className="v4p-shelf-tab-badge amw-mono">
+                    {whiteboardElements.length}
+                  </span>
+                )}
               </button>
               <button
                 className={`v4p-shelf-tab ${shelf === 'actions' ? 'on' : ''}`}
                 onClick={() => setShelf('actions')}
               >
                 Actions
+                {actionItemList.length > 0 && (
+                  <span className="v4p-shelf-tab-badge amw-mono">{actionItemList.length}</span>
+                )}
               </button>
               <button
                 className="v4p-shelf-x"
@@ -1264,52 +1296,59 @@ function App() {
         )}
       </div>
 
-      {/* ── Now speaking hero strip ───────────────────────────── */}
-      <footer className="v4p-now">
-        <div className={`v4p-now-rail ${running ? 'on' : ''}`} />
-        <div className="v4p-now-body">
-          <div className="v4p-now-meta">
-            {running && <span className="v4p-now-pulse" />}
-            <span className="v4p-now-label">
-              <em>{running ? 'Now speaking' : 'Last caption'}</em>
+      {/* ── Broadcast lower-third console ─────────────────────── */}
+      <footer className={`cc-console ${running ? 'live' : ''}`}>
+        <div className="cc-console-meta">
+          <div className="cc-console-line">
+            {running && <span className="cc-console-pulse" aria-hidden="true" />}
+            <span className="cc-console-label">
+              {running ? 'Now speaking' : 'Last caption'}
             </span>
-            <span className="v4p-now-divider">·</span>
-            <span className="v4p-now-source">System audio</span>
-            <span className="v4p-now-divider">·</span>
-            <span className="amw-mono v4p-now-time">{heroDurationLabel}</span>
+            <span className="cc-console-sep">·</span>
+            <span className="cc-console-source">System audio</span>
+            <span className="cc-console-sep">·</span>
+            <span className="amw-mono cc-console-time">{heroDurationLabel}</span>
           </div>
-          <div className="v4p-now-en">
+          <div className="cc-console-stats">
+            <span>
+              <strong className="amw-mono">{transcriptCount}</strong> captions
+            </span>
+            <span className="cc-console-sep">·</span>
+            <span>
+              <strong className="amw-mono">{sourceWordCount}</strong> words
+            </span>
+          </div>
+        </div>
+
+        <div className="cc-console-cap">
+          <div className="cc-console-cap-src">
             {heroSourceText || (
-              <span className="v4p-now-placeholder">
+              <span className="cc-console-cap-placeholder">
                 {running
                   ? 'Listening…'
                   : 'Press Start to begin a session. Share any browser tab or window with audio.'}
               </span>
             )}
           </div>
-          {showTranslationColumn && heroTargetText && (
-            <div className="v4p-now-ko">{heroTargetText}</div>
-          )}
         </div>
-        <div className="v4p-now-aside">
+
+        <div className="cc-console-aside">
+          <div className="cc-console-meter" aria-hidden="true">
+            <span className="cc-console-meter-label">SYS</span>
+            <div className="cc-console-meter-wave">
+              <Waveform analyser={analyser} active={running} />
+            </div>
+          </div>
           <button
-            className="v4p-ask"
+            className="cc-console-ask"
+            type="button"
             onClick={triggerAnswerAssist}
             disabled={!running || answerBusy}
           >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 14 14"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-            >
-              <path d="M7 1.5L8.5 5l3.5.5-2.5 2.4.6 3.5L7 9.8 3.9 11.4l.6-3.5L2 5.5 5.5 5 7 1.5z" />
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
+              <path d="M7 1L8.5 5L13 5.5L9.5 8.5L10.5 13L7 10.5L3.5 13L4.5 8.5L1 5.5L5.5 5L7 1z" />
             </svg>
-            <span>
-              <em>{answerBusy ? 'Thinking…' : 'Ask'}</em> the meeting
-            </span>
+            <span>{answerBusy ? 'Thinking…' : 'Ask'}</span>
             <kbd>⌃⇧A</kbd>
           </button>
         </div>
