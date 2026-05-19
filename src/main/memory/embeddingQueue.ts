@@ -4,11 +4,13 @@ import type { MemoryRepository } from './repository'
 interface QueueItem {
   segmentId: string
   text: string
+  attempts?: number
 }
 
 interface QueueOptions {
   modelId: string
   batchSize?: number
+  maxAttempts?: number
 }
 
 export class EmbeddingQueue {
@@ -16,6 +18,7 @@ export class EmbeddingQueue {
   private processing: Promise<void> | null = null
   private scheduled = false
   private readonly batchSize: number
+  private readonly maxAttempts: number
   private readonly completed = new Set<string>()
   private waiters: { segmentIds: Set<string>; resolve: () => void }[] = []
   private embedder: Pick<EmbeddingService, 'embedPassages'>
@@ -31,6 +34,7 @@ export class EmbeddingQueue {
     this.repo = repo
     this.opts = opts
     this.batchSize = opts.batchSize ?? 16
+    this.maxAttempts = opts.maxAttempts ?? 3
   }
 
   enqueue(item: QueueItem): void {
@@ -99,6 +103,10 @@ export class EmbeddingQueue {
         this.notifyWaiters()
       } catch (err) {
         console.warn('[memory] embedding batch failed:', err)
+        const retryable = batch
+          .map((item) => ({ ...item, attempts: (item.attempts ?? 0) + 1 }))
+          .filter((item) => item.attempts < this.maxAttempts)
+        if (retryable.length > 0) this.items.unshift(...retryable)
       }
     }
   }

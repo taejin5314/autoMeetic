@@ -1,9 +1,11 @@
 import { ipcMain, type BrowserWindow } from 'electron'
 import { buildMemoryHandlers } from './ipc-memory-handlers'
+import { resolveMeetingLanguages, type TranscriptLanguageState } from './memory/meetingLanguages'
 import type { MemoryService } from './memory/memoryService'
 
 let mainWindowRef: BrowserWindow | null = null
 let memoryServiceRef: MemoryService | null = null
+let transcriptLanguages: TranscriptLanguageState = { sourceLanguage: 'auto', targetLanguage: 'off' }
 
 export function setMemoryService(svc: MemoryService): void {
   memoryServiceRef = svc
@@ -56,10 +58,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     const { startTranscription } = await import('./sttService')
     startTranscription(args.language, mainWindowRef!)
     if (memoryServiceRef) {
-      memoryServiceRef.beginMeeting({
-        sourceLanguage: args.language,
-        targetLanguage: 'unknown',
-      })
+      memoryServiceRef.beginMeeting(resolveMeetingLanguages(args.language, transcriptLanguages))
     }
   })
 
@@ -89,6 +88,10 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle(
     'stt:set-languages',
     (_event, args: { sourceLanguage: string; targetLanguage: string }) => {
+      transcriptLanguages = {
+        sourceLanguage: args.sourceLanguage || 'auto',
+        targetLanguage: args.targetLanguage || 'off',
+      }
       void import('./sttService').then(({ setPostProcessorLanguages }) => {
         setPostProcessorLanguages(args)
       })

@@ -223,14 +223,15 @@ export class MemoryRepository {
     }))
   }
 
-  getMissingEmbeddings(): { segmentId: string; text: string }[] {
-    return this.db
-      .prepare(
-        `SELECT s.id AS segmentId, s.source_text AS text
-         FROM segments s LEFT JOIN segment_embeddings e ON e.segment_id = s.id
-         WHERE e.segment_id IS NULL`
-      )
-      .all() as { segmentId: string; text: string }[]
+  getMissingEmbeddings(meetingId?: string): { segmentId: string; text: string }[] {
+    const meetingFilter = meetingId ? ' AND s.meeting_id = ?' : ''
+    const stmt = this.db.prepare(
+      `SELECT s.id AS segmentId, s.source_text AS text
+       FROM segments s LEFT JOIN segment_embeddings e ON e.segment_id = s.id
+       WHERE e.segment_id IS NULL${meetingFilter}
+       ORDER BY s.created_at ASC, s.seq ASC`
+    )
+    return (meetingId ? stmt.all(meetingId) : stmt.all()) as { segmentId: string; text: string }[]
   }
 
   lookupSearchHits(rows: { segmentId: string; score: number }[]): SearchHit[] {

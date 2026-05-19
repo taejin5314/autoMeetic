@@ -96,11 +96,20 @@ export class MemoryService {
     const meetingId = this.lifecycle.endMeeting()
     if (!meetingId) return null
     this.emit({ meetingId, kind: 'ended' })
-    const missing = this.repo.getMissingEmbeddings().map((m) => m.segmentId)
-    if (missing.length > 0) await this.embeddingQueue.drainPending(missing, timeoutMs)
-    void this.summaryService.generateIfAutoEnabled(meetingId).then(() => {
-      this.emit({ meetingId, kind: 'summary-ready' })
-    })
+    const missing = this.repo.getMissingEmbeddings(meetingId)
+    for (const row of missing) this.embeddingQueue.enqueue({ segmentId: row.segmentId, text: row.text })
+    if (missing.length > 0)
+      await this.embeddingQueue.drainPending(
+        missing.map((m) => m.segmentId),
+        timeoutMs
+      )
+    void this.summaryService
+      .generateIfAutoEnabled(meetingId)
+      .then(() => this.emitSummaryStatus(meetingId))
+      .catch((err) => {
+        console.warn('[memory] auto summary failed:', err)
+        this.emit({ meetingId, kind: 'summary-failed' })
+      })
     return meetingId
   }
 
@@ -148,7 +157,7 @@ export class MemoryService {
 
   async regenerateSummary(id: string): Promise<void> {
     await this.summaryService.generate(id)
-    this.emit({ meetingId: id, kind: 'summary-ready' })
+    this.emitSummaryStatus(id)
   }
 
   async dispose(): Promise<void> {
@@ -158,5 +167,10 @@ export class MemoryService {
 
   private emit(evt: MeetingUpdatedEvent): void {
     for (const listener of this.listeners) listener(evt)
+  }
+
+  private emitSummaryStatus(meetingId: string): void {
+    const summary = this.repo.getSummary(meetingId)
+    this.emit({ meetingId, kind: summary?.status === 'failed' ? 'summary-failed' : 'summary-ready' })
   }
 }

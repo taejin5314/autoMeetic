@@ -111,17 +111,17 @@ export class SummaryService {
       return
     }
 
+    const duration = meeting.durationMs ?? 0
+    if (duration > SHORT_MEETING_MS) {
+      await this.generateMapReduce(meetingId, meeting.startedAt, segments)
+      return
+    }
+
     const userPrompt = buildTranscriptUserPrompt(meeting.startedAt, segments)
     if (estimateTokens(userPrompt) > this.maxInputTokens) {
       this.repo.upsertSummary(
         failedSummary(meetingId, this.now(), this.model, 'Summary failed: meeting is too long.')
       )
-      return
-    }
-
-    const duration = meeting.durationMs ?? 0
-    if (duration > SHORT_MEETING_MS) {
-      await this.generateMapReduce(meetingId, meeting.startedAt, segments)
       return
     }
     await this.generateSingleCall(meetingId, userPrompt)

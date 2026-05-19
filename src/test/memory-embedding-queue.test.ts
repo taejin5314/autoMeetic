@@ -72,7 +72,7 @@ describe('EmbeddingQueue', () => {
     expect(ok).toBe(false)
   })
 
-  it('embedding errors do not crash subsequent batches', async () => {
+  it('retries a transient embedding batch failure instead of dropping items', async () => {
     let count = 0
     const e = {
       embedPassages: async (texts: string[]) => {
@@ -88,6 +88,6 @@ describe('EmbeddingQueue', () => {
     queue.enqueue({ segmentId: 's3', text: 't' })
     queue.enqueue({ segmentId: 's4', text: 't' })
     await queue.drain()
-    expect(r.saved.map((row) => row.segmentId)).toEqual(['s3', 's4'])
+    expect(r.saved.map((row) => row.segmentId)).toEqual(['s1', 's2', 's3', 's4'])
   })
 })

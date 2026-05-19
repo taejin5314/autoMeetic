@@ -12,13 +12,23 @@ function run(cmd, args, options = {}) {
 
 const electronRebuild = path.join(process.cwd(), 'node_modules', '@electron', 'rebuild', 'lib', 'cli.js')
 const rebuild = run(process.execPath, [electronRebuild, '-f', '-w', 'better-sqlite3'])
+const strictElectronRebuild =
+  process.env.AUTOMEETIC_STRICT_ELECTRON_REBUILD === '1' ||
+  process.env.npm_config_runtime === 'electron' ||
+  process.env.npm_lifecycle_event === 'build:win' ||
+  process.env.npm_lifecycle_event === 'build:mac'
 
 if (rebuild.status === 0) {
   process.exit(0)
 }
 
+if (strictElectronRebuild) {
+  console.error('[postinstall] electron-rebuild failed for better-sqlite3 in strict Electron mode.')
+  process.exit(rebuild.status ?? 1)
+}
+
 console.warn(
-  '[postinstall] electron-rebuild failed for better-sqlite3; restoring the Node prebuild for tests.'
+  '[postinstall] electron-rebuild failed for better-sqlite3; restoring the Node prebuild for local tests.'
 )
 
 const betterSqliteDir = path.join(process.cwd(), 'node_modules', 'better-sqlite3')

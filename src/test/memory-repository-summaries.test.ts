@@ -126,6 +126,36 @@ describe('MemoryRepository embeddings', () => {
     expect(missing[0].text).toBe('b')
     repo.close()
   })
+
+  it('lists missing embeddings for one meeting without including stale rows from another meeting', () => {
+    const { repo } = setup()
+    repo.insertMeeting({
+      id: 'mtg_2',
+      title: 't2',
+      startedAt: 2,
+      endedAt: null,
+      sourceLanguage: 'en',
+      targetLanguage: 'ko',
+      status: 'completed',
+      segmentCount: 0,
+      durationMs: null,
+    })
+    repo.insertSegment({
+      id: 'seg_2',
+      meetingId: 'mtg_2',
+      seq: 0,
+      createdAt: 20,
+      speakerId: null,
+      speakerLabel: null,
+      sourceText: 'other meeting',
+      translatedText: null,
+      sourceLanguage: 'en',
+    })
+    expect(repo.getMissingEmbeddings('mtg_1')).toEqual([
+      { segmentId: 'seg_1', text: 'hello world' },
+    ])
+    repo.close()
+  })
 })
 
 describe('MemoryRepository cascade delete', () => {

@@ -57,6 +57,16 @@ describe('SummaryService long meeting', () => {
     repo.close()
   })
 
+  it('map-reduces long meetings even when the full transcript exceeds the single-call token guard', async () => {
+    const repo = setupLongMeeting(30)
+    const callImpl = vi.fn(async () => validJson)
+    const svc = new SummaryService(repo, callImpl, { now: () => 1, maxInputTokens: 20 })
+    await svc.generate('mtg_long')
+    expect(callImpl.mock.calls.length).toBeGreaterThanOrEqual(4)
+    expect(repo.getSummary('mtg_long')?.status).toBe('ok')
+    repo.close()
+  })
+
   it('falls back to failed if reduce JSON cannot be parsed twice', async () => {
     const repo = setupLongMeeting(20)
     let n = 0
