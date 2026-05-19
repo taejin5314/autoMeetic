@@ -20,7 +20,7 @@ interface MemoryServiceOptions {
 type Listener = (evt: MeetingUpdatedEvent) => void
 
 export function defaultWorkerPath(): string {
-  return path.join(__dirname, 'embeddingWorker.js')
+  return path.join(__dirname, 'embeddingWorker.cjs')
 }
 
 export class MemoryService {

@@ -1,5 +1,8 @@
-import { contextBridge, ipcRenderer } from 'electron'
 import type { ElectronAPI } from './types'
+
+// Electron exposes its runtime APIs through CommonJS in main/preload.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { contextBridge, ipcRenderer } = require('electron') as typeof import('electron')
 
 function createEventListener(channel: string) {
   return (callback: (...args: unknown[]) => void): (() => void) => {
