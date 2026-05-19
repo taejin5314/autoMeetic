@@ -1,0 +1,132 @@
+# Glossary + Diagram Label Language — Implementation Handoff
+
+Live handoff document maintained during the subagent-driven implementation of the glossary feature. Any agent (Claude, Codex, human) can resume from this file.
+
+## Resuming work
+
+1. Read this file end-to-end.
+2. Find the **Current state** table. The next phase to work on is the first row marked `⏳ PENDING`.
+3. For that phase, read the corresponding section in `docs/superpowers/plans/2026-05-19-glossary-and-diagram-label-language.md`.
+4. Implement per the plan (TDD where indicated). Each phase has discrete tasks with exact code blocks and exact commit messages.
+5. After each phase: run `npm run typecheck` and `npx vitest run <phase-test-file>`. Commit each task individually (the plan specifies the commit message). Update the **Current state** table here.
+
+## Spec & plan
+
+- **Spec:** `docs/superpowers/specs/2026-05-19-glossary-and-diagram-label-language-design.md`
+- **Plan:** `docs/superpowers/plans/2026-05-19-glossary-and-diagram-label-language.md`
+
+## Working branch
+
+`master` (user explicitly approved working on master). Commits go directly; final PR is the last step in Phase 10.
+
+## Environment quirks
+
+- **better-sqlite3 ABI mismatch:** The project's `better-sqlite3` is compiled for Electron (ABI 145), but vitest runs under Node (ABI 115). Workaround: a shim at `src/test/__sqlite-shim__.ts` plus an alias in `vitest.config.ts`. If tests fail locally with `NODE_MODULE_VERSION` errors, run `node scripts/prepare-native-deps.mjs node` (requires Electron not running) to install the Node-compatible binary at `node_modules/better-sqlite3/build/Release/better_sqlite3_node115.node`.
+- **Preexisting lint errors on master:** 4 errors unrelated to glossary work — 3 in `src/renderer/library/MemoryLibraryPanel.tsx` and 1 in `src/renderer/App.tsx` (translation health effect). Treat these as the baseline; flag only new ones introduced by glossary work.
+- **Preexisting tsc -b build error:** `npm run build` fails on a preexisting issue in `src/main/memory/repository.ts` (the `lookupSearchHits` return type). `npm run typecheck` (which uses `tsc --noEmit` instead of `tsc -b`) does pass cleanly. Don't try to "fix" this in glossary phases — it's out of scope.
+- **Windows + PowerShell shell:** Use `npx vitest run` directly when possible to avoid the `npm test` script's native-deps prep step.
+
+## Current state
+
+| Phase | Status | Commits | Tests passing |
+|---|---|---|---|
+| 1 — Storage foundation | ✅ COMPLETE | `1e2f819` → `85a7c2a` (9 commits) | 16/16 |
+| 2 — Shared prompt helpers | 🟡 IMPLEMENTED, review in progress | `1b79734` | 12/12 |
+| 3 — Pull-based cache | ✅ COMPLETE | `0d2bc81` | 4/4 |
+| 4 — IPC handlers + preload bridge | ⏳ PENDING | — | — |
+| 5 — Translation queue integration | ⏳ PENDING | — | — |
+| 6 — Glossary panel UI | ⏳ PENDING | — | — |
+| 7 — Whiteboard integration | ⏳ PENDING | — | — |
+| 8 — STT vocabulary bias | ⏳ PENDING | — | — |
+| 9 — Answer Assist integration | ⏳ PENDING | — | — |
+| 10 — Regression sweep + PR | ⏳ PENDING | — | — |
+
+## Notes per phase
+
+**Phase 1** — Schema bump to v2 + `glossary_entries` table + `GlossaryEntry`/`GlossaryEntryInput` types + `MemoryRepository` methods (`upsertGlossary`, `getGlossaryEntry`, `listGlossary`, `deleteGlossary`, `activeGlossary`). 16 tests. One code-review fix cycle resolved: drop `any` from sqlite shim, validate translation language keys (≤20 chars), drop redundant `?? {}`, update stale schema-version-1 test description.
+
+Notable unplanned additions (both accepted by review):
+- `src/test/__sqlite-shim__.ts` + `vitest.config.ts` alias for the ABI workaround above
+- `rowid DESC` tiebreaker on `ORDER BY updated_at DESC` for stable ordering in fast tests
+
+**Phase 2** — `src/main/glossary/promptInjection.ts` with three pure helpers (`formatGlossaryPromptSection`, `normalizePreserveTerms`, `buildLabelLanguageBlock`) and `LANGUAGE_NAME_BY_CODE` lookup. 12 unit tests. Review pending.
+
+**Phase 3** — `src/main/glossary/cache.ts` with pull-based `ensureFreshGlossary`, `getCachedGlossary`, `bumpGlossaryEpoch`, and test-only reset helper. 4 unit tests. Verification run: `npm run typecheck` and `npx vitest run src/test/glossary-repository.test.ts src/test/glossary-prompt-injection.test.ts src/test/glossary-cache.test.ts` passed (32/32 glossary tests).
+
+## Subagent-driven workflow conventions
+
+- **Phase-level batching:** Tasks tightly coupled within a phase get bundled into one implementer dispatch (e.g., Phase 1 was 6 tasks → 1 dispatch). Loosely coupled work uses one dispatch per task.
+- **Per phase / dispatch:** implementer → spec reviewer → fix loop if needed → code quality reviewer → fix loop if needed → mark complete.
+- **Commit hygiene:** Each task in the plan specifies its own commit message. Don't squash; let the history reflect the TDD cycle.
+- **Commit message format:** `<type>(glossary): <description>`. Types in use: `feat`, `fix`, `chore`, `docs`, `test`. All commits include `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>` footer.
+
+## Open questions (deferred to v2, do NOT implement in this stream)
+
+- Pre-meeting document upload / RAG
+- Sharing links / export
+- Team-shared glossary
+- CSV / Anki imports
+- Inline transcript/diagram highlighting of glossary matches
+- Web-mode parity for `/api/translate` glossary (Answer Assist parity IS in scope for Phase 9)
+- Renderer-side meeting-id propagation (the GlossaryPanel currently passes `meetingId={null}`; the "This meeting" tab is disabled until this is wired in a follow-up)
+
+## Stack / commands
+
+```bash
+# Typecheck (must pass after every phase)
+npm run typecheck
+
+# Run a single test file (preferred during dev)
+npx vitest run src/test/glossary-repository.test.ts
+
+# Run all glossary tests (after Phase 3)
+npx vitest run "src/test/glossary-*.test.ts"
+
+# Lint (4 preexisting errors expected — flag any new ones)
+npm run lint
+
+# Build is preexisting-broken (see Environment quirks); don't gate on it.
+
+# Manual dev run (Electron)
+npm run dev:electron
+
+# Manual dev run (web mode against proxy)
+npm run dev:web
+```
+
+## Files created so far
+
+```
+src/main/memory/schema.ts              (modified)
+src/main/memory/types.ts               (modified)
+src/main/memory/repository.ts          (modified — glossary CRUD methods)
+src/main/glossary/promptInjection.ts   (new)
+src/test/glossary-repository.test.ts   (new — 16 tests)
+src/test/glossary-prompt-injection.test.ts (new — 12 tests)
+src/test/memory-repository-init.test.ts (modified — schema version assertion)
+src/test/__sqlite-shim__.ts            (new — ABI workaround)
+vitest.config.ts                       (modified — shim alias)
+```
+
+## Files yet to create / modify (preview from plan)
+
+```
+src/main/glossary/cache.ts             (Phase 3)
+src/main/ipc-glossary-handlers.ts      (Phase 4)
+src/preload/index.ts                   (Phase 4 — extend)
+src/preload/types.ts                   (Phase 4 — extend)
+src/main/index.ts                      (Phase 4 + 7 — wire handlers, label-lang setter)
+src/main/transcriptPostProcessor.ts    (Phase 5 — inject glossary into translate)
+src/main/whiteboard/prompt.ts          (Phase 7 — extend signature)
+src/main/whiteboardService.ts          (Phase 7 — cache label lang, post-pass labels)
+src/main/sttService.ts                 (Phase 8 — vocabulary bias)
+src/renderer/glossary/types.ts         (Phase 6)
+src/renderer/glossary/useGlossaryStore.ts (Phase 6)
+src/renderer/glossary/GlossaryPanel.tsx (Phase 6)
+src/renderer/glossary/GlossaryRowEditor.tsx (Phase 6)
+src/renderer/whiteboard/WhiteboardLabelLangSelect.tsx (Phase 7)
+src/renderer/answer-assist/useAnswerAssistStore.ts (Phase 9 — attach glossary to request)
+src/renderer/App.tsx                   (Phase 6 + 7 — header button, panel mount, label-lang)
+src/renderer/App.css                   (Phase 6 + 7 — styles)
+server/proxy.mjs                       (Phase 9 — Answer Assist glossary)
+```
