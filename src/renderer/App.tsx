@@ -1333,12 +1333,6 @@ function App() {
         </div>
 
         <div className="cc-console-aside">
-          <div className="cc-console-meter" aria-hidden="true">
-            <span className="cc-console-meter-label">SYS</span>
-            <div className="cc-console-meter-wave">
-              <Waveform analyser={analyser} active={running} />
-            </div>
-          </div>
           <button
             className="cc-console-ask"
             type="button"

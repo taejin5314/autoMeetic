@@ -2769,35 +2769,7 @@ mark.memory-match {
 .cc-console-aside {
   display: inline-flex;
   align-items: center;
-  gap: 14px;
-}
-
-.cc-console-meter {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 14px 0 12px;
-  height: 36px;
-  border-left: 1px solid var(--p-border);
-  border-right: 1px solid var(--p-border);
-}
-.cc-console-meter-label {
-  font-family: var(--p-mono);
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--p-faint);
-}
-.cc-console-meter-wave {
-  width: 96px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-}
-.cc-console-meter-wave .waveform-canvas {
-  width: 100% !important;
-  height: 22px !important;
+  justify-content: flex-end;
 }
 
 .cc-console-ask {
@@ -2847,9 +2819,6 @@ mark.memory-match {
     grid-template-columns: minmax(200px, 1fr) minmax(0, 2fr) auto;
     gap: 16px;
     padding: 12px 18px;
-  }
-  .cc-console-meter {
-    display: none;
   }
 }
 

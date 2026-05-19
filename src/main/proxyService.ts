@@ -91,23 +91,20 @@ export function getVocabulary(): string[] {
   return globalVocabulary
 }
 
-export async function startAnswerAssist(
-  transcript: string,
-  sourceLang: string,
-  targetLang: string,
-  sendEvent: (event: unknown) => void
-): Promise<void> {
-  const apiKey = getApiKey()
-  const sourceLangName = LANGUAGE_NAME_BY_CODE.get(sourceLang) ?? sourceLang
+export function buildAnswerAssistSystemPrompt(sourceLang: string, targetLang: string): string {
+  const sourceLangName =
+    sourceLang === 'auto'
+      ? "the transcript's original language"
+      : (LANGUAGE_NAME_BY_CODE.get(sourceLang) ?? sourceLang)
   const targetLangName =
     targetLang === 'off' ? '' : (LANGUAGE_NAME_BY_CODE.get(targetLang) ?? targetLang)
   const translationInstructions =
-    targetLang !== 'off' && targetLang !== sourceLang
+    targetLang !== 'off'
       ? `4. Then write "---" on its own line.
 5. Then write the ${targetLangName} translation of your response.`
       : '4. Do not write a translation section.'
 
-  const systemPrompt = `You are a real-time meeting answer coach. The user is in a live meeting and needs help responding to what is being discussed.
+  return `You are a real-time meeting answer coach. The user is in a live meeting and needs help responding to what is being discussed.
 
 Your job:
 1. Read the transcript and identify the most recent topic, question, or point that the user might need to respond to.
@@ -116,10 +113,20 @@ Your job:
 ${translationInstructions}
 
 Rules:
-- Be concise and direct — this is for speaking aloud, not reading.
+- Be concise and direct - this is for speaking aloud, not reading.
 - Use a natural conversational tone appropriate for a meeting.
-- Do NOT include any labels like "English:" or "Korean:" — just the text.
+- Do NOT include any labels like "English:" or "Korean:" - just the text.
 - Always provide a response.`
+}
+
+export async function startAnswerAssist(
+  transcript: string,
+  sourceLang: string,
+  targetLang: string,
+  sendEvent: (event: unknown) => void
+): Promise<void> {
+  const apiKey = getApiKey()
+  const systemPrompt = buildAnswerAssistSystemPrompt(sourceLang, targetLang)
 
   const requestBody = {
     model: ANSWER_ASSIST_MODEL,
