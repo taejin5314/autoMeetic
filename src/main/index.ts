@@ -1,6 +1,13 @@
-import { is } from '@electron-toolkit/utils'
 import 'dotenv/config'
-import {
+import type { BrowserWindow as BrowserWindowType, Tray as TrayType } from 'electron'
+import { join } from 'path'
+import { registerIpcHandlers, registerWindowNotifiers, setMemoryServicePromise } from './ipc'
+import { init as initActionItems } from './actionItemService'
+import { MemoryService, defaultWorkerPath } from './memory/memoryService'
+import { init as initTranscriptPostProcessor } from './transcriptPostProcessor'
+import { init as initWhiteboard } from './whiteboardService'
+
+const {
   app,
   BrowserWindow,
   desktopCapturer,
@@ -10,15 +17,12 @@ import {
   session,
   shell,
   Tray,
-} from 'electron'
-import { join } from 'path'
-import { registerIpcHandlers, registerWindowNotifiers } from './ipc'
-import { init as initActionItems } from './actionItemService'
-import { init as initTranscriptPostProcessor } from './transcriptPostProcessor'
-import { init as initWhiteboard } from './whiteboardService'
+  // Electron exposes its runtime APIs through CommonJS in main/preload.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+} = require('electron') as typeof import('electron')
 
-let mainWindow: BrowserWindow | null = null
-let tray: Tray | null = null
+let mainWindow: BrowserWindowType | null = null
+let tray: TrayType | null = null
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -29,7 +33,7 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
+      preload: join(__dirname, '../preload/index.cjs'),
       sandbox: false,
     },
   })
@@ -67,7 +71,7 @@ function createWindow(): void {
   })
 
   // Dev: load from Vite dev server. Prod: load built renderer HTML.
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+  if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
@@ -124,6 +128,23 @@ function registerGlobalShortcuts(): void {
 
 app.whenReady().then(() => {
   createWindow()
+  const userData = app.getPath('userData')
+  setMemoryServicePromise(
+    MemoryService.initialize({
+      dbPath: join(userData, 'memory.db'),
+      workerPath: defaultWorkerPath(),
+      modelEnvCacheDir: join(userData, 'embedding-cache'),
+    })
+      .then((memoryService) => {
+        const recovered = memoryService.recoverInterruptedMeetings()
+        if (recovered > 0) console.log(`[memory] recovered ${recovered} interrupted meeting(s)`)
+        return memoryService
+      })
+      .catch((err) => {
+        console.error('[memory] init failed:', err)
+        throw err
+      })
+  )
   registerIpcHandlers(mainWindow!)
   registerWindowNotifiers(mainWindow!)
   initWhiteboard(mainWindow!)

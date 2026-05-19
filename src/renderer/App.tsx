@@ -28,6 +28,7 @@ import { isElectron } from './api'
 import './App.css'
 import { ElectronSttClient } from './electronSttClient'
 import { useFeedTypewriter } from './feed/useFeedTypewriter'
+import { MemoryLibraryPanel } from './library/MemoryLibraryPanel'
 import { CaptionOverlay } from './overlay/CaptionOverlay'
 import { useCaptionStore } from './overlay/useCaptionStore'
 import { Waveform } from './overlay/Waveform'
@@ -194,6 +195,7 @@ function App() {
   // V4: collapsible right shelf — 'whiteboard' | 'actions' | 'closed'
   const [shelf, setShelf] = useState<'whiteboard' | 'actions' | 'closed'>('whiteboard')
   const [whiteboardMaximized, setWhiteboardMaximized] = useState(false)
+  const [memoryLibraryOpen, setMemoryLibraryOpen] = useState(false)
   const enColRef = useRef<HTMLDivElement>(null)
   const koColRef = useRef<HTMLDivElement>(null)
   const syncingScrollRef = useRef(false)
@@ -712,7 +714,7 @@ function App() {
     setSessionStartMs(null)
     updateHealth('capture', 'disconnected', 'session reset')
     updateHealth('stt', 'disconnected', 'session reset')
-    updateHealth('translation', 'disconnected', 'not connected')
+    // translation health is config-driven; let the translationTarget effect manage it
 
     const ws = whiteboardWsRef.current
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -780,11 +782,6 @@ function App() {
   const onTranslationChange = (next: string): void => {
     window.localStorage.setItem(TRANSLATION_TARGET_STORAGE_KEY, next)
     setTranslationTarget(next)
-    updateHealth(
-      'translation',
-      next === 'off' ? 'disconnected' : 'connected',
-      next === 'off' ? 'not connected' : `to ${next}`
-    )
     if (isElectron && window.electronAPI) {
       void window.electronAPI.setTranscriptLanguages({
         sourceLanguage: sttLanguage,
@@ -792,6 +789,14 @@ function App() {
       })
     }
   }
+
+  useEffect(() => {
+    updateHealth(
+      'translation',
+      translationTarget === 'off' ? 'disconnected' : 'connected',
+      translationTarget === 'off' ? 'not connected' : `to ${translationTarget}`
+    )
+  }, [translationTarget, updateHealth])
 
   useEffect(() => {
     if (isElectron && window.electronAPI) {
@@ -933,6 +938,29 @@ function App() {
             >
               <rect x="1.25" y="2.5" width="11.5" height="9" rx="1.5" />
               <line x1="9" y1="2.5" x2="9" y2="11.5" />
+            </svg>
+          </button>
+
+          <button
+            className={`v4p-iconbtn ghost ${memoryLibraryOpen ? 'on' : ''}`}
+            type="button"
+            onClick={() => setMemoryLibraryOpen(true)}
+            title="Meeting library"
+            aria-label="Meeting library"
+            aria-pressed={memoryLibraryOpen}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M2 2.5h3.2L6.3 4H12v7.5H2z" />
+              <path d="M4 7h6M4 9h4" />
             </svg>
           </button>
 
@@ -1316,6 +1344,8 @@ function App() {
         onScreenshot={handleWhiteboardScreenshot}
         onClose={() => setWhiteboardMaximized(false)}
       />
+
+      <MemoryLibraryPanel open={memoryLibraryOpen} onClose={() => setMemoryLibraryOpen(false)} />
     </main>
   )
 }

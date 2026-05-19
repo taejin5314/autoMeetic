@@ -1,6 +1,41 @@
-import { ipcMain, type BrowserWindow } from 'electron'
+import type { BrowserWindow } from 'electron'
+import { buildMemoryHandlers } from './ipc-memory-handlers'
+import { resolveMeetingLanguages, type TranscriptLanguageState } from './memory/meetingLanguages'
+import type { MemoryService } from './memory/memoryService'
+
+// Electron exposes its runtime APIs through CommonJS in main/preload.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { ipcMain } = require('electron') as typeof import('electron')
 
 let mainWindowRef: BrowserWindow | null = null
+let memoryServiceRef: MemoryService | null = null
+let memoryServicePromise: Promise<MemoryService> | null = null
+let unsubscribeMemoryUpdates: (() => void) | null = null
+let transcriptLanguages: TranscriptLanguageState = { sourceLanguage: 'auto', targetLanguage: 'off' }
+
+export function setMemoryService(svc: MemoryService): void {
+  memoryServiceRef = svc
+  unsubscribeMemoryUpdates?.()
+  unsubscribeMemoryUpdates = svc.onMeetingUpdated((evt) => {
+    mainWindowRef?.webContents.send('memory:meeting-updated', evt)
+  })
+}
+
+export function setMemoryServicePromise(promise: Promise<MemoryService>): void {
+  memoryServicePromise = promise.then((svc) => {
+    setMemoryService(svc)
+    return svc
+  })
+  void memoryServicePromise.catch(() => {
+    // Handlers await the same promise and surface the real initialization error.
+  })
+}
+
+async function getMemoryService(): Promise<MemoryService> {
+  if (memoryServiceRef) return memoryServiceRef
+  if (!memoryServicePromise) throw new Error('Memory service startup was not scheduled')
+  return memoryServicePromise
+}
 
 export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   mainWindowRef = mainWindow
@@ -45,11 +80,23 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('start-transcription', async (_event, args: { language: string }) => {
     const { startTranscription } = await import('./sttService')
     startTranscription(args.language, mainWindowRef!)
+    void getMemoryService()
+      .then((memory) => {
+        memory.beginMeeting(resolveMeetingLanguages(args.language, transcriptLanguages))
+      })
+      .catch((err) => {
+        console.error('[memory] begin meeting failed:', err)
+      })
   })
 
   ipcMain.handle('stop-transcription', async () => {
     const { stopTranscription } = await import('./sttService')
     await stopTranscription()
+    await getMemoryService()
+      .then((memory) => memory.endMeeting(3000))
+      .catch((err) => {
+        console.error('[memory] end meeting failed:', err)
+      })
   })
 
   ipcMain.handle('reset-transcript-postprocessor', async () => {
@@ -70,6 +117,10 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle(
     'stt:set-languages',
     (_event, args: { sourceLanguage: string; targetLanguage: string }) => {
+      transcriptLanguages = {
+        sourceLanguage: args.sourceLanguage || 'auto',
+        targetLanguage: args.targetLanguage || 'off',
+      }
       void import('./sttService').then(({ setPostProcessorLanguages }) => {
         setPostProcessorLanguages(args)
       })
@@ -94,6 +145,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       handleScreenshot(args.image)
     })
   })
+
+  const memHandlers = buildMemoryHandlers(getMemoryService)
+  for (const [channel, handler] of Object.entries(memHandlers)) {
+    ipcMain.handle(channel, async (_event, args) => handler(args as never))
+  }
 }
 
 export function registerWindowNotifiers(_mainWindow: BrowserWindow): void {
