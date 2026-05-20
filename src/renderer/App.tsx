@@ -28,6 +28,7 @@ import { isElectron } from './api'
 import './App.css'
 import { ElectronSttClient } from './electronSttClient'
 import { useFeedTypewriter } from './feed/useFeedTypewriter'
+import { GlossaryPanel } from './glossary/GlossaryPanel'
 import { MemoryLibraryPanel } from './library/MemoryLibraryPanel'
 import { CaptionOverlay } from './overlay/CaptionOverlay'
 import { useCaptionStore } from './overlay/useCaptionStore'
@@ -217,6 +218,7 @@ function App() {
   const [shelf, setShelf] = useState<'whiteboard' | 'actions' | 'closed'>('whiteboard')
   const [whiteboardMaximized, setWhiteboardMaximized] = useState(false)
   const [memoryLibraryOpen, setMemoryLibraryOpen] = useState(false)
+  const [glossaryOpen, setGlossaryOpen] = useState(false)
   const enColRef = useRef<HTMLDivElement>(null)
   const koColRef = useRef<HTMLDivElement>(null)
   const syncingScrollRef = useRef(false)
@@ -989,6 +991,29 @@ function App() {
           </button>
 
           <button
+            className={`v4p-iconbtn ghost ${glossaryOpen ? 'on' : ''}`}
+            type="button"
+            onClick={() => setGlossaryOpen(true)}
+            title="Glossary"
+            aria-label="Glossary"
+            aria-pressed={glossaryOpen}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M3 1.5h7.5a.5.5 0 0 1 .5.5v9.5a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5V2a.5.5 0 0 1 .5-.5z" />
+              <path d="M2.5 9.5h8M6.75 1.5v10" />
+            </svg>
+          </button>
+
+          <button
             className="v4p-iconbtn ghost"
             type="button"
             onClick={() => {
@@ -1379,6 +1404,7 @@ function App() {
       />
 
       <MemoryLibraryPanel open={memoryLibraryOpen} onClose={() => setMemoryLibraryOpen(false)} />
+      <GlossaryPanel open={glossaryOpen} meetingId={null} onClose={() => setGlossaryOpen(false)} />
     </main>
   )
 }
