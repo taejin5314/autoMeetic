@@ -35,12 +35,6 @@ export function WhiteboardLabelLangSelect({ onChange }: Props) {
     pushToMain(value)
   }, [value])
 
-  // Push the initial value once on mount, in case the user's previous
-  // session left a non-default in localStorage but main started fresh.
-  useEffect(() => {
-    pushToMain(readInitial())
-  }, [])
-
   return (
     <label className="v4p-wb-labellang" title="Diagram label language">
       <span className="amw-mono v4p-wb-labellang-prefix">LABELS</span>

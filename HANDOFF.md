@@ -31,7 +31,7 @@ Live handoff document maintained during the subagent-driven implementation of th
 | Phase | Status | Commits | Tests passing |
 |---|---|---|---|
 | 1 — Storage foundation | ✅ COMPLETE | `1e2f819` → `85a7c2a` (9 commits) | 16/16 |
-| 2 — Shared prompt helpers | 🟡 IMPLEMENTED, review in progress | `1b79734` | 12/12 |
+| 2 — Shared prompt helpers | ✅ COMPLETE | `1b79734` | 12/12 |
 | 3 — Pull-based cache | ✅ COMPLETE | `0d2bc81` | 4/4 |
 | 4 — IPC handlers + preload bridge | ✅ COMPLETE | `f47896b` → `476190c` (2 commits) | 4/4 |
 | 5 — Translation queue integration | ✅ COMPLETE | `de672e1` | 2/2 |
@@ -63,6 +63,8 @@ Notable unplanned additions (both accepted by review):
 - Task 7.1: `whiteboardSystemPrompt` refactored to accept a `WhiteboardPromptOptions` object (`viewport`, `labelLanguage`, `glossary`), with `buildLabelLanguageBlock` and `formatGlossaryPromptSection` appended when non-empty.
 - Task 7.2: `whiteboardService.ts` gains module-level `cachedLabelLanguage` + `setDiagramLabelLanguage`/`getDiagramLabelLanguage` exports; `init()` now optionally accepts the memory service promise (mirroring Phase 5 pattern) and resolves it async. Glossary is fetched via Phase 3 cache (`ensureFreshGlossary`/`getCachedGlossary`) before each agent prompt build. A `applyGlossaryPostPass()` helper normalizes `element.label.text` and standalone `text` fields after the LLM returns. IPC handler `whiteboard:set-label-language` registered in `src/main/ipc.ts`. Preload bridge `whiteboard.setLabelLanguage` added to `src/preload/index.ts` and `src/preload/types.ts`. Architectural note: in Electron mode the whiteboard WS is null — label language reaches main exclusively via the IPC channel, not the WS payload; the WS `labelLanguage` field is web-mode-only insurance.
 - Task 7.3: `WhiteboardLabelLangSelect` component created at `src/renderer/whiteboard/WhiteboardLabelLangSelect.tsx`. Mounts in the shelf header conditional on `shelf === 'whiteboard'`. Persists selection to `localStorage` and fires the IPC on mount + change. WS payload in `App.tsx` includes `labelLanguage` for web-mode parity. `readDiagramLabelLanguage` was inlined in `App.tsx` as a direct `localStorage.getItem` call to avoid the `react-refresh/only-export-components` lint error. Verification: `npm run typecheck`, `npm run lint` (clean — 0 errors), `npx vitest run` (38/38 Phase 7 tests, 117/117 full suite).
+- Review fix: removed the duplicate mount-time IPC push useEffect (the `[value]` effect already pushes on mount, so the dedicated mount effect was sending the same value twice).
+- Known deferred gap: `server/proxy.mjs` and `server/whiteboard-runtime.mjs` ignore the `labelLanguage` field in the WS `whiteboard:agent-run` payload, so web-mode diagram label language is non-functional. The spec defers all web-mode whiteboard parity to v2; Electron mode (the primary target) is fully functional.
 
 ## Subagent-driven workflow conventions
 
