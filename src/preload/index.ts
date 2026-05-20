@@ -38,8 +38,8 @@ const electronAPI: ElectronAPI = {
 
   // Actions
   translate: (text, targetLang) => ipcRenderer.invoke('translate', { text, targetLang }),
-  startAnswerAssist: (transcript, sourceLang, targetLang) =>
-    ipcRenderer.invoke('start-answer-assist', { transcript, sourceLang, targetLang }),
+  startAnswerAssist: (transcript, sourceLang, targetLang, glossary) =>
+    ipcRenderer.invoke('start-answer-assist', { transcript, sourceLang, targetLang, glossary }),
   resetActionItems: () => ipcRenderer.invoke('reset-action-items'),
   resetWhiteboard: () => ipcRenderer.invoke('reset-whiteboard'),
   updateVocabulary: (keywords) => ipcRenderer.invoke('update-vocabulary', { keywords }),

@@ -63,7 +63,16 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     'start-answer-assist',
     async (
       _event,
-      args: { transcript: string; sourceLang: string; targetLang: string }
+      args: {
+        transcript: string
+        sourceLang: string
+        targetLang: string
+        glossary?: Array<{
+          sourceTerm: string
+          translations: Record<string, string>
+          preserve: boolean
+        }>
+      }
     ) => {
       const { startAnswerAssist } = await import('./proxyService')
       await startAnswerAssist(
@@ -72,7 +81,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
         args.targetLang,
         (event: unknown) => {
           mainWindowRef?.webContents.send('answer-assist:event', event)
-        }
+        },
+        args.glossary ?? []
       )
     }
   )

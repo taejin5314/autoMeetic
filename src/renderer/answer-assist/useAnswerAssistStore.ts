@@ -97,6 +97,23 @@ export function useAnswerAssistStore() {
 
       try {
         if (window.electronAPI) {
+          let glossary: Array<{
+            sourceTerm: string
+            translations: Record<string, string>
+            preserve: boolean
+          }> = []
+          if (window.electronAPI.glossary) {
+            try {
+              const active = await window.electronAPI.glossary.active()
+              glossary = active.map((e) => ({
+                sourceTerm: e.sourceTerm,
+                translations: e.translations,
+                preserve: e.preserve,
+              }))
+            } catch {
+              glossary = []
+            }
+          }
           let fullAnswer = ''
           let fullAnswerKo = ''
           cleanupElectronListenerRef.current = window.electronAPI.onAnswerAssistEvent(
@@ -117,7 +134,7 @@ export function useAnswerAssistStore() {
               }
             }
           )
-          await window.electronAPI.startAnswerAssist(transcript, sourceLang, targetLang)
+          await window.electronAPI.startAnswerAssist(transcript, sourceLang, targetLang, glossary)
           if (fullAnswer || fullAnswerKo) {
             dispatch({ type: 'done', answer: fullAnswer, answerKo: fullAnswerKo })
           }

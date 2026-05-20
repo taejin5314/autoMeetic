@@ -43,7 +43,16 @@ export interface ElectronAPI {
 
   // Actions
   translate(text: string, targetLang: string): Promise<{ translation: string }>
-  startAnswerAssist(transcript: string, sourceLang: string, targetLang: string): Promise<void>
+  startAnswerAssist(
+    transcript: string,
+    sourceLang: string,
+    targetLang: string,
+    glossary?: Array<{
+      sourceTerm: string
+      translations: Record<string, string>
+      preserve: boolean
+    }>
+  ): Promise<void>
   resetActionItems(): Promise<void>
   resetWhiteboard(): Promise<void>
   resetTranscriptPostProcessor(): Promise<void>

@@ -1,3 +1,9 @@
+import {
+  formatGlossaryPromptSection,
+  normalizePreserveTerms,
+} from './glossary/promptInjection'
+import type { GlossaryEntry } from './memory/types'
+
 const TRANSLATION_MODEL = process.env.TRANSLATION_MODEL ?? 'gpt-4.1-mini'
 const ANSWER_ASSIST_MODEL = process.env.ANSWER_ASSIST_MODEL ?? 'gpt-4.1-mini'
 const OPENAI_TRANSLATION_URL = 'https://api.openai.com/v1/chat/completions'
@@ -91,7 +97,16 @@ export function getVocabulary(): string[] {
   return globalVocabulary
 }
 
-export function buildAnswerAssistSystemPrompt(sourceLang: string, targetLang: string): string {
+export type AnswerAssistGlossaryEntry = Pick<
+  GlossaryEntry,
+  'sourceTerm' | 'translations' | 'preserve'
+>
+
+export function buildAnswerAssistSystemPrompt(
+  sourceLang: string,
+  targetLang: string,
+  glossary: AnswerAssistGlossaryEntry[] = []
+): string {
   const sourceLangName =
     sourceLang === 'auto'
       ? "the transcript's original language"
@@ -103,6 +118,15 @@ export function buildAnswerAssistSystemPrompt(sourceLang: string, targetLang: st
       ? `4. Then write "---" on its own line.
 5. Then write the ${targetLangName} translation of your response.`
       : '4. Do not write a translation section.'
+
+  const glossaryBlock =
+    glossary.length > 0
+      ? formatGlossaryPromptSection(
+          glossary as GlossaryEntry[],
+          targetLang === 'off' ? null : targetLang
+        )
+      : ''
+  const glossaryTail = glossaryBlock ? `\n\n${glossaryBlock}` : ''
 
   return `You are a real-time meeting answer coach. The user is in a live meeting and needs help responding to what is being discussed.
 
@@ -116,17 +140,18 @@ Rules:
 - Be concise and direct - this is for speaking aloud, not reading.
 - Use a natural conversational tone appropriate for a meeting.
 - Do NOT include any labels like "English:" or "Korean:" - just the text.
-- Always provide a response.`
+- Always provide a response.${glossaryTail}`
 }
 
 export async function startAnswerAssist(
   transcript: string,
   sourceLang: string,
   targetLang: string,
-  sendEvent: (event: unknown) => void
+  sendEvent: (event: unknown) => void,
+  glossary: AnswerAssistGlossaryEntry[] = []
 ): Promise<void> {
   const apiKey = getApiKey()
-  const systemPrompt = buildAnswerAssistSystemPrompt(sourceLang, targetLang)
+  const systemPrompt = buildAnswerAssistSystemPrompt(sourceLang, targetLang, glossary)
 
   const requestBody = {
     model: ANSWER_ASSIST_MODEL,
@@ -231,8 +256,14 @@ export async function startAnswerAssist(
         const parts = outputText.split(/\n---\n/)
         sendEvent({
           type: 'done',
-          answer: (parts[0] ?? '').trim(),
-          answer_ko: (parts[1] ?? '').trim(),
+          answer: normalizePreserveTerms(
+            (parts[0] ?? '').trim(),
+            glossary as GlossaryEntry[]
+          ),
+          answer_ko: normalizePreserveTerms(
+            (parts[1] ?? '').trim(),
+            glossary as GlossaryEntry[]
+          ),
         })
         return
       }
@@ -242,8 +273,8 @@ export async function startAnswerAssist(
   const parts = fullText.split(/\n---\n/)
   sendEvent({
     type: 'done',
-    answer: (parts[0] ?? '').trim(),
-    answer_ko: (parts[1] ?? '').trim(),
+    answer: normalizePreserveTerms((parts[0] ?? '').trim(), glossary as GlossaryEntry[]),
+    answer_ko: normalizePreserveTerms((parts[1] ?? '').trim(), glossary as GlossaryEntry[]),
   })
 }
 
