@@ -6,6 +6,7 @@ import { init as initActionItems } from './actionItemService'
 import { MemoryService, defaultWorkerPath } from './memory/memoryService'
 import { init as initTranscriptPostProcessor } from './transcriptPostProcessor'
 import { init as initWhiteboard } from './whiteboardService'
+import { init as initSttService } from './sttService'
 
 const {
   app,
@@ -148,6 +149,7 @@ app.whenReady().then(() => {
   registerWindowNotifiers(mainWindow!)
   initWhiteboard(mainWindow!, memoryServicePromise)
   initTranscriptPostProcessor(mainWindow!, memoryServicePromise)
+  initSttService(memoryServicePromise)
   initActionItems(mainWindow!)
   createTray()
   registerGlobalShortcuts()

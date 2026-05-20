@@ -6,6 +6,8 @@ import {
   flushPendingTranscript,
   resetTranscriptPostProcessor,
 } from './transcriptPostProcessor'
+import { ensureFreshGlossary, getCachedGlossary } from './glossary/cache'
+import type { MemoryService } from './memory/memoryService'
 
 const OPENAI_TRANSCRIPTION_MODEL = process.env.OPENAI_TRANSCRIPTION_MODEL ?? 'gpt-realtime-whisper'
 const OPENAI_REALTIME_URL = 'wss://api.openai.com/v1/realtime?intent=transcription'
@@ -25,6 +27,19 @@ let turnStartMs = 0
 let emittedRoughForCurrentItem = false
 let currentSourceLanguage = 'auto'
 let currentTargetLanguage = 'off'
+let memoryServiceRef: Pick<MemoryService, 'activeGlossary' | 'getCurrentMeetingId'> | null = null
+
+export function init(
+  memoryServicePromise?: Promise<Pick<MemoryService, 'activeGlossary' | 'getCurrentMeetingId'>>
+): void {
+  if (memoryServicePromise) {
+    void memoryServicePromise.then((svc) => {
+      memoryServiceRef = svc
+    }).catch(() => {
+      // Memory service unavailable; STT continues without glossary bias
+    })
+  }
+}
 
 export function setPostProcessorLanguages(args: {
   sourceLanguage: string
@@ -171,7 +186,21 @@ export function startTranscription(language: string, mainWindow: BrowserWindow):
     return
   }
 
-  const vocabPrompt = buildVocabularyPrompt(getVocabulary())
+  const whiteboardKeywords = getVocabulary()
+  const currentMeetingId = memoryServiceRef?.getCurrentMeetingId() ?? null
+  if (memoryServiceRef) {
+    ensureFreshGlossary(memoryServiceRef, currentMeetingId)
+  }
+  const glossaryTerms = getCachedGlossary().map((e) => e.sourceTerm)
+  const seen = new Set<string>()
+  const vocabulary: string[] = []
+  for (const term of [...whiteboardKeywords, ...glossaryTerms]) {
+    const key = term.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    vocabulary.push(term)
+  }
+  const vocabPrompt = buildVocabularyPrompt(vocabulary)
   const session = buildTranscriptionSession(OPENAI_TRANSCRIPTION_MODEL, vocabPrompt, language)
 
   openaiWs = new WebSocket(OPENAI_REALTIME_URL, {
