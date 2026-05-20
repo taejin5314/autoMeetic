@@ -37,7 +37,7 @@ Live handoff document maintained during the subagent-driven implementation of th
 | 5 — Translation queue integration | ✅ COMPLETE | `de672e1` | 2/2 |
 | 6 — Glossary panel UI | ✅ COMPLETE | `f7945aa` → `bc98721` (7 commits) | 117/117 |
 | 7 — Whiteboard integration | ✅ COMPLETE | `648f6dc` → `b3a016f` (3 commits) | 38/38 |
-| 8 — STT vocabulary bias | ⏳ PENDING | — | — |
+| 8 — STT vocabulary bias | ✅ COMPLETE | `d7bdf70` | 38/38 |
 | 9 — Answer Assist integration | ⏳ PENDING | — | — |
 | 10 — Regression sweep + PR | ⏳ PENDING | — | — |
 
@@ -72,6 +72,8 @@ Notable unplanned additions (both accepted by review):
 - **Per phase / dispatch:** implementer → spec reviewer → fix loop if needed → code quality reviewer → fix loop if needed → mark complete.
 - **Commit hygiene:** Each task in the plan specifies its own commit message. Don't squash; let the history reflect the TDD cycle.
 - **Commit message format:** `<type>(glossary): <description>`. Types in use: `feat`, `fix`, `chore`, `docs`, `test`. All commits include `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>` footer.
+
+**Phase 8** — STT vocabulary bias implemented in `src/main/sttService.ts`. Added module-level `memoryServiceRef` typed as `Pick<MemoryService, 'activeGlossary' | 'getCurrentMeetingId'>` (matching the Phase 5/7 pattern). Added `init()` export that accepts the memory service promise and resolves it async. `src/main/index.ts` passes `memoryServicePromise` to `initSttService`. In `startTranscription`, after fetching whiteboard keywords via `getVocabulary()`, the function calls `ensureFreshGlossary(memoryServiceRef, currentMeetingId)` and appends `getCachedGlossary().map(e => e.sourceTerm)` to the keyword list with lowercase dedup before passing to `buildVocabularyPrompt`. Bias is applied at session start only — mid-meeting glossary edits do not take effect until the next session (accepted limitation, documented in spec). No deviations from the plan. Verification: `npm run typecheck` clean, `npm run lint` clean (0 new errors), 38/38 tests passing.
 
 ## Open questions (deferred to v2, do NOT implement in this stream)
 
@@ -145,12 +147,13 @@ src/preload/types.ts                   (modified — Phase 7: whiteboard API typ
 src/renderer/whiteboard/WhiteboardLabelLangSelect.tsx (new — Phase 7)
 src/renderer/App.tsx                   (modified — Phase 7: label-lang select mount + WS payload)
 src/renderer/App.css                   (modified — Phase 7: label-lang select styles)
+src/main/sttService.ts                 (modified — Phase 8: init(), memoryServiceRef, glossary vocabulary merge)
+src/main/index.ts                      (modified — Phase 8: initSttService wired with memoryServicePromise)
 ```
 
 ## Files yet to create / modify (preview from plan)
 
 ```
-src/main/sttService.ts                 (Phase 8 — vocabulary bias)
 src/renderer/answer-assist/useAnswerAssistStore.ts (Phase 9 — attach glossary to request)
 server/proxy.mjs                       (Phase 9 — Answer Assist glossary)
 ```
