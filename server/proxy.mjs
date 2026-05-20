@@ -53,6 +53,63 @@ const LANGUAGE_NAME_BY_CODE = new Map([
   ['de', 'German'],
 ])
 
+// ── Glossary helpers ────────────────────────────────────────────────────────────────────────
+
+const GLOSS_LANGUAGE_NAME_BY_CODE = {
+  ko: 'Korean',
+  en: 'English',
+  ja: 'Japanese',
+  zh: 'Chinese',
+  es: 'Spanish',
+  fr: 'French',
+  de: 'German',
+}
+
+function glossQuote(s) {
+  return `"${String(s).replace(/"/g, '\\"')}"`
+}
+
+function glossEscapeRegex(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function formatGlossarySection(entries, targetLang) {
+  if (!Array.isArray(entries) || entries.length === 0) return ''
+  const verbatim = []
+  const mapped = []
+  for (const e of entries) {
+    if (!e || typeof e.sourceTerm !== 'string') continue
+    const trans = e.translations || {}
+    if (targetLang && typeof trans[targetLang] === 'string') {
+      mapped.push([e.sourceTerm, trans[targetLang]])
+      continue
+    }
+    if (e.preserve) verbatim.push(e.sourceTerm)
+  }
+  if (verbatim.length === 0 && mapped.length === 0) return ''
+  const out = ['GLOSSARY (apply strictly, do not paraphrase):']
+  if (verbatim.length) {
+    out.push(`- Keep verbatim in all output: ${verbatim.map(glossQuote).join(', ')}`)
+  }
+  if (mapped.length) {
+    const lang = GLOSS_LANGUAGE_NAME_BY_CODE[targetLang] || targetLang
+    out.push(`- When producing ${lang}, render:`)
+    for (const [src, dst] of mapped) out.push(`  · ${glossQuote(src)} → ${glossQuote(dst)}`)
+  }
+  return out.join('\n')
+}
+
+function normalizePreserve(output, entries) {
+  if (typeof output !== 'string' || !Array.isArray(entries) || entries.length === 0) return output
+  let result = output
+  for (const e of entries) {
+    if (!e || !e.preserve || typeof e.sourceTerm !== 'string') continue
+    const re = new RegExp(`\\b${glossEscapeRegex(e.sourceTerm)}\\b`, 'gi')
+    result = result.replace(re, e.sourceTerm)
+  }
+  return result
+}
+
 app.post('/api/translate', async (req, res) => {
   const { text, targetLang = 'ko' } = req.body
   if (!text || typeof text !== 'string') {
@@ -133,7 +190,7 @@ app.post('/api/translate', async (req, res) => {
 const ANSWER_ASSIST_MODEL = process.env.ANSWER_ASSIST_MODEL ?? 'gpt-4.1-mini'
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses'
 
-function buildAnswerAssistPrompt(sourceLang, targetLang) {
+function buildAnswerAssistPrompt(sourceLang, targetLang, glossary = []) {
   const sourceLangName = LANGUAGE_NAME_BY_CODE.get(sourceLang) ?? sourceLang
   const langName = sourceLangName
   const targetLangName =
@@ -143,7 +200,7 @@ function buildAnswerAssistPrompt(sourceLang, targetLang) {
       ? `4. Then write "---" on its own line.
 5. Then write the ${targetLangName} translation of your response.`
       : '4. Do not write a translation section.'
-  return `You are a real-time meeting answer coach. The user is in a live meeting and needs help responding to what is being discussed.
+  const body = `You are a real-time meeting answer coach. The user is in a live meeting and needs help responding to what is being discussed.
 
 Your job:
 1. Read the transcript and identify the most recent topic, question, or point that the user might need to respond to.
@@ -158,6 +215,9 @@ Rules:
 - If the topic requires technical or factual knowledge, be accurate and specific.
 - Do NOT include any labels like "English:" or "Korean:" — just the text.
 - Always provide a response. Even if the transcript is casual or lacks a clear question, offer a useful contribution the user could make to the conversation.`
+  const glossaryBlock = formatGlossarySection(glossary, targetLang === 'off' ? null : targetLang)
+  const tail = glossaryBlock ? `\n\n${glossaryBlock}` : ''
+  return `${body}${tail}`
 }
 
 // Looser separator: tolerates `---`, `**---**`, etc., with optional whitespace
@@ -165,8 +225,12 @@ Rules:
 // matching a hyphen-rich sentence body.
 const SECTION_SEPARATOR_RE = /(?:^|\n)\s*\**\s*---+\s*\**\s*(?:\n|$)/
 
-async function translateText(text, targetLang, openaiApiKey) {
+async function translateText(text, targetLang, openaiApiKey, glossary = []) {
   const targetLanguage = LANGUAGE_NAME_BY_CODE.get(targetLang) ?? targetLang
+  const glossaryBlock = formatGlossarySection(glossary, targetLang)
+  const systemContent = glossaryBlock
+    ? `You are a precise translation engine. Return only translated text with no quotes, labels, or explanations.\n\n${glossaryBlock}`
+    : 'You are a precise translation engine. Return only translated text with no quotes, labels, or explanations.'
   const response = await fetch(OPENAI_TRANSLATION_URL, {
     method: 'POST',
     headers: {
@@ -179,8 +243,7 @@ async function translateText(text, targetLang, openaiApiKey) {
       messages: [
         {
           role: 'system',
-          content:
-            'You are a precise translation engine. Return only translated text with no quotes, labels, or explanations.',
+          content: systemContent,
         },
         {
           role: 'user',
@@ -191,16 +254,16 @@ async function translateText(text, targetLang, openaiApiKey) {
   })
   if (!response.ok) throw new Error(`translation HTTP ${response.status}`)
   const payload = await response.json().catch(() => ({}))
-  const translation =
+  const translatedRaw =
     typeof payload?.choices?.[0]?.message?.content === 'string'
       ? payload.choices[0].message.content.trim()
       : ''
-  if (!translation) throw new Error('empty translation')
-  return translation
+  if (!translatedRaw) throw new Error('empty translation')
+  return normalizePreserve(translatedRaw, glossary)
 }
 
 app.post('/api/answer-assist', async (req, res) => {
-  const { transcript, sourceLang = 'en', targetLang = 'ko' } = req.body
+  const { transcript, sourceLang = 'en', targetLang = 'ko', glossary = [] } = req.body
   if (!transcript || typeof transcript !== 'string' || transcript.trim().length < 20) {
     res.status(400).json({ error: 'transcript must be a string of at least 20 characters' })
     return
@@ -235,7 +298,7 @@ app.post('/api/answer-assist', async (req, res) => {
     if (!wantsTranslation) return { answer, answerKo }
     if (answer && !answerKo) {
       try {
-        const translated = await translateText(answer, targetLang, openaiApiKey)
+        const translated = await translateText(answer, targetLang, openaiApiKey, glossary)
         sendSSE({ type: 'section', name: 'ko' })
         for (let i = 0; i < translated.length; i += 50) {
           sendSSE({ type: 'delta', content: translated.slice(i, i + 50) })
@@ -248,7 +311,7 @@ app.post('/api/answer-assist', async (req, res) => {
       // Rare: model produced only the translation half. Treat that as the
       // primary answer in the source language and translate back.
       try {
-        const translated = await translateText(answerKo, sourceLang, openaiApiKey)
+        const translated = await translateText(answerKo, sourceLang, openaiApiKey, glossary)
         return { answer: translated, answerKo }
       } catch (err) {
         console.warn('[proxy] fallback translation (source) failed:', err?.message ?? err)
@@ -262,7 +325,7 @@ app.post('/api/answer-assist', async (req, res) => {
       model: ANSWER_ASSIST_MODEL,
       tools: [{ type: 'web_search_preview' }],
       input: [
-        { role: 'system', content: buildAnswerAssistPrompt(sourceLang, targetLang) },
+        { role: 'system', content: buildAnswerAssistPrompt(sourceLang, targetLang, glossary) },
         { role: 'user', content: `Meeting transcript (most recent 3 minutes):\n\n${transcript.trim()}` },
       ],
       stream: true,
@@ -368,7 +431,7 @@ app.post('/api/answer-assist', async (req, res) => {
           let answer = (parts[0] ?? '').trim()
           let answerKo = (parts[1] ?? '').trim()
           ;({ answer, answerKo } = await ensureBothHalves(answer, answerKo))
-          sendSSE({ type: 'done', answer, answer_ko: answerKo })
+          sendSSE({ type: 'done', answer: normalizePreserve(answer, glossary), answer_ko: normalizePreserve(answerKo, glossary) })
           res.end()
           return
         }
@@ -380,7 +443,7 @@ app.post('/api/answer-assist', async (req, res) => {
     let answer = (parts[0] ?? '').trim()
     let answerKo = (parts[1] ?? '').trim()
     ;({ answer, answerKo } = await ensureBothHalves(answer, answerKo))
-    sendSSE({ type: 'done', answer, answer_ko: answerKo })
+    sendSSE({ type: 'done', answer: normalizePreserve(answer, glossary), answer_ko: normalizePreserve(answerKo, glossary) })
     res.end()
   } catch (err) {
     console.error('[proxy] answer-assist error:', err)
