@@ -1,12 +1,14 @@
 import type { MemoryRepository } from '../memory/repository'
 import type { GlossaryEntry } from '../memory/types'
 
+export type GlossaryCacheSource = Pick<MemoryRepository, 'activeGlossary'>
+
 let cachedGlossary: GlossaryEntry[] = []
 let cachedMeetingId: string | null = null
 let glossaryEpoch = 0
 let cachedEpoch = -1
 
-export function ensureFreshGlossary(repo: MemoryRepository, meetingId: string | null): void {
+export function ensureFreshGlossary(repo: GlossaryCacheSource, meetingId: string | null): void {
   if (meetingId === cachedMeetingId && cachedEpoch === glossaryEpoch) return
   cachedGlossary = repo.activeGlossary(meetingId)
   cachedMeetingId = meetingId

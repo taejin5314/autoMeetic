@@ -1,6 +1,13 @@
 import type { BrowserWindow } from 'electron'
 import { enqueueTranscript as enqueueActionTranscript } from './actionItemService'
+import { ensureFreshGlossary, getCachedGlossary } from './glossary/cache'
+import {
+  formatGlossaryPromptSection,
+  normalizePreserveTerms,
+} from './glossary/promptInjection'
 import { notifyTranslation, notifyTurnFinalized } from './memory/transcriptHook'
+import type { MemoryService } from './memory/memoryService'
+import type { GlossaryEntry } from './memory/types'
 import type { ProcessedTranscriptTurn } from './stt/types'
 import { enqueueTranscript as enqueueWhiteboardTranscript } from './whiteboardService'
 
@@ -48,6 +55,10 @@ interface TranslationResponse {
 }
 
 let mainWindowRef: BrowserWindow | null = null
+let memoryServicePromiseRef: Promise<Pick<
+  MemoryService,
+  'activeGlossary' | 'getCurrentMeetingId'
+>> | null = null
 
 let coalesceBuffer = ''
 let coalesceHints: LanguageHints = { sourceLanguageHint: 'auto', targetLanguage: 'off' }
@@ -59,8 +70,12 @@ let translationInFlight = false
 let warnedMissingApiKey = false
 let activeSourceTurn: ActiveSourceTurn | null = null
 
-export function init(mainWindow: BrowserWindow): void {
+export function init(
+  mainWindow: BrowserWindow,
+  memoryServicePromise?: Promise<Pick<MemoryService, 'activeGlossary' | 'getCurrentMeetingId'>>
+): void {
   mainWindowRef = mainWindow
+  if (memoryServicePromise) memoryServicePromiseRef = memoryServicePromise
 }
 
 export function enqueueRoughTranscript(text: string, hints: LanguageHints): void {
@@ -341,6 +356,17 @@ async function callTranslationApi(
   hints: LanguageHints,
   apiKey: string
 ): Promise<TranslationResponse> {
+  const { activeGlossary, glossaryBlock } = await getTranslationGlossaryContext(hints.targetLanguage)
+  const systemContent = [
+    'You translate one short live transcript chunk at a time.',
+    `Return JSON only: {"translation":"...","sourceLanguage":"en"}.`,
+    'Detect the source language and emit its ISO code (en, ko, ja, zh, es, fr, de).',
+    `Translate into ${hints.targetLanguage}. If source language equals target, set translation to null.`,
+    'Translate exactly; do not add, remove, or summarize meaning. Do not fix grammar.',
+  ].join(' ')
+  const systemContentWithGlossary = glossaryBlock
+    ? `${systemContent}\n\n${glossaryBlock}`
+    : systemContent
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), 8000)
   let response: Response
@@ -358,13 +384,7 @@ async function callTranslationApi(
         messages: [
           {
             role: 'system',
-            content: [
-              'You translate one short live transcript chunk at a time.',
-              `Return JSON only: {"translation":"...","sourceLanguage":"en"}.`,
-              'Detect the source language and emit its ISO code (en, ko, ja, zh, es, fr, de).',
-              `Translate into ${hints.targetLanguage}. If source language equals target, set translation to null.`,
-              'Translate exactly; do not add, remove, or summarize meaning. Do not fix grammar.',
-            ].join(' '),
+            content: systemContentWithGlossary,
           },
           {
             role: 'user',
@@ -401,11 +421,44 @@ async function callTranslationApi(
     typeof parsed.translation === 'string' && parsed.translation.trim()
       ? parsed.translation.trim()
       : null
+  const normalizedTranslation = translation
+    ? normalizePreserveTerms(translation, activeGlossary)
+    : null
   const sourceLanguage =
     typeof parsed.sourceLanguage === 'string' && parsed.sourceLanguage.length === 2
       ? parsed.sourceLanguage
       : hints.sourceLanguageHint
-  return { translation, sourceLanguage }
+  return { translation: normalizedTranslation, sourceLanguage }
+}
+
+async function getTranslationGlossaryContext(
+  targetLanguage: string
+): Promise<{ activeGlossary: GlossaryEntry[]; glossaryBlock: string }> {
+  const memoryService = await getMemoryServiceForGlossary()
+  if (!memoryService) return { activeGlossary: [], glossaryBlock: '' }
+  const currentMeetingId = memoryService.getCurrentMeetingId()
+  ensureFreshGlossary(memoryService, currentMeetingId)
+  const activeGlossary = getCachedGlossary()
+  return {
+    activeGlossary,
+    glossaryBlock: formatGlossaryPromptSection(activeGlossary, targetLanguage),
+  }
+}
+
+async function getMemoryServiceForGlossary(): Promise<Pick<
+  MemoryService,
+  'activeGlossary' | 'getCurrentMeetingId'
+> | null> {
+  if (!memoryServicePromiseRef) return null
+  try {
+    return await memoryServicePromiseRef
+  } catch (err) {
+    console.warn(
+      '[stt-postprocess] glossary unavailable:',
+      err instanceof Error ? err.message : String(err)
+    )
+    return null
+  }
 }
 
 function buildTurn(args: {

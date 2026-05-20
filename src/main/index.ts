@@ -129,26 +129,25 @@ function registerGlobalShortcuts(): void {
 app.whenReady().then(() => {
   createWindow()
   const userData = app.getPath('userData')
-  setMemoryServicePromise(
-    MemoryService.initialize({
-      dbPath: join(userData, 'memory.db'),
-      workerPath: defaultWorkerPath(),
-      modelEnvCacheDir: join(userData, 'embedding-cache'),
+  const memoryServicePromise = MemoryService.initialize({
+    dbPath: join(userData, 'memory.db'),
+    workerPath: defaultWorkerPath(),
+    modelEnvCacheDir: join(userData, 'embedding-cache'),
+  })
+    .then((memoryService) => {
+      const recovered = memoryService.recoverInterruptedMeetings()
+      if (recovered > 0) console.log(`[memory] recovered ${recovered} interrupted meeting(s)`)
+      return memoryService
     })
-      .then((memoryService) => {
-        const recovered = memoryService.recoverInterruptedMeetings()
-        if (recovered > 0) console.log(`[memory] recovered ${recovered} interrupted meeting(s)`)
-        return memoryService
-      })
-      .catch((err) => {
-        console.error('[memory] init failed:', err)
-        throw err
-      })
-  )
+    .catch((err) => {
+      console.error('[memory] init failed:', err)
+      throw err
+    })
+  setMemoryServicePromise(memoryServicePromise)
   registerIpcHandlers(mainWindow!)
   registerWindowNotifiers(mainWindow!)
   initWhiteboard(mainWindow!)
-  initTranscriptPostProcessor(mainWindow!)
+  initTranscriptPostProcessor(mainWindow!, memoryServicePromise)
   initActionItems(mainWindow!)
   createTray()
   registerGlobalShortcuts()
