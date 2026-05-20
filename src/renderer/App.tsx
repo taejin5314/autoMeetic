@@ -36,6 +36,7 @@ import { Waveform } from './overlay/Waveform'
 import { useThemeStore, type Theme } from './theme/useThemeStore'
 import { ExcalidrawCanvas } from './whiteboard/ExcalidrawCanvas'
 import { WhiteboardModal } from './whiteboard/WhiteboardModal'
+import { WhiteboardLabelLangSelect } from './whiteboard/WhiteboardLabelLangSelect'
 
 const LANGUAGE_OPTIONS = [
   { code: 'auto', label: 'Auto detect' },
@@ -578,10 +579,13 @@ function App() {
 
       const ws = whiteboardWsRef.current
       if (ws && ws.readyState === WebSocket.OPEN) {
+        const diagramLabelLang =
+          window.localStorage.getItem('automeetic.diagramLabelLanguage') || null
         ws.send(
           JSON.stringify({
             type: 'whiteboard:agent-run',
             transcript: text,
+            labelLanguage: diagramLabelLang,
           })
         )
       }
@@ -1236,6 +1240,7 @@ function App() {
                   <span className="v4p-shelf-tab-badge amw-mono">{actionItemList.length}</span>
                 )}
               </button>
+              {shelf === 'whiteboard' && <WhiteboardLabelLangSelect />}
               <button
                 className="v4p-shelf-x"
                 onClick={() => setShelf('closed')}
