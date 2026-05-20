@@ -124,10 +124,28 @@ export function useAnswerAssistStore() {
           return
         }
 
+        let glossary: Array<{
+          sourceTerm: string
+          translations: Record<string, string>
+          preserve: boolean
+        }> = []
+        if (window.electronAPI?.glossary) {
+          try {
+            const active = await window.electronAPI.glossary.active()
+            glossary = active.map((e) => ({
+              sourceTerm: e.sourceTerm,
+              translations: e.translations,
+              preserve: e.preserve,
+            }))
+          } catch {
+            glossary = []
+          }
+        }
+
         const res = await fetch(ANSWER_ASSIST_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-        body: JSON.stringify({ transcript, sourceLang, targetLang }),
+        body: JSON.stringify({ transcript, sourceLang, targetLang, glossary }),
         signal: controller.signal,
       })
 
