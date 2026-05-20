@@ -39,7 +39,7 @@ Live handoff document maintained during the subagent-driven implementation of th
 | 7 — Whiteboard integration | ✅ COMPLETE | `648f6dc` → `b3a016f` (3 commits) | 38/38 |
 | 8 — STT vocabulary bias | ✅ COMPLETE | `d7bdf70` | 38/38 |
 | 9 — Answer Assist integration | ✅ COMPLETE | `2eaf951` → `36b0359` (4 commits) | 38/38 |
-| 10 — Regression sweep + PR | ⏳ PENDING | — | — |
+| 10 — Regression sweep + push | ✅ COMPLETE | `911ae11` (head) | 117/117 |
 
 ## Notes per phase
 
@@ -79,6 +79,8 @@ Notable unplanned additions (both accepted by review):
 - Follow-up (`36b0359`): closed the Electron-mode gap surfaced in review. `useAnswerAssistStore.ts` Electron branch now fetches active glossary too. `electronAPI.startAnswerAssist` and the `start-answer-assist` IPC carry the glossary through to `proxyService.startAnswerAssist`. `buildAnswerAssistSystemPrompt` accepts an optional 3rd `glossary` arg and appends `formatGlossaryPromptSection`; the two `done`-event sites in the streamed response post-pass `answer` and `answer_ko` with `normalizePreserveTerms`. Both Electron and web modes are now functionally equivalent for Answer Assist glossary handling. Verification: `npm run typecheck` clean, `npm run lint` clean (0 new errors), 38/38 tests passing.
 
 **Phase 8** — STT vocabulary bias implemented in `src/main/sttService.ts`. Added module-level `memoryServiceRef` typed as `Pick<MemoryService, 'activeGlossary' | 'getCurrentMeetingId'>` (matching the Phase 5/7 pattern). Added `init()` export that accepts the memory service promise and resolves it async. `src/main/index.ts` passes `memoryServicePromise` to `initSttService`. In `startTranscription`, after fetching whiteboard keywords via `getVocabulary()`, the function calls `ensureFreshGlossary(memoryServiceRef, currentMeetingId)` and appends `getCachedGlossary().map(e => e.sourceTerm)` to the keyword list with lowercase dedup before passing to `buildVocabularyPrompt`. Bias is applied at session start only — mid-meeting glossary edits do not take effect until the next session (accepted limitation, documented in spec). No deviations from the plan. Verification: `npm run typecheck` clean, `npm run lint` clean (0 new errors), 38/38 tests passing.
+
+**Phase 10** — Full regression sweep: `npm run typecheck` clean, `npm run lint` clean (0 errors — note: the 4 preexisting errors documented in Environment quirks were resolved in earlier phases as a side effect of the renderer/effect surgery), `npx vitest run` 117/117 passing across 24 files. Pushed master to `origin/master`. No PR created — the user explicitly chose direct-to-master workflow at the start of the implementation cycle (consistent with the established branch convention for this project).
 
 ## Open questions (deferred to v2, do NOT implement in this stream)
 
