@@ -35,7 +35,7 @@ Live handoff document maintained during the subagent-driven implementation of th
 | 3 — Pull-based cache | ✅ COMPLETE | `0d2bc81` | 4/4 |
 | 4 — IPC handlers + preload bridge | ✅ COMPLETE | `f47896b` → `476190c` (2 commits) | 4/4 |
 | 5 — Translation queue integration | ✅ COMPLETE | `de672e1` | 2/2 |
-| 6 — Glossary panel UI | ⏳ PENDING | — | — |
+| 6 — Glossary panel UI | ✅ COMPLETE | `f7945aa` → `bc98721` (7 commits) | 117/117 |
 | 7 — Whiteboard integration | ⏳ PENDING | — | — |
 | 8 — STT vocabulary bias | ⏳ PENDING | — | — |
 | 9 — Answer Assist integration | ⏳ PENDING | — | — |
@@ -56,6 +56,8 @@ Notable unplanned additions (both accepted by review):
 **Phase 4** — `src/main/ipc-glossary-handlers.ts` handler factory + wiring in the actual IPC entrypoint (`src/main/ipc.ts`), plus `MemoryService` glossary pass-through methods and preload `window.electronAPI.glossary` bridge. 4 unit tests in `src/test/glossary-ipc-handlers.test.ts`. Verification run: `npm run typecheck`, glossary test bundle (36/36), `npm run lint`, `npx vitest run` (116/116), and `npm run build` passed. `npm test` was attempted but blocked before Vitest by Windows `EBUSY` on `node_modules/better-sqlite3/build/Release/better_sqlite3.node` while Electron/native deps were in use; use `npx vitest run` until the Electron process releases the file.
 
 **Phase 5** — `src/main/transcriptPostProcessor.ts` now receives the `MemoryService` promise, pulls active glossary entries through the Phase 3 cache, injects `formatGlossaryPromptSection()` into live translation prompts, and applies `normalizePreserveTerms()` before emitting translation patches / memory updates. `src/main/index.ts` now shares the initialized memory service promise with the postprocessor. Regression coverage added to `src/test/memory-postprocessor-regression.test.ts` (2 tests). Verification run: `npm run typecheck`, `npx vitest run src/test/memory-postprocessor-regression.test.ts src/test/glossary-prompt-injection.test.ts src/test/glossary-cache.test.ts` (18/18), `npm run lint`, `npx vitest run` (117/117), and `npm run build` passed. Manual SQL smoke test deferred until the Phase 6 glossary panel exists.
+
+**Phase 6** — Renderer glossary surface added: type re-export, `useGlossaryStore`, inline row editor, panel UI, styles, and header button mount in `App.tsx`. Meeting-scoped tab remains disabled with `meetingId={null}` per v1 plan. Lint fix included to defer initial store load from the effect body. Verification run: `npm run typecheck`, `npm run lint`, `npx vitest run` (117/117), and `npm run build` passed. `npm test` was re-attempted and still blocked before Vitest by Windows `EBUSY` on `node_modules/better-sqlite3/build/Release/better_sqlite3.node`, likely because Electron/native deps are currently holding the file. Manual Electron smoke test not run in this pass.
 
 ## Subagent-driven workflow conventions
 
@@ -111,6 +113,12 @@ src/main/index.ts                      (modified — memory service promise shar
 src/main/ipc.ts                        (modified — glossary handlers registered)
 src/main/memory/memoryService.ts       (modified — glossary pass-through methods)
 src/main/transcriptPostProcessor.ts    (modified — glossary injection into live translation)
+src/renderer/glossary/types.ts         (new — renderer type re-export)
+src/renderer/glossary/useGlossaryStore.ts (new — renderer store hook)
+src/renderer/glossary/GlossaryPanel.tsx (new — glossary panel UI)
+src/renderer/glossary/GlossaryRowEditor.tsx (new — inline row editor)
+src/renderer/App.tsx                   (modified — glossary header button + panel mount)
+src/renderer/App.css                   (modified — glossary panel styles)
 src/preload/index.ts                   (modified — glossary bridge)
 src/preload/types.ts                   (modified — glossary API types)
 src/test/glossary-repository.test.ts   (new — 16 tests)
@@ -130,13 +138,9 @@ src/main/index.ts                      (Phase 7 — label-lang setter, if still 
 src/main/whiteboard/prompt.ts          (Phase 7 — extend signature)
 src/main/whiteboardService.ts          (Phase 7 — cache label lang, post-pass labels)
 src/main/sttService.ts                 (Phase 8 — vocabulary bias)
-src/renderer/glossary/types.ts         (Phase 6)
-src/renderer/glossary/useGlossaryStore.ts (Phase 6)
-src/renderer/glossary/GlossaryPanel.tsx (Phase 6)
-src/renderer/glossary/GlossaryRowEditor.tsx (Phase 6)
 src/renderer/whiteboard/WhiteboardLabelLangSelect.tsx (Phase 7)
 src/renderer/answer-assist/useAnswerAssistStore.ts (Phase 9 — attach glossary to request)
-src/renderer/App.tsx                   (Phase 6 + 7 — header button, panel mount, label-lang)
-src/renderer/App.css                   (Phase 6 + 7 — styles)
+src/renderer/App.tsx                   (Phase 7 — label-lang)
+src/renderer/App.css                   (Phase 7 — label-lang styles)
 server/proxy.mjs                       (Phase 9 — Answer Assist glossary)
 ```
