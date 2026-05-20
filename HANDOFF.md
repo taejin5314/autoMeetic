@@ -36,7 +36,7 @@ Live handoff document maintained during the subagent-driven implementation of th
 | 4 — IPC handlers + preload bridge | ✅ COMPLETE | `f47896b` → `476190c` (2 commits) | 4/4 |
 | 5 — Translation queue integration | ✅ COMPLETE | `de672e1` | 2/2 |
 | 6 — Glossary panel UI | ✅ COMPLETE | `f7945aa` → `bc98721` (7 commits) | 117/117 |
-| 7 — Whiteboard integration | ⏳ PENDING | — | — |
+| 7 — Whiteboard integration | ✅ COMPLETE | `648f6dc` → `b3a016f` (3 commits) | 38/38 |
 | 8 — STT vocabulary bias | ⏳ PENDING | — | — |
 | 9 — Answer Assist integration | ⏳ PENDING | — | — |
 | 10 — Regression sweep + PR | ⏳ PENDING | — | — |
@@ -58,6 +58,11 @@ Notable unplanned additions (both accepted by review):
 **Phase 5** — `src/main/transcriptPostProcessor.ts` now receives the `MemoryService` promise, pulls active glossary entries through the Phase 3 cache, injects `formatGlossaryPromptSection()` into live translation prompts, and applies `normalizePreserveTerms()` before emitting translation patches / memory updates. `src/main/index.ts` now shares the initialized memory service promise with the postprocessor. Regression coverage added to `src/test/memory-postprocessor-regression.test.ts` (2 tests). Verification run: `npm run typecheck`, `npx vitest run src/test/memory-postprocessor-regression.test.ts src/test/glossary-prompt-injection.test.ts src/test/glossary-cache.test.ts` (18/18), `npm run lint`, `npx vitest run` (117/117), and `npm run build` passed. Manual SQL smoke test deferred until the Phase 6 glossary panel exists.
 
 **Phase 6** — Renderer glossary surface added: type re-export, `useGlossaryStore`, inline row editor, panel UI, styles, and header button mount in `App.tsx`. Meeting-scoped tab remains disabled with `meetingId={null}` per v1 plan. Lint fix included to defer initial store load from the effect body. Verification run: `npm run typecheck`, `npm run lint`, `npx vitest run` (117/117), and `npm run build` passed. `npm test` was re-attempted and still blocked before Vitest by Windows `EBUSY` on `node_modules/better-sqlite3/build/Release/better_sqlite3.node`, likely because Electron/native deps are currently holding the file. Manual Electron smoke test not run in this pass.
+
+**Phase 7** — Whiteboard integration implemented across 3 tasks:
+- Task 7.1: `whiteboardSystemPrompt` refactored to accept a `WhiteboardPromptOptions` object (`viewport`, `labelLanguage`, `glossary`), with `buildLabelLanguageBlock` and `formatGlossaryPromptSection` appended when non-empty.
+- Task 7.2: `whiteboardService.ts` gains module-level `cachedLabelLanguage` + `setDiagramLabelLanguage`/`getDiagramLabelLanguage` exports; `init()` now optionally accepts the memory service promise (mirroring Phase 5 pattern) and resolves it async. Glossary is fetched via Phase 3 cache (`ensureFreshGlossary`/`getCachedGlossary`) before each agent prompt build. A `applyGlossaryPostPass()` helper normalizes `element.label.text` and standalone `text` fields after the LLM returns. IPC handler `whiteboard:set-label-language` registered in `src/main/ipc.ts`. Preload bridge `whiteboard.setLabelLanguage` added to `src/preload/index.ts` and `src/preload/types.ts`. Architectural note: in Electron mode the whiteboard WS is null — label language reaches main exclusively via the IPC channel, not the WS payload; the WS `labelLanguage` field is web-mode-only insurance.
+- Task 7.3: `WhiteboardLabelLangSelect` component created at `src/renderer/whiteboard/WhiteboardLabelLangSelect.tsx`. Mounts in the shelf header conditional on `shelf === 'whiteboard'`. Persists selection to `localStorage` and fires the IPC on mount + change. WS payload in `App.tsx` includes `labelLanguage` for web-mode parity. `readDiagramLabelLanguage` was inlined in `App.tsx` as a direct `localStorage.getItem` call to avoid the `react-refresh/only-export-components` lint error. Verification: `npm run typecheck`, `npm run lint` (clean — 0 errors), `npx vitest run` (38/38 Phase 7 tests, 117/117 full suite).
 
 ## Subagent-driven workflow conventions
 
@@ -129,18 +134,21 @@ src/test/memory-postprocessor-regression.test.ts (modified — glossary translat
 src/test/memory-repository-init.test.ts (modified — schema version assertion)
 src/test/__sqlite-shim__.ts            (new — ABI workaround)
 vitest.config.ts                       (modified — shim alias)
+src/main/whiteboard/prompt.ts          (modified — Phase 7: options-object signature, labelLanguage + glossary blocks)
+src/main/whiteboardService.ts          (modified — Phase 7: label-lang cache, glossary post-pass, memory service wiring)
+src/main/ipc.ts                        (modified — Phase 7: whiteboard:set-label-language handler)
+src/main/index.ts                      (modified — Phase 7: pass memory service promise to initWhiteboard)
+src/preload/index.ts                   (modified — Phase 7: whiteboard.setLabelLanguage bridge)
+src/preload/types.ts                   (modified — Phase 7: whiteboard API type)
+src/renderer/whiteboard/WhiteboardLabelLangSelect.tsx (new — Phase 7)
+src/renderer/App.tsx                   (modified — Phase 7: label-lang select mount + WS payload)
+src/renderer/App.css                   (modified — Phase 7: label-lang select styles)
 ```
 
 ## Files yet to create / modify (preview from plan)
 
 ```
-src/main/index.ts                      (Phase 7 — label-lang setter, if still needed; Phase 4 wiring lives in src/main/ipc.ts)
-src/main/whiteboard/prompt.ts          (Phase 7 — extend signature)
-src/main/whiteboardService.ts          (Phase 7 — cache label lang, post-pass labels)
 src/main/sttService.ts                 (Phase 8 — vocabulary bias)
-src/renderer/whiteboard/WhiteboardLabelLangSelect.tsx (Phase 7)
 src/renderer/answer-assist/useAnswerAssistStore.ts (Phase 9 — attach glossary to request)
-src/renderer/App.tsx                   (Phase 7 — label-lang)
-src/renderer/App.css                   (Phase 7 — label-lang styles)
 server/proxy.mjs                       (Phase 9 — Answer Assist glossary)
 ```
