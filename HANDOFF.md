@@ -33,7 +33,7 @@ Live handoff document maintained during the subagent-driven implementation of th
 | 1 — Storage foundation | ✅ COMPLETE | `1e2f819` → `85a7c2a` (9 commits) | 16/16 |
 | 2 — Shared prompt helpers | 🟡 IMPLEMENTED, review in progress | `1b79734` | 12/12 |
 | 3 — Pull-based cache | ✅ COMPLETE | `0d2bc81` | 4/4 |
-| 4 — IPC handlers + preload bridge | ⏳ PENDING | — | — |
+| 4 — IPC handlers + preload bridge | ✅ COMPLETE | `f47896b` → `476190c` (2 commits) | 4/4 |
 | 5 — Translation queue integration | ⏳ PENDING | — | — |
 | 6 — Glossary panel UI | ⏳ PENDING | — | — |
 | 7 — Whiteboard integration | ⏳ PENDING | — | — |
@@ -52,6 +52,8 @@ Notable unplanned additions (both accepted by review):
 **Phase 2** — `src/main/glossary/promptInjection.ts` with three pure helpers (`formatGlossaryPromptSection`, `normalizePreserveTerms`, `buildLabelLanguageBlock`) and `LANGUAGE_NAME_BY_CODE` lookup. 12 unit tests. Review pending.
 
 **Phase 3** — `src/main/glossary/cache.ts` with pull-based `ensureFreshGlossary`, `getCachedGlossary`, `bumpGlossaryEpoch`, and test-only reset helper. 4 unit tests. Verification run: `npm run typecheck` and `npx vitest run src/test/glossary-repository.test.ts src/test/glossary-prompt-injection.test.ts src/test/glossary-cache.test.ts` passed (32/32 glossary tests).
+
+**Phase 4** — `src/main/ipc-glossary-handlers.ts` handler factory + wiring in the actual IPC entrypoint (`src/main/ipc.ts`), plus `MemoryService` glossary pass-through methods and preload `window.electronAPI.glossary` bridge. 4 unit tests in `src/test/glossary-ipc-handlers.test.ts`. Verification run: `npm run typecheck`, glossary test bundle (36/36), `npm run lint`, `npx vitest run` (116/116), and `npm run build` passed. `npm test` was attempted but blocked before Vitest by Windows `EBUSY` on `node_modules/better-sqlite3/build/Release/better_sqlite3.node` while Electron/native deps were in use; use `npx vitest run` until the Electron process releases the file.
 
 ## Subagent-driven workflow conventions
 
@@ -101,8 +103,16 @@ src/main/memory/schema.ts              (modified)
 src/main/memory/types.ts               (modified)
 src/main/memory/repository.ts          (modified — glossary CRUD methods)
 src/main/glossary/promptInjection.ts   (new)
+src/main/glossary/cache.ts             (new — Phase 3)
+src/main/ipc-glossary-handlers.ts      (new — Phase 4)
+src/main/ipc.ts                        (modified — glossary handlers registered)
+src/main/memory/memoryService.ts       (modified — glossary pass-through methods)
+src/preload/index.ts                   (modified — glossary bridge)
+src/preload/types.ts                   (modified — glossary API types)
 src/test/glossary-repository.test.ts   (new — 16 tests)
 src/test/glossary-prompt-injection.test.ts (new — 12 tests)
+src/test/glossary-cache.test.ts        (new — 4 tests)
+src/test/glossary-ipc-handlers.test.ts (new — 4 tests)
 src/test/memory-repository-init.test.ts (modified — schema version assertion)
 src/test/__sqlite-shim__.ts            (new — ABI workaround)
 vitest.config.ts                       (modified — shim alias)
@@ -111,11 +121,7 @@ vitest.config.ts                       (modified — shim alias)
 ## Files yet to create / modify (preview from plan)
 
 ```
-src/main/glossary/cache.ts             (Phase 3)
-src/main/ipc-glossary-handlers.ts      (Phase 4)
-src/preload/index.ts                   (Phase 4 — extend)
-src/preload/types.ts                   (Phase 4 — extend)
-src/main/index.ts                      (Phase 4 + 7 — wire handlers, label-lang setter)
+src/main/index.ts                      (Phase 7 — label-lang setter, if still needed; Phase 4 wiring lives in src/main/ipc.ts)
 src/main/transcriptPostProcessor.ts    (Phase 5 — inject glossary into translate)
 src/main/whiteboard/prompt.ts          (Phase 7 — extend signature)
 src/main/whiteboardService.ts          (Phase 7 — cache label lang, post-pass labels)
