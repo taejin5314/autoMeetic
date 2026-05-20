@@ -38,7 +38,7 @@ Live handoff document maintained during the subagent-driven implementation of th
 | 6 — Glossary panel UI | ✅ COMPLETE | `f7945aa` → `bc98721` (7 commits) | 117/117 |
 | 7 — Whiteboard integration | ✅ COMPLETE | `648f6dc` → `b3a016f` (3 commits) | 38/38 |
 | 8 — STT vocabulary bias | ✅ COMPLETE | `d7bdf70` | 38/38 |
-| 9 — Answer Assist integration | ⏳ PENDING | — | — |
+| 9 — Answer Assist integration | ✅ COMPLETE | `2eaf951` → `42bd313` (2 commits) | 38/38 |
 | 10 — Regression sweep + PR | ⏳ PENDING | — | — |
 
 ## Notes per phase
@@ -72,6 +72,10 @@ Notable unplanned additions (both accepted by review):
 - **Per phase / dispatch:** implementer → spec reviewer → fix loop if needed → code quality reviewer → fix loop if needed → mark complete.
 - **Commit hygiene:** Each task in the plan specifies its own commit message. Don't squash; let the history reflect the TDD cycle.
 - **Commit message format:** `<type>(glossary): <description>`. Types in use: `feat`, `fix`, `chore`, `docs`, `test`. All commits include `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>` footer.
+
+**Phase 9** — Answer Assist integration across two tasks:
+- Task 9.1: `useAnswerAssistStore.ts` now fetches the active glossary via `window.electronAPI.glossary.active()` (in the web-mode branch, just before the POST body is constructed) and attaches it as `glossary` in the request body. The Electron path (`startAnswerAssist` IPC) is not modified in this phase — it is out of Phase 9's scope and the glossary field would be silently ignored there until a future phase wires it through the main-process Answer Assist handler.
+- Task 9.2: `server/proxy.mjs` gains four JS helpers (`GLOSS_LANGUAGE_NAME_BY_CODE`, `glossQuote`, `glossEscapeRegex`, `formatGlossarySection`, `normalizePreserve`). `translateText` extended with optional 4th arg `glossary = []`; injects a GLOSSARY block into the system prompt and wraps the translated result in `normalizePreserve`. `buildAnswerAssistPrompt` extended with optional 3rd arg `glossary = []`; appends the glossary block as a tail. `/api/answer-assist` handler destructures `glossary = []` from the body; passes it to `buildAnswerAssistPrompt` and both `translateText` calls in `ensureBothHalves`; and applies `normalizePreserve` to the final `answer` and `answerKo` in both the `response.completed` path and the "stream ended without completed" tail path. Streaming deltas are NOT normalized per-chunk (word boundaries split across chunks); normalization applies only to the canonical final strings in the `done` SSE payload — this is the correct approach and the streaming display snaps to normalized on the `done` event. No deviations from the plan beyond this deliberate streaming choice. Verification: `npm run typecheck` clean, `npm run lint` clean (0 new errors), 38/38 tests passing.
 
 **Phase 8** — STT vocabulary bias implemented in `src/main/sttService.ts`. Added module-level `memoryServiceRef` typed as `Pick<MemoryService, 'activeGlossary' | 'getCurrentMeetingId'>` (matching the Phase 5/7 pattern). Added `init()` export that accepts the memory service promise and resolves it async. `src/main/index.ts` passes `memoryServicePromise` to `initSttService`. In `startTranscription`, after fetching whiteboard keywords via `getVocabulary()`, the function calls `ensureFreshGlossary(memoryServiceRef, currentMeetingId)` and appends `getCachedGlossary().map(e => e.sourceTerm)` to the keyword list with lowercase dedup before passing to `buildVocabularyPrompt`. Bias is applied at session start only — mid-meeting glossary edits do not take effect until the next session (accepted limitation, documented in spec). No deviations from the plan. Verification: `npm run typecheck` clean, `npm run lint` clean (0 new errors), 38/38 tests passing.
 
@@ -149,11 +153,12 @@ src/renderer/App.tsx                   (modified — Phase 7: label-lang select 
 src/renderer/App.css                   (modified — Phase 7: label-lang select styles)
 src/main/sttService.ts                 (modified — Phase 8: init(), memoryServiceRef, glossary vocabulary merge)
 src/main/index.ts                      (modified — Phase 8: initSttService wired with memoryServicePromise)
+src/renderer/answer-assist/useAnswerAssistStore.ts (modified — Phase 9: fetch active glossary + attach to POST body)
+server/proxy.mjs                       (modified — Phase 9: glossary helpers, translateText extended, buildAnswerAssistPrompt extended, /api/answer-assist handler extended)
 ```
 
 ## Files yet to create / modify (preview from plan)
 
 ```
-src/renderer/answer-assist/useAnswerAssistStore.ts (Phase 9 — attach glossary to request)
-server/proxy.mjs                       (Phase 9 — Answer Assist glossary)
+(Phase 9 complete — no remaining files for Phase 10 beyond regression sweep + PR)
 ```
