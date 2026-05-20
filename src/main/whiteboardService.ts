@@ -18,6 +18,10 @@ import {
 } from './whiteboard/elements'
 import { isTrivialTranscript } from './whiteboard/session'
 import { whiteboardSystemPrompt, type WhiteboardViewport } from './whiteboard/prompt'
+import { ensureFreshGlossary, getCachedGlossary } from './glossary/cache'
+import { normalizePreserveTerms } from './glossary/promptInjection'
+import type { GlossaryEntry } from './memory/types'
+import type { MemoryService } from './memory/memoryService'
 
 // Viewport size the whiteboard agent should lay out for. Matches the maximize
 // modal at typical desktop sizing; can be made dynamic later via IPC.
@@ -75,11 +79,50 @@ const buffer: BufferState = {
 }
 
 let mainWindowRef: BrowserWindow | null = null
+let memoryServiceRef: Pick<MemoryService, 'activeGlossary' | 'getCurrentMeetingId'> | null = null
+let cachedLabelLanguage: string | null = null
+
+export function setDiagramLabelLanguage(code: string | null): void {
+  cachedLabelLanguage = code && code.length > 0 ? code : null
+}
+
+export function getDiagramLabelLanguage(): string | null {
+  return cachedLabelLanguage
+}
+
+// ── Post-pass for glossary term normalization ─────────────────────────────────
+
+function applyGlossaryPostPass(
+  elements: WhiteboardElement[],
+  glossary: GlossaryEntry[]
+): WhiteboardElement[] {
+  if (glossary.length === 0) return elements
+  return elements.map((el) => {
+    const next = { ...el }
+    if (next.label && typeof next.label.text === 'string') {
+      next.label = { ...next.label, text: normalizePreserveTerms(next.label.text, glossary) }
+    }
+    if (typeof next.text === 'string') {
+      next.text = normalizePreserveTerms(next.text, glossary)
+    }
+    return next
+  })
+}
 
 // ── Public API ──────────────────────────────────────────────────────────────
 
-export function init(mainWindow: BrowserWindow): void {
+export function init(
+  mainWindow: BrowserWindow,
+  memoryServicePromise?: Promise<Pick<MemoryService, 'activeGlossary' | 'getCurrentMeetingId'>>
+): void {
   mainWindowRef = mainWindow
+  if (memoryServicePromise) {
+    void memoryServicePromise.then((svc) => {
+      memoryServiceRef = svc
+    }).catch(() => {
+      // Memory service unavailable; whiteboard continues without glossary
+    })
+  }
 }
 
 export function handleUserElements(elements: unknown[], mainWindow: BrowserWindow): void {
@@ -272,9 +315,10 @@ async function flushWhiteboardBuffer(): Promise<void> {
 
 function applyResult(result: { elements: WhiteboardElement[] | null; viewport: ViewportCommand | null }): void {
   if (result.elements) {
-    state.elements = result.elements
-    sendToRenderer('whiteboard:update', { elements: result.elements })
-    console.log(`[whiteboard] applied update: ${result.elements.length} elements`)
+    const normalized = applyGlossaryPostPass(result.elements, getCachedGlossary())
+    state.elements = normalized
+    sendToRenderer('whiteboard:update', { elements: normalized })
+    console.log(`[whiteboard] applied update: ${normalized.length} elements`)
   }
   if (result.viewport) {
     sendToRenderer('whiteboard:viewport', result.viewport)
@@ -453,9 +497,23 @@ async function runRenderer(
     rawTranscript,
   })
 
+  // Fetch active glossary via Phase 3 cache
+  const currentMeetingId = memoryServiceRef?.getCurrentMeetingId() ?? null
+  if (memoryServiceRef) {
+    ensureFreshGlossary(memoryServiceRef, currentMeetingId)
+  }
+  const glossary = getCachedGlossary()
+
   // Build OpenAI messages
   const openaiMessages: Array<Record<string, unknown>> = [
-    { role: 'system', content: whiteboardSystemPrompt({ viewport: WHITEBOARD_VIEWPORT }) },
+    {
+      role: 'system',
+      content: whiteboardSystemPrompt({
+        viewport: WHITEBOARD_VIEWPORT,
+        labelLanguage: cachedLabelLanguage,
+        glossary,
+      }),
+    },
     ...messages.map((m) => {
       if (Array.isArray(m.content)) {
         return {

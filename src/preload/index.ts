@@ -56,6 +56,10 @@ const electronAPI: ElectronAPI = {
   sendWhiteboardElements: (elements) => ipcRenderer.send('whiteboard:user-elements', { elements }),
   sendWhiteboardScreenshot: (imageDataUrl) =>
     ipcRenderer.send('whiteboard:screenshot', { image: imageDataUrl }),
+  whiteboard: {
+    setLabelLanguage: (code: string | null) =>
+      ipcRenderer.invoke('whiteboard:set-label-language', { code }),
+  },
 
   // Events
   onSttReady: createEventListener('stt:ready') as ElectronAPI['onSttReady'],

@@ -59,6 +59,9 @@ export interface ElectronAPI {
   // Whiteboard
   sendWhiteboardElements(elements: unknown[]): void
   sendWhiteboardScreenshot(imageDataUrl: string): void
+  whiteboard: {
+    setLabelLanguage(code: string | null): Promise<void>
+  }
 
   // Events (main → renderer)
   onSttReady(callback: () => void): () => void

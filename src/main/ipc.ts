@@ -115,6 +115,12 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     resetWhiteboard()
   })
 
+  ipcMain.handle('whiteboard:set-label-language', (_event, args: { code: string | null }) => {
+    void import('./whiteboardService').then(({ setDiagramLabelLanguage }) => {
+      setDiagramLabelLanguage(args.code)
+    })
+  })
+
   ipcMain.handle(
     'stt:set-languages',
     (_event, args: { sourceLanguage: string; targetLanguage: string }) => {

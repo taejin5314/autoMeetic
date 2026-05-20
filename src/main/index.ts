@@ -146,7 +146,7 @@ app.whenReady().then(() => {
   setMemoryServicePromise(memoryServicePromise)
   registerIpcHandlers(mainWindow!)
   registerWindowNotifiers(mainWindow!)
-  initWhiteboard(mainWindow!)
+  initWhiteboard(mainWindow!, memoryServicePromise)
   initTranscriptPostProcessor(mainWindow!, memoryServicePromise)
   initActionItems(mainWindow!)
   createTray()
