@@ -455,7 +455,7 @@ async function runRenderer(
 
   // Build OpenAI messages
   const openaiMessages: Array<Record<string, unknown>> = [
-    { role: 'system', content: whiteboardSystemPrompt(WHITEBOARD_VIEWPORT) },
+    { role: 'system', content: whiteboardSystemPrompt({ viewport: WHITEBOARD_VIEWPORT }) },
     ...messages.map((m) => {
       if (Array.isArray(m.content)) {
         return {

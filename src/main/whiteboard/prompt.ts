@@ -1,23 +1,35 @@
 /**
  * System prompt for whiteboard agent.
  * From autopreso: src/server.js whiteboardSystemPrompt()
- * 
+ *
  * This is a comprehensive prompt that teaches the agent to:
  * - Create visual presentations, not transcript dumps
  * - Manage canvas layout and spacing
  * - Use appropriate shapes, arrows, and text
  * - Maintain visual hierarchy
  */
+import type { GlossaryEntry } from '../memory/types'
+import {
+  buildLabelLanguageBlock,
+  formatGlossaryPromptSection,
+} from '../glossary/promptInjection'
+
 export interface WhiteboardViewport {
   width: number
   height: number
 }
 
+export interface WhiteboardPromptOptions {
+  viewport?: WhiteboardViewport
+  labelLanguage?: string | null
+  glossary?: GlossaryEntry[]
+}
+
 const DEFAULT_VIEWPORT: WhiteboardViewport = { width: 1280, height: 720 }
 
-export function whiteboardSystemPrompt(viewport?: WhiteboardViewport): string {
-  const vp = viewport ?? DEFAULT_VIEWPORT
-  return `You are AutoMeetic, a real-time visual note-taking agent.
+export function whiteboardSystemPrompt(opts: WhiteboardPromptOptions = {}): string {
+  const vp = opts.viewport ?? DEFAULT_VIEWPORT
+  const base = `You are AutoMeetic, a real-time visual note-taking agent.
 
 Canvas viewport at 100% zoom: approximately ${vp.width}px wide by ${vp.height}px tall.
 Lay out diagrams so they fit comfortably inside that area at zoom 1.0. The renderer auto-fits the viewport to your content after each turn, so an overly wide layout (>${vp.width + 200}px) will appear shrunken and unreadable to the audience.
@@ -170,5 +182,17 @@ HIERARCHY (top-down tree):
 
 TIMELINE (horizontal baseline):
 {"operations":[{"type":"arrow","id":"baseline","x":60,"y":300,"width":740,"height":0,"points":[[0,0],[740,0]]},{"type":"rectangle","id":"evt-1","x":80,"y":180,"width":180,"height":60,"backgroundColor":"#a5d8ff","fillStyle":"solid","roundness":{"type":3},"label":{"text":"Event 1","fontSize":16}},{"type":"rectangle","id":"evt-2","x":340,"y":180,"width":180,"height":60,"backgroundColor":"#a5d8ff","fillStyle":"solid","roundness":{"type":3},"label":{"text":"Event 2","fontSize":16}},{"type":"rectangle","id":"evt-3","x":600,"y":180,"width":180,"height":60,"backgroundColor":"#a5d8ff","fillStyle":"solid","roundness":{"type":3},"label":{"text":"Event 3","fontSize":16}},{"type":"arrow","id":"evt1-to-base","x":170,"y":240,"width":0,"height":60,"points":[[0,0],[0,60]]},{"type":"arrow","id":"evt2-to-base","x":430,"y":240,"width":0,"height":60,"points":[[0,0],[0,60]]},{"type":"arrow","id":"evt3-to-base","x":690,"y":240,"width":0,"height":60,"points":[[0,0],[0,60]]},{"type":"arrow","id":"evt1-to-2","x":260,"y":210,"width":80,"height":0,"points":[[0,0],[80,0]],"label":{"text":"leads-to","fontSize":14}},{"type":"arrow","id":"evt2-to-3","x":520,"y":210,"width":80,"height":0,"points":[[0,0],[80,0]],"label":{"text":"leads-to","fontSize":14}}],"viewport":{"action":"scroll_to_content","focus_ids":["evt-1","evt-2","evt-3"]}}
-`;
+`
+
+  const blocks: string[] = [base]
+  if (opts.labelLanguage) {
+    blocks.push(buildLabelLanguageBlock(opts.labelLanguage))
+  }
+  const glossaryBlock = formatGlossaryPromptSection(
+    opts.glossary ?? [],
+    opts.labelLanguage ?? null
+  )
+  if (glossaryBlock) blocks.push(glossaryBlock)
+
+  return blocks.join('\n\n')
 }
