@@ -15,13 +15,15 @@ export function useGlossaryStore(scope: 'global' | 'meeting', meetingId: string 
   })
 
   const load = useCallback(async () => {
-    if (!window.electronAPI?.glossary) {
+    await Promise.resolve()
+    const api = window.electronAPI?.glossary
+    if (!api) {
       setState({ entries: [], status: 'idle', errorMessage: null })
       return
     }
     setState((s) => ({ ...s, status: 'loading' }))
     try {
-      const entries = await window.electronAPI.glossary.list(
+      const entries = await api.list(
         scope,
         scope === 'meeting' ? meetingId ?? undefined : undefined
       )
@@ -43,7 +45,10 @@ export function useGlossaryStore(scope: 'global' | 'meeting', meetingId: string 
   }, [])
 
   useEffect(() => {
-    void load()
+    const timeout = window.setTimeout(() => {
+      void load()
+    }, 0)
+    return () => window.clearTimeout(timeout)
   }, [load])
 
   useEffect(() => {
