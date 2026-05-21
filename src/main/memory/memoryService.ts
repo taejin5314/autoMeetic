@@ -188,6 +188,10 @@ export class MemoryService {
     return this.repo.activeGlossary(meetingId)
   }
 
+  get repository(): MemoryRepository {
+    return this.repo
+  }
+
   async dispose(): Promise<void> {
     this.repo.close()
     await this.embeddingService.dispose()
