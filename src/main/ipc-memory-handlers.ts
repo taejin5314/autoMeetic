@@ -1,4 +1,5 @@
 import type { MemoryService } from './memory/memoryService'
+import type { ExportLanguageMode } from './memory/markdownExporter'
 
 export type MemoryHandlerApi = Pick<
   MemoryService,
@@ -44,9 +45,13 @@ export function buildMemoryHandlers(getMemory: GetMemory) {
       const memory = await getReadyMemory(getMemory)
       return memory.deleteMeeting(args.id)
     },
-    'memory:export-meeting': async (args: { id: string; format: 'markdown' }) => {
+    'memory:export-meeting': async (args: {
+      id: string
+      format: 'markdown'
+      language?: ExportLanguageMode
+    }) => {
       const memory = await getReadyMemory(getMemory)
-      return memory.exportMeeting(args.id, args.format)
+      return memory.exportMeeting(args.id, args.format, args.language)
     },
     'memory:regenerate-summary': async (args: { id: string }) => {
       const memory = await getReadyMemory(getMemory)

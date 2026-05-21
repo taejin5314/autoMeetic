@@ -19,8 +19,7 @@
   color: #1e1e1e;
   background: #faf7f1;
 
-  --p-sans:
-    'Geist', Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --p-sans: 'Geist', Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --p-mono: 'Geist Mono', 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
 }
 
@@ -1767,7 +1766,10 @@ body,
   padding: 4px 10px;
   border-radius: 4px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .answer-assist-copy-btn:hover {
@@ -2306,6 +2308,15 @@ mark.memory-match {
   gap: 14px;
 }
 
+.memory-detail-scroll {
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding-right: 4px;
+}
+
 .memory-detail-top {
   display: flex;
   align-items: flex-start;
@@ -2370,6 +2381,30 @@ mark.memory-match {
   cursor: wait;
 }
 
+.memory-export-mode {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid var(--p-border);
+  border-radius: 7px;
+  background: var(--p-bg-card);
+  color: var(--p-mute);
+}
+
+.memory-export-mode span {
+  font-size: 12px;
+}
+
+.memory-export-mode select {
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--p-text);
+  font: inherit;
+}
+
 .memory-actions .danger {
   color: var(--p-error-ink);
   border-color: var(--p-error-soft);
@@ -2428,12 +2463,9 @@ mark.memory-match {
 }
 
 .memory-transcript {
-  min-height: 0;
-  flex: 1;
   display: grid;
   align-content: start;
   gap: 8px;
-  padding-right: 4px;
 }
 
 .memory-segment {
@@ -2441,7 +2473,10 @@ mark.memory-match {
   border: 1px solid var(--p-border);
   border-radius: 8px;
   background: var(--p-bg-card);
-  transition: background 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+  transition:
+    background 200ms ease,
+    border-color 200ms ease,
+    box-shadow 200ms ease;
 }
 
 .memory-segment.is-focused {
@@ -2473,7 +2508,8 @@ mark.memory-match {
 }
 
 .memory-empty,
-.memory-error {
+.memory-error,
+.memory-export-message {
   padding: 14px;
   color: var(--p-mute);
   border: 1px solid var(--p-border);
@@ -2490,6 +2526,10 @@ mark.memory-match {
   color: var(--p-error-ink);
   background: var(--p-error-soft);
   border-color: color-mix(in srgb, var(--p-error) 22%, transparent);
+}
+
+.memory-export-message {
+  padding: 10px 12px;
 }
 
 @media (max-width: 760px) {

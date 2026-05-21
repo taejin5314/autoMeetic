@@ -41,4 +41,27 @@ describe('memory IPC readiness', () => {
       /Memory service failed to initialize: sqlite failed/
     )
   })
+
+  it('passes export language options to the memory service', async () => {
+    const calls: unknown[] = []
+    const handlers = buildMemoryHandlers(() =>
+      Promise.resolve(
+        memoryFixture({
+          exportMeeting: (...args) => {
+            calls.push(args)
+            return '# translated export'
+          },
+        })
+      )
+    )
+
+    await expect(
+      handlers['memory:export-meeting']({
+        id: 'mtg_1',
+        format: 'markdown',
+        language: 'translation',
+      })
+    ).resolves.toBe('# translated export')
+    expect(calls).toEqual([['mtg_1', 'markdown', 'translation']])
+  })
 })

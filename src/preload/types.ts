@@ -7,6 +7,7 @@ import type {
   MeetingUpdatedEvent,
   SearchHit,
 } from '../main/memory/types'
+import type { ExportLanguageMode } from '../main/memory/markdownExporter'
 
 export interface TranslationPatchEvent {
   id: string
@@ -24,7 +25,7 @@ export interface MemoryAPI {
   search(query: string, limit?: number): Promise<SearchHit[]>
   renameMeeting(id: string, title: string): Promise<void>
   deleteMeeting(id: string): Promise<void>
-  exportMeeting(id: string, format?: 'markdown'): Promise<string>
+  exportMeeting(id: string, format?: 'markdown', language?: ExportLanguageMode): Promise<string>
   regenerateSummary(id: string): Promise<void>
   onMeetingUpdated(callback: (event: MeetingUpdatedEvent) => void): () => void
 }

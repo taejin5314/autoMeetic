@@ -11,6 +11,8 @@ type DetailState =
   | { status: 'loading'; meeting: MeetingDetail | null }
   | { status: 'error'; meeting: MeetingDetail | null; message: string }
 
+type ExportLanguageMode = 'source' | 'translation' | 'both'
+
 function formatMeetingTime(ms: number): string {
   return new Date(ms).toLocaleString([], {
     month: 'short',
@@ -29,6 +31,14 @@ function formatDuration(ms: number | null): string {
 
 function getMemoryApi() {
   return window.electronAPI?.memory ?? null
+}
+
+function sanitizeFileName(value: string): string {
+  const invalid = new Set(['<', '>', ':', '"', '/', '\\', '|', '?', '*'])
+  return Array.from(value, (char) => {
+    const code = char.charCodeAt(0)
+    return code < 32 || invalid.has(char) ? '-' : char
+  }).join('')
 }
 
 function highlightMatches(text: string, query: string): ReactNode {
@@ -68,6 +78,9 @@ export function MemoryLibraryPanel({ open, onClose }: MemoryLibraryPanelProps) {
   const [renameDraft, setRenameDraft] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [focusSegmentId, setFocusSegmentId] = useState<string | null>(null)
+  const [exportLanguage, setExportLanguage] = useState<ExportLanguageMode>('both')
+  const [exportMessage, setExportMessage] = useState<string | null>(null)
+  const exportLanguageRef = useRef<ExportLanguageMode>('both')
   const segmentRefs = useRef<Map<string, HTMLElement>>(new Map())
 
   const api = getMemoryApi()
@@ -242,18 +255,72 @@ export function MemoryLibraryPanel({ open, onClose }: MemoryLibraryPanelProps) {
     }
   }
 
+  async function exportSelected() {
+    if (!api || !selectedMeeting) return
+    const selectedExportLanguage = exportLanguageRef.current
+    setBusy(true)
+    setExportMessage(null)
+    try {
+      const content = await api.exportMeeting(
+        selectedMeeting.meeting.id,
+        'markdown',
+        exportLanguageRef.current
+      )
+      const suffix =
+        selectedExportLanguage === 'source'
+          ? 'original'
+          : selectedExportLanguage === 'translation'
+            ? 'translation'
+            : 'both'
+      const safeTitle = sanitizeFileName(selectedMeeting.meeting.title)
+      const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `${safeTitle}-${suffix}.md`
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 0)
+      setExportMessage('Exported')
+    } catch (err) {
+      setExportMessage(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   if (!open) return null
 
   return (
-    <div className="memory-panel-backdrop" role="dialog" aria-modal="true" aria-label="Meeting Library">
+    <div
+      className="memory-panel-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Meeting Library"
+    >
       <section className="memory-panel">
         <header className="memory-panel-head">
           <div>
             <span className="memory-kicker">Library</span>
             <h2>Meeting Memory</h2>
           </div>
-          <button className="memory-icon-btn" type="button" onClick={onClose} title="Close" aria-label="Close">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+          <button
+            className="memory-icon-btn"
+            type="button"
+            onClick={onClose}
+            title="Close"
+            aria-label="Close"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            >
               <path d="M3 3l8 8M11 3l-8 8" />
             </svg>
           </button>
@@ -265,11 +332,22 @@ export function MemoryLibraryPanel({ open, onClose }: MemoryLibraryPanelProps) {
           <div className="memory-panel-grid">
             <aside className="memory-list-pane">
               <label className="memory-search">
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 14 14"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                >
                   <circle cx="6" cy="6" r="4" />
                   <path d="M9.5 9.5L12 12" />
                 </svg>
-                <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search" />
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search"
+                />
               </label>
               {error && <div className="memory-error">{error}</div>}
               {query.trim() ? (
@@ -315,19 +393,24 @@ export function MemoryLibraryPanel({ open, onClose }: MemoryLibraryPanelProps) {
                     >
                       <span>{item.meeting.title}</span>
                       <small>
-                        {formatMeetingTime(item.meeting.startedAt)} · {item.meeting.segmentCount} turns
+                        {formatMeetingTime(item.meeting.startedAt)} · {item.meeting.segmentCount}{' '}
+                        turns
                       </small>
                       {item.shortSummary && <em>{item.shortSummary}</em>}
                     </button>
                   ))}
-                  {meetings.length === 0 && <div className="memory-empty compact">No meetings yet</div>}
+                  {meetings.length === 0 && (
+                    <div className="memory-empty compact">No meetings yet</div>
+                  )}
                 </div>
               )}
             </aside>
 
             <div className="memory-detail-pane">
               {!selectedMeeting ? (
-                <div className="memory-empty">{detail.status === 'loading' ? 'Loading...' : 'Select a meeting'}</div>
+                <div className="memory-empty">
+                  {detail.status === 'loading' ? 'Loading...' : 'Select a meeting'}
+                </div>
               ) : (
                 <>
                   <div className="memory-detail-top">
@@ -359,10 +442,21 @@ export function MemoryLibraryPanel({ open, onClose }: MemoryLibraryPanelProps) {
                       </p>
                     </div>
                     <div className="memory-actions">
-                      <button type="button" onClick={startRename} disabled={busy || renameDraft !== null} title="Rename" aria-label="Rename meeting">
+                      <button
+                        type="button"
+                        onClick={startRename}
+                        disabled={busy || renameDraft !== null}
+                        title="Rename"
+                        aria-label="Rename meeting"
+                      >
                         Rename
                       </button>
-                      <button type="button" onClick={regenerateSummary} disabled={busy} title="Regenerate summary">
+                      <button
+                        type="button"
+                        onClick={regenerateSummary}
+                        disabled={busy}
+                        title="Regenerate summary"
+                      >
                         Summarize
                       </button>
                       <button
@@ -375,82 +469,117 @@ export function MemoryLibraryPanel({ open, onClose }: MemoryLibraryPanelProps) {
                         {confirmDelete ? 'Confirm delete' : 'Delete'}
                       </button>
                       {confirmDelete && (
-                        <button type="button" onClick={() => setConfirmDelete(false)} disabled={busy}>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDelete(false)}
+                          disabled={busy}
+                        >
                           Cancel
                         </button>
                       )}
+                      <label className="memory-export-mode">
+                        <span>Export</span>
+                        <select
+                          value={exportLanguage}
+                          onChange={(event) => {
+                            const nextLanguage = event.target.value as ExportLanguageMode
+                            exportLanguageRef.current = nextLanguage
+                            setExportLanguage(nextLanguage)
+                          }}
+                          disabled={busy}
+                          aria-label="Export language"
+                        >
+                          <option value="source">Original</option>
+                          <option value="translation">Translation</option>
+                          <option value="both">Both</option>
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => void exportSelected()}
+                        disabled={busy}
+                        title="Export meeting memory"
+                      >
+                        Export
+                      </button>
                     </div>
                   </div>
 
-                  {detail.status === 'error' && <div className="memory-error">{detail.message}</div>}
+                  <div className="memory-detail-scroll amw-scroll">
+                    {exportMessage && <div className="memory-export-message">{exportMessage}</div>}
+                    {detail.status === 'error' && (
+                      <div className="memory-error">{detail.message}</div>
+                    )}
 
-                  <section className="memory-summary-band">
-                    <h4>Summary</h4>
-                    <p>
-                      {summary?.shortSummary
-                        ? highlightMatches(summary.shortSummary, query)
-                        : 'Summary pending'}
-                    </p>
-                    {summary?.detailedSummary && (
-                      <p className="memory-detail-summary">
-                        {highlightMatches(summary.detailedSummary, query)}
+                    <section className="memory-summary-band">
+                      <h4>Summary</h4>
+                      <p>
+                        {summary?.shortSummary
+                          ? highlightMatches(summary.shortSummary, query)
+                          : 'Summary pending'}
                       </p>
-                    )}
-                    {summary && summary.keyPoints.length > 0 && (
-                      <ul>
-                        {summary.keyPoints.map((point) => (
-                          <li key={point}>{highlightMatches(point, query)}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </section>
-
-                  {actionItems.length > 0 && (
-                    <section className="memory-actions-band">
-                      <h4>Action Items</h4>
-                      {actionItems.map((item) => (
-                        <div className="memory-action-item" key={`${item.text}-${item.owner ?? ''}`}>
-                          <span>{highlightMatches(item.text, query)}</span>
-                          {(item.owner || item.due) && (
-                            <small>
-                              {[item.owner, item.due].filter(Boolean).join(' · ')}
-                            </small>
-                          )}
-                        </div>
-                      ))}
+                      {summary?.detailedSummary && (
+                        <p className="memory-detail-summary">
+                          {highlightMatches(summary.detailedSummary, query)}
+                        </p>
+                      )}
+                      {summary && summary.keyPoints.length > 0 && (
+                        <ul>
+                          {summary.keyPoints.map((point) => (
+                            <li key={point}>{highlightMatches(point, query)}</li>
+                          ))}
+                        </ul>
+                      )}
                     </section>
-                  )}
 
-                  <section className="memory-transcript amw-scroll">
-                    {segments.map((segment) => {
-                      const speaker =
-                        segment.speakerLabel && segment.speakerLabel !== 'Unknown'
-                          ? segment.speakerLabel
-                          : null
-                      const isFocused = focusSegmentId === segment.id
-                      return (
-                        <article
-                          className={`memory-segment${isFocused ? ' is-focused' : ''}`}
-                          key={segment.id}
-                          ref={(node) => {
-                            if (node) segmentRefs.current.set(segment.id, node)
-                            else segmentRefs.current.delete(segment.id)
-                          }}
-                        >
-                          <div>
-                            {speaker && <span>{speaker}</span>}
-                            <small>#{segment.seq + 1}</small>
+                    {actionItems.length > 0 && (
+                      <section className="memory-actions-band">
+                        <h4>Action Items</h4>
+                        {actionItems.map((item) => (
+                          <div
+                            className="memory-action-item"
+                            key={`${item.text}-${item.owner ?? ''}`}
+                          >
+                            <span>{highlightMatches(item.text, query)}</span>
+                            {(item.owner || item.due) && (
+                              <small>{[item.owner, item.due].filter(Boolean).join(' · ')}</small>
+                            )}
                           </div>
-                          <p>{highlightMatches(segment.sourceText, query)}</p>
-                          {segment.translatedText && (
-                            <blockquote>
-                              {highlightMatches(segment.translatedText, query)}
-                            </blockquote>
-                          )}
-                        </article>
-                      )
-                    })}
-                  </section>
+                        ))}
+                      </section>
+                    )}
+
+                    <section className="memory-transcript">
+                      {segments.map((segment) => {
+                        const speaker =
+                          segment.speakerLabel && segment.speakerLabel !== 'Unknown'
+                            ? segment.speakerLabel
+                            : null
+                        const isFocused = focusSegmentId === segment.id
+                        return (
+                          <article
+                            className={`memory-segment${isFocused ? ' is-focused' : ''}`}
+                            key={segment.id}
+                            ref={(node) => {
+                              if (node) segmentRefs.current.set(segment.id, node)
+                              else segmentRefs.current.delete(segment.id)
+                            }}
+                          >
+                            <div>
+                              {speaker && <span>{speaker}</span>}
+                              <small>#{segment.seq + 1}</small>
+                            </div>
+                            <p>{highlightMatches(segment.sourceText, query)}</p>
+                            {segment.translatedText && (
+                              <blockquote>
+                                {highlightMatches(segment.translatedText, query)}
+                              </blockquote>
+                            )}
+                          </article>
+                        )
+                      })}
+                    </section>
+                  </div>
                 </>
               )}
             </div>

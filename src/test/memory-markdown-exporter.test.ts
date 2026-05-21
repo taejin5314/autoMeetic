@@ -78,6 +78,24 @@ describe('exportMeetingMarkdown', () => {
     repo.close()
   })
 
+  it('can export only original transcript text', () => {
+    const repo = setup(true)
+    const md = exportMeetingMarkdown(repo, 'mtg_1', { language: 'source' })!
+    expect(md).toContain('[00:00:00] **Speaker A**: hello')
+    expect(md).toContain('[00:00:05] **Speaker B**: world')
+    expect(md).not.toContain('hello translated')
+    repo.close()
+  })
+
+  it('can export only translated transcript text', () => {
+    const repo = setup(true)
+    const md = exportMeetingMarkdown(repo, 'mtg_1', { language: 'translation' })!
+    expect(md).toContain('[00:00:00] **Speaker A**: hello translated')
+    expect(md).toContain('[00:00:05] **Speaker B**: [translation unavailable]')
+    expect(md).not.toContain('[00:00:00] **Speaker A**: hello\n')
+    repo.close()
+  })
+
   it('omits summary sections when no summary exists', () => {
     const repo = setup(false)
     const md = exportMeetingMarkdown(repo, 'mtg_1')!

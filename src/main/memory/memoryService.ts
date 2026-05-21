@@ -3,7 +3,7 @@ import path from 'node:path'
 import { EmbeddingQueue } from './embeddingQueue'
 import { EmbeddingService } from './embeddingService'
 import { attachTranscriptHook } from './transcriptHook'
-import { exportMeetingMarkdown } from './markdownExporter'
+import { exportMeetingMarkdown, type ExportLanguageMode } from './markdownExporter'
 import { MeetingLifecycle } from './meetingLifecycle'
 import { MemoryRepository } from './repository'
 import { SearchService } from './searchService'
@@ -104,7 +104,8 @@ export class MemoryService {
     if (!meetingId) return null
     this.emit({ meetingId, kind: 'ended' })
     const missing = this.repo.getMissingEmbeddings(meetingId)
-    for (const row of missing) this.embeddingQueue.enqueue({ segmentId: row.segmentId, text: row.text })
+    for (const row of missing)
+      this.embeddingQueue.enqueue({ segmentId: row.segmentId, text: row.text })
     if (missing.length > 0)
       await this.embeddingQueue.drainPending(
         missing.map((m) => m.segmentId),
@@ -155,9 +156,9 @@ export class MemoryService {
     this.emit({ meetingId: id, kind: 'deleted' })
   }
 
-  exportMeeting(id: string, format: 'markdown'): string {
+  exportMeeting(id: string, format: 'markdown', language: ExportLanguageMode = 'both'): string {
     if (format !== 'markdown') throw new Error('Unsupported export format')
-    const md = exportMeetingMarkdown(this.repo, id)
+    const md = exportMeetingMarkdown(this.repo, id, { language })
     if (!md) throw new Error('Meeting not found')
     return md
   }
@@ -198,6 +199,9 @@ export class MemoryService {
 
   private emitSummaryStatus(meetingId: string): void {
     const summary = this.repo.getSummary(meetingId)
-    this.emit({ meetingId, kind: summary?.status === 'failed' ? 'summary-failed' : 'summary-ready' })
+    this.emit({
+      meetingId,
+      kind: summary?.status === 'failed' ? 'summary-failed' : 'summary-ready',
+    })
   }
 }

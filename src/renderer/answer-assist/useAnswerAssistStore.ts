@@ -141,90 +141,78 @@ export function useAnswerAssistStore() {
           return
         }
 
-        let glossary: Array<{
+        const glossary: Array<{
           sourceTerm: string
           translations: Record<string, string>
           preserve: boolean
         }> = []
-        if (window.electronAPI?.glossary) {
-          try {
-            const active = await window.electronAPI.glossary.active()
-            glossary = active.map((e) => ({
-              sourceTerm: e.sourceTerm,
-              translations: e.translations,
-              preserve: e.preserve,
-            }))
-          } catch {
-            glossary = []
-          }
-        }
 
         const res = await fetch(ANSWER_ASSIST_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-        body: JSON.stringify({ transcript, sourceLang, targetLang, glossary }),
-        signal: controller.signal,
-      })
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+          body: JSON.stringify({ transcript, sourceLang, targetLang, glossary }),
+          signal: controller.signal,
+        })
 
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({ error: `HTTP ${res.status}` }))) as {
-          error?: string
-        }
-        dispatch({ type: 'error', message: body.error ?? `HTTP ${res.status}` })
-        return
-      }
-
-      const reader = res.body?.getReader()
-      if (!reader) {
-        dispatch({ type: 'error', message: 'No response body' })
-        return
-      }
-
-      const decoder = new TextDecoder()
-      let buffer = ''
-      let fullAnswer = ''
-      let fullAnswerKo = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() ?? ''
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          const json = line.slice(6).trim()
-          if (!json || json === '[DONE]') continue
-
-          let event: SSEEvent
-          try {
-            event = JSON.parse(json) as SSEEvent
-          } catch {
-            continue
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({ error: `HTTP ${res.status}` }))) as {
+            error?: string
           }
-
-          const handled = handleAnswerAssistEvent(event, {
-            dispatch,
-            sectionRef,
-            appendSource: (content) => {
-              fullAnswer += content
-            },
-            appendKo: (content) => {
-              fullAnswerKo += content
-            },
-          })
-          if (handled === 'done') return
+          dispatch({ type: 'error', message: body.error ?? `HTTP ${res.status}` })
+          return
         }
-      }
 
-      if (fullAnswer || fullAnswerKo) {
-        dispatch({ type: 'done', answer: fullAnswer, answerKo: fullAnswerKo })
-      }
-    } catch (err) {
-      if ((err as Error).name === 'AbortError') return
-      dispatch({ type: 'error', message: err instanceof Error ? err.message : String(err) })
+        const reader = res.body?.getReader()
+        if (!reader) {
+          dispatch({ type: 'error', message: 'No response body' })
+          return
+        }
+
+        const decoder = new TextDecoder()
+        let buffer = ''
+        let fullAnswer = ''
+        let fullAnswerKo = ''
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() ?? ''
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue
+            const json = line.slice(6).trim()
+            if (!json || json === '[DONE]') continue
+
+            let event: SSEEvent
+            try {
+              event = JSON.parse(json) as SSEEvent
+            } catch {
+              continue
+            }
+
+            const handled = handleAnswerAssistEvent(event, {
+              dispatch,
+              sectionRef,
+              appendSource: (content) => {
+                fullAnswer += content
+              },
+              appendKo: (content) => {
+                fullAnswerKo += content
+              },
+            })
+            if (handled === 'done') return
+          }
+        }
+
+        if (fullAnswer || fullAnswerKo) {
+          dispatch({ type: 'done', answer: fullAnswer, answerKo: fullAnswerKo })
+        }
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return
+        dispatch({ type: 'error', message: err instanceof Error ? err.message : String(err) })
       }
     },
     []

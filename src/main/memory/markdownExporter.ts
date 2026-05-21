@@ -9,11 +9,22 @@ function formatOffset(ms: number): string {
   return `${pad(Math.floor(sec / 3600))}:${pad(Math.floor((sec % 3600) / 60))}:${pad(sec % 60)}`
 }
 
-export function exportMeetingMarkdown(repo: MemoryRepository, meetingId: string): string | null {
+export type ExportLanguageMode = 'source' | 'translation' | 'both'
+
+export interface ExportMeetingMarkdownOptions {
+  language?: ExportLanguageMode
+}
+
+export function exportMeetingMarkdown(
+  repo: MemoryRepository,
+  meetingId: string,
+  opts: ExportMeetingMarkdownOptions = {}
+): string | null {
   const meeting = repo.getMeeting(meetingId)
   if (!meeting) return null
   const summary = repo.getSummary(meetingId)
   const segments = repo.getSegments(meetingId)
+  const language = opts.language ?? 'both'
 
   const lines: string[] = []
   lines.push(`# ${meeting.title}`)
@@ -52,8 +63,12 @@ export function exportMeetingMarkdown(repo: MemoryRepository, meetingId: string)
   for (const s of segments) {
     const offset = formatOffset(s.createdAt - anchor)
     const speaker = s.speakerLabel && s.speakerLabel !== 'Unknown' ? `**${s.speakerLabel}**: ` : ''
+    if (language === 'translation') {
+      lines.push(`[${offset}] ${speaker}${s.translatedText ?? '[translation unavailable]'}`)
+      continue
+    }
     lines.push(`[${offset}] ${speaker}${s.sourceText}`)
-    if (s.translatedText) lines.push(`  -> ${s.translatedText}`)
+    if (language === 'both' && s.translatedText) lines.push(`  -> ${s.translatedText}`)
   }
   lines.push('')
   return lines.join('\n')
