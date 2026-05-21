@@ -18,7 +18,7 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 | 1 — Storage + types + repository CRUD + backfill + cleanup hook | ✅ COMPLETE | `4acc27f` → `d317a38` (6 commits) | 143/143 (`npx vitest run`); `npm test` blocked pre-Vitest by Windows `EBUSY` |
 | 2 — Extraction prompt + parser + suggestionService | ✅ COMPLETE | `b6aedcb` → `9b80542` (2 commits) | 152/152 (`npx vitest run`); `npm test` blocked pre-Vitest by Windows `EBUSY` |
 | 3 — IPC handlers + preload bridge + lifecycle wiring + IPC tests | ✅ COMPLETE | `e34a5c5` → `b5afab8` (4 commits) | 158/158 (`npx vitest run`); `npm test` blocked pre-Vitest by Windows `EBUSY` |
-| 4 — Renderer types + useGlossaryStore extension | ⏳ PENDING | — | — |
+| 4 — Renderer types + useGlossaryStore extension | ✅ COMPLETE | `312ccb0` → `5ad6cbf` (2 commits) | 158/158 (`npx vitest run`); `npm test` blocked pre-Vitest by Windows `EBUSY` |
 | 5 — SuggestionRow + Panel tab + header badge + styles | ⏳ PENDING | — | — |
 | 6 — Telemetry counters | ⏳ PENDING | — | — |
 | 7 — Final regression + manual smoke + push | ⏳ PENDING | — | — |
