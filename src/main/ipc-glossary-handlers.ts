@@ -2,6 +2,7 @@ import { BrowserWindow } from 'electron'
 import { bumpGlossaryEpoch } from './glossary/cache'
 import type { MemoryRepository } from './memory/repository'
 import type { GlossaryEntryInput } from './memory/types'
+import { log } from './telemetry/logger'
 
 export type GlossaryRepoApi = Pick<
   MemoryRepository,
@@ -80,12 +81,19 @@ export function buildGlossaryHandlers(getRepo: GetRepo, getCurrentMeetingId: Get
       broadcastChanged()
       broadcastSuggestionsUpdated()
       broadcastMeetingUpdated()
+      log('info', 'glossary-suggestions', 'glossary.suggestion.accepted', {
+        suggestionId: args.id,
+        entryId: entry.id,
+      })
       return entry
     },
     'glossary:suggestions:dismiss': async (args: { id: string }) => {
       const repo = await getReady(getRepo, 'Glossary repo')
       repo.dismissSuggestion(args.id)
       broadcastSuggestionsUpdated()
+      log('info', 'glossary-suggestions', 'glossary.suggestion.dismissed', {
+        suggestionId: args.id,
+      })
     },
     'glossary:suggestions:bulk-accept': async (args: { ids: string[] }) => {
       const repo = await getReady(getRepo, 'Glossary repo')
@@ -102,6 +110,11 @@ export function buildGlossaryHandlers(getRepo: GetRepo, getCurrentMeetingId: Get
       broadcastChanged()
       broadcastSuggestionsUpdated()
       broadcastMeetingUpdated()
+      log('info', 'glossary-suggestions', 'glossary.suggestion.bulk-accepted', {
+        size: args.ids.length,
+        accepted: accepted.length,
+        failed: failed.length,
+      })
       return { accepted, failed }
     },
     'glossary:suggestions:count': async () => {
