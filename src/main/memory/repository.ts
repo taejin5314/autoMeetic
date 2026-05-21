@@ -13,6 +13,10 @@ import type {
   Summary,
 } from './types'
 
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 export class MemoryRepository {
   private db: Database.Database
 
@@ -784,10 +788,38 @@ export class MemoryRepository {
   }
 
   backfillSegments(meetingId: string, entry: GlossaryEntry, variants: string[]): number {
-    void meetingId
-    void entry
-    void variants
-    return 0
+    const m = this.getMeeting(meetingId)
+    if (!m) return 0
+    const segments = this.listSegmentsByMeeting(meetingId)
+    if (segments.length === 0) return 0
+
+    const targetLang = m.targetLanguage
+    const targetForm =
+      !entry.preserve && targetLang && entry.translations[targetLang]
+        ? entry.translations[targetLang]
+        : null
+    const terms = [entry.sourceTerm, ...variants]
+    const sourceRegexes = terms.map((t) => new RegExp(`\\b${escapeRegex(t)}\\b`, 'gi'))
+
+    const stmt = this.db.prepare(`UPDATE segments SET source_text = ?, translated_text = ? WHERE id = ?`)
+    let changed = 0
+    for (const segment of segments) {
+      let nextSource = segment.sourceText
+      let nextTranslated = segment.translatedText ?? ''
+      for (const re of sourceRegexes) {
+        nextSource = nextSource.replace(re, entry.sourceTerm)
+        if (entry.preserve) {
+          nextTranslated = nextTranslated.replace(re, entry.sourceTerm)
+        } else if (targetForm) {
+          nextTranslated = nextTranslated.replace(re, targetForm)
+        }
+      }
+      if (nextSource !== segment.sourceText || nextTranslated !== (segment.translatedText ?? '')) {
+        stmt.run(nextSource, nextTranslated, segment.id)
+        changed += 1
+      }
+    }
+    return changed
   }
 
   close(): void {
