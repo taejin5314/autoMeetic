@@ -1,32 +1,55 @@
-# Glossary + Diagram Label Language — Implementation Handoff
+# autoMeetic Glossary — Implementation Handoff
 
-Live handoff document maintained during the subagent-driven implementation of the glossary feature. Any agent (Claude, Codex, human) can resume from this file.
+Live handoff document. Any agent (Claude, Codex, human) can resume from this file.
 
-## Resuming work
+## 🚀 Next active stream
+
+> **Glossary Auto-Suggestions (v2 of the glossary feature).** 8 phases, ~16-20 hours of solo work, designed to be executed by Codex without me. See:
+>
+> - **Spec:** `docs/superpowers/specs/2026-05-20-glossary-auto-suggestions-design.md`
+> - **Plan:** `docs/superpowers/plans/2026-05-20-glossary-auto-suggestions.md`
+>
+> Start at Phase 1 (Task 1.1). Each task has exact code blocks, exact commit messages, and TDD steps. Update the **Active stream state** table below as you finish each phase.
+
+## Active stream state — Glossary Auto-Suggestions
+
+| Phase | Status | Commits | Tests passing |
+|---|---|---|---|
+| 1 — Storage + types + repository CRUD + backfill + cleanup hook | ⏳ PENDING | — | — |
+| 2 — Extraction prompt + parser + suggestionService | ⏳ PENDING | — | — |
+| 3 — IPC handlers + preload bridge + lifecycle wiring + IPC tests | ⏳ PENDING | — | — |
+| 4 — Renderer types + useGlossaryStore extension | ⏳ PENDING | — | — |
+| 5 — SuggestionRow + Panel tab + header badge + styles | ⏳ PENDING | — | — |
+| 6 — Telemetry counters | ⏳ PENDING | — | — |
+| 7 — Final regression + manual smoke + push | ⏳ PENDING | — | — |
+
+## How to resume (Codex or any agent)
 
 1. Read this file end-to-end.
-2. Find the **Current state** table. The next phase to work on is the first row marked `⏳ PENDING`.
-3. For that phase, read the corresponding section in `docs/superpowers/plans/2026-05-19-glossary-and-diagram-label-language.md`.
-4. Implement per the plan (TDD where indicated). Each phase has discrete tasks with exact code blocks and exact commit messages.
-5. After each phase: run `npm run typecheck` and `npx vitest run <phase-test-file>`. Commit each task individually (the plan specifies the commit message). Update the **Current state** table here.
+2. Find the **Active stream state** table. Next phase = first row marked `⏳ PENDING`.
+3. For that phase, read the corresponding section in `docs/superpowers/plans/2026-05-20-glossary-auto-suggestions.md`.
+4. Implement per the plan (TDD where indicated). Each task has exact code blocks and exact commit messages.
+5. After each phase: run `npm run typecheck` and `npx vitest run <phase-test-file>`. Commit each task individually (the plan specifies the commit message). Update the **Active stream state** table here.
+6. After all phases: run `npm run lint` (expect 0 errors) and `npx vitest run` (expect 140+ tests passing). Manual smoke per the spec's success criteria.
 
-## Spec & plan
+## Previously shipped — Glossary v1 (Diagram Label Language)
 
 - **Spec:** `docs/superpowers/specs/2026-05-19-glossary-and-diagram-label-language-design.md`
+- **Plan:** `docs/superpowers/plans/2026-05-19-glossary-and-diagram-label-language.md`
 - **Plan:** `docs/superpowers/plans/2026-05-19-glossary-and-diagram-label-language.md`
 
 ## Working branch
 
-`master` (user explicitly approved working on master). Commits go directly; final PR is the last step in Phase 10.
+`master` (user explicitly approved working on master). Commits go directly; push to `origin/master` after each phase completes.
 
 ## Environment quirks
 
 - **better-sqlite3 ABI mismatch:** The project's `better-sqlite3` is compiled for Electron (ABI 145), but vitest runs under Node (ABI 115). Workaround: a shim at `src/test/__sqlite-shim__.ts` plus an alias in `vitest.config.ts`. If tests fail locally with `NODE_MODULE_VERSION` errors, run `node scripts/prepare-native-deps.mjs node` (requires Electron not running) to install the Node-compatible binary at `node_modules/better-sqlite3/build/Release/better_sqlite3_node115.node`.
-- **Preexisting lint errors on master:** 4 errors unrelated to glossary work — 3 in `src/renderer/library/MemoryLibraryPanel.tsx` and 1 in `src/renderer/App.tsx` (translation health effect). Treat these as the baseline; flag only new ones introduced by glossary work.
+- **Lint baseline = 0 errors.** As of v1 ship, `npm run lint` is clean. Any new errors introduced by the auto-suggestions work must be fixed before that phase ships.
 - **Preexisting tsc -b build error:** `npm run build` fails on a preexisting issue in `src/main/memory/repository.ts` (the `lookupSearchHits` return type). `npm run typecheck` (which uses `tsc --noEmit` instead of `tsc -b`) does pass cleanly. Don't try to "fix" this in glossary phases — it's out of scope.
-- **Windows + PowerShell shell:** Use `npx vitest run` directly when possible to avoid the `npm test` script's native-deps prep step.
+- **Windows + PowerShell shell:** Use `npx vitest run` directly when possible to avoid the `npm test` script's native-deps prep step. PowerShell glob expansion is limited; pass test files by full path explicitly.
 
-## Current state
+## Glossary v1 — completed phases (reference)
 
 | Phase | Status | Commits | Tests passing |
 |---|---|---|---|
