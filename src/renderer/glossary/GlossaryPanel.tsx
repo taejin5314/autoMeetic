@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { GlossaryRowEditor } from './GlossaryRowEditor'
+import { SuggestionRow } from './SuggestionRow'
 import type { GlossaryEntry, GlossaryEntryInput } from './types'
 import { useGlossaryStore } from './useGlossaryStore'
 
@@ -9,7 +10,7 @@ interface Props {
   onClose: () => void
 }
 
-type Tab = 'global' | 'meeting'
+type Tab = 'suggestions' | 'global' | 'meeting'
 
 export function GlossaryPanel({ open, meetingId, onClose }: Props) {
   const [tab, setTab] = useState<Tab>('global')
@@ -17,7 +18,7 @@ export function GlossaryPanel({ open, meetingId, onClose }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
 
-  const scope: 'global' | 'meeting' = tab
+  const scope: 'global' | 'meeting' = tab === 'meeting' ? 'meeting' : 'global'
   const store = useGlossaryStore(scope, meetingId)
 
   const filtered = useMemo(() => {
@@ -29,12 +30,30 @@ export function GlossaryPanel({ open, meetingId, onClose }: Props) {
     })
   }, [store.entries, query])
 
+  const filteredSuggestions = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return store.suggestions
+    return store.suggestions.filter((suggestion) => {
+      if (suggestion.sourceTerm.toLowerCase().includes(q)) return true
+      return Object.values(suggestion.translations).some((value) => value.toLowerCase().includes(q))
+    })
+  }, [store.suggestions, query])
+
+  const eligibleSuggestions = useMemo(
+    () => store.suggestions.filter((suggestion) => suggestion.confidence >= 0.7),
+    [store.suggestions]
+  )
+
   if (!open) return null
 
   const handleSave = async (input: GlossaryEntryInput) => {
     await store.upsert(input)
     setEditingId(null)
     setCreating(false)
+  }
+
+  const handleBulkAccept = async () => {
+    await store.bulkAcceptSuggestions(eligibleSuggestions.map((suggestion) => suggestion.id))
   }
 
   const renderRow = (entry: GlossaryEntry) => {
@@ -94,7 +113,9 @@ export function GlossaryPanel({ open, meetingId, onClose }: Props) {
           <div className="glossary-head-title">
             <h2>Glossary</h2>
             <span className="amw-mono glossary-head-count">
-              {filtered.length} of {store.entries.length}
+              {tab === 'suggestions'
+                ? `${filteredSuggestions.length} of ${store.pendingCount}`
+                : `${filtered.length} of ${store.entries.length}`}
             </span>
           </div>
           <button
@@ -108,6 +129,17 @@ export function GlossaryPanel({ open, meetingId, onClose }: Props) {
         </header>
 
         <div className="glossary-tabs">
+          <button
+            type="button"
+            className={`glossary-tab ${tab === 'suggestions' ? 'on' : ''}`}
+            onClick={() => {
+              setTab('suggestions')
+              setCreating(false)
+              setEditingId(null)
+            }}
+          >
+            Suggestions{store.pendingCount > 0 ? ` (${store.pendingCount})` : ''}
+          </button>
           <button
             type="button"
             className={`glossary-tab ${tab === 'global' ? 'on' : ''}`}
@@ -138,35 +170,67 @@ export function GlossaryPanel({ open, meetingId, onClose }: Props) {
             type="button"
             className="glossary-add"
             onClick={() => setCreating(true)}
-            disabled={creating || editingId !== null}
+            disabled={tab === 'suggestions' || creating || editingId !== null}
           >
             + Add term
           </button>
+          {tab === 'suggestions' && eligibleSuggestions.length > 0 && (
+            <button type="button" className="glossary-bulk-accept" onClick={handleBulkAccept}>
+              Accept all ({eligibleSuggestions.length})
+            </button>
+          )}
         </div>
 
         {store.errorMessage && <div className="glossary-error-banner">{store.errorMessage}</div>}
 
         <div className="glossary-list amw-scroll">
-          {creating && (
-            <GlossaryRowEditor
-              scope={scope}
-              meetingId={meetingId}
-              onSave={handleSave}
-              onCancel={() => setCreating(false)}
-            />
+          {tab === 'suggestions' ? (
+            <>
+              {filteredSuggestions.length === 0 ? (
+                <div className="glossary-empty">
+                  <p>
+                    {store.pendingCount === 0
+                      ? 'No pending suggestions - autoMeetic suggests new terms after each meeting ends.'
+                      : 'No suggestions match your search.'}
+                  </p>
+                </div>
+              ) : (
+                filteredSuggestions.map((suggestion) => (
+                  <SuggestionRow
+                    key={suggestion.id}
+                    suggestion={suggestion}
+                    onAccept={store.acceptSuggestion}
+                    onDismiss={store.dismissSuggestion}
+                  />
+                ))
+              )}
+            </>
+          ) : (
+            <>
+              {creating && (
+                <GlossaryRowEditor
+                  scope={scope}
+                  meetingId={meetingId}
+                  onSave={handleSave}
+                  onCancel={() => setCreating(false)}
+                />
+              )}
+              {filtered.length === 0 && !creating && (
+                <div className="glossary-empty">
+                  <p>{store.status === 'loading' ? 'Loading terms...' : 'No glossary entries'}</p>
+                </div>
+              )}
+              {filtered.map(renderRow)}
+            </>
           )}
-          {filtered.length === 0 && !creating && (
-            <div className="glossary-empty">
-              <p>{store.status === 'loading' ? 'Loading terms...' : 'No glossary entries'}</p>
-            </div>
-          )}
-          {filtered.map(renderRow)}
         </div>
 
         <footer className="glossary-foot">
-          <span className="amw-mono">{store.entries.length} entries</span>
+          <span className="amw-mono">
+            {tab === 'suggestions' ? `${store.pendingCount} suggestions` : `${store.entries.length} entries`}
+          </span>
           <span className="glossary-foot-hint">
-            {tab === 'global' ? 'Global' : 'Meeting'} scope
+            {tab === 'suggestions' ? 'Review queue' : `${tab === 'global' ? 'Global' : 'Meeting'} scope`}
           </span>
         </footer>
       </div>
