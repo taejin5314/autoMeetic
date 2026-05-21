@@ -3,6 +3,8 @@ import { SCHEMA_SQL, SCHEMA_VERSION } from './schema'
 import type {
   GlossaryEntry,
   GlossaryEntryInput,
+  GlossarySuggestion,
+  GlossarySuggestionInput,
   Meeting,
   MeetingStatus,
   SearchHit,
@@ -586,6 +588,128 @@ export class MemoryRepository {
       translations: JSON.parse(row.translations) as Record<string, string>,
       preserve: row.preserve === 1,
     }
+  }
+
+  upsertSuggestion(input: GlossarySuggestionInput): GlossarySuggestion {
+    const term = input.sourceTerm.trim()
+    if (!term) throw new Error('sourceTerm must not be empty')
+    if (term.length > 100) throw new Error('sourceTerm must be <= 100 chars')
+    if (typeof input.confidence !== 'number' || input.confidence < 0 || input.confidence > 1) {
+      throw new Error('confidence must be in [0, 1]')
+    }
+    for (const v of input.variants) {
+      if (typeof v !== 'string' || v.length === 0 || v.length > 100) {
+        throw new Error('variants entries must be non-empty strings <= 100 chars')
+      }
+    }
+    for (const [lang, val] of Object.entries(input.translations)) {
+      if (!lang || lang.length > 20) {
+        throw new Error('translations key must be non-empty <= 20 chars')
+      }
+      if (typeof val !== 'string' || val.length > 100) {
+        throw new Error(`translations[${lang}] must be a string <= 100 chars`)
+      }
+    }
+    const now = Date.now()
+    const id = input.id ?? `sugg_${now.toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+    this.db
+      .prepare(
+        `INSERT OR REPLACE INTO glossary_suggestions
+         (id, meeting_id, source_term, translations, preserve, confidence, reason, frequency, variants, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        id,
+        input.meetingId,
+        term,
+        JSON.stringify(input.translations),
+        input.preserve ? 1 : 0,
+        input.confidence,
+        input.reason,
+        input.frequency,
+        JSON.stringify(input.variants),
+        now
+      )
+    return this.getSuggestion(id)!
+  }
+
+  getSuggestion(id: string): GlossarySuggestion | null {
+    const row = this.db
+      .prepare(
+        `SELECT id, meeting_id AS meetingId, source_term AS sourceTerm,
+                translations, preserve, confidence, reason, frequency, variants,
+                created_at AS createdAt
+         FROM glossary_suggestions WHERE id = ?`
+      )
+      .get(id) as
+      | (Omit<GlossarySuggestion, 'translations' | 'preserve' | 'variants'> & {
+          translations: string
+          preserve: number
+          variants: string
+        })
+      | undefined
+    if (!row) return null
+    return {
+      ...row,
+      translations: JSON.parse(row.translations) as Record<string, string>,
+      preserve: row.preserve === 1,
+      variants: JSON.parse(row.variants) as string[],
+    }
+  }
+
+  listSuggestionsByMeeting(meetingId: string): GlossarySuggestion[] {
+    const rows = this.db
+      .prepare(
+        `SELECT id, meeting_id AS meetingId, source_term AS sourceTerm,
+                translations, preserve, confidence, reason, frequency, variants,
+                created_at AS createdAt
+         FROM glossary_suggestions WHERE meeting_id = ?
+         ORDER BY created_at DESC, rowid DESC`
+      )
+      .all(meetingId) as Array<
+      Omit<GlossarySuggestion, 'translations' | 'preserve' | 'variants'> & {
+        translations: string
+        preserve: number
+        variants: string
+      }
+    >
+    return rows.map((r) => ({
+      ...r,
+      translations: JSON.parse(r.translations) as Record<string, string>,
+      preserve: r.preserve === 1,
+      variants: JSON.parse(r.variants) as string[],
+    }))
+  }
+
+  listAllPendingSuggestions(): GlossarySuggestion[] {
+    const rows = this.db
+      .prepare(
+        `SELECT id, meeting_id AS meetingId, source_term AS sourceTerm,
+                translations, preserve, confidence, reason, frequency, variants,
+                created_at AS createdAt
+         FROM glossary_suggestions
+         ORDER BY created_at DESC, rowid DESC`
+      )
+      .all() as Array<
+      Omit<GlossarySuggestion, 'translations' | 'preserve' | 'variants'> & {
+        translations: string
+        preserve: number
+        variants: string
+      }
+    >
+    return rows.map((r) => ({
+      ...r,
+      translations: JSON.parse(r.translations) as Record<string, string>,
+      preserve: r.preserve === 1,
+      variants: JSON.parse(r.variants) as string[],
+    }))
+  }
+
+  countPendingSuggestions(): number {
+    const row = this.db
+      .prepare('SELECT COUNT(*) AS n FROM glossary_suggestions')
+      .get() as { n: number }
+    return row.n
   }
 
   close(): void {
