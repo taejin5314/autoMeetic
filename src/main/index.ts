@@ -7,6 +7,7 @@ import { MemoryService, defaultWorkerPath } from './memory/memoryService'
 import { init as initTranscriptPostProcessor } from './transcriptPostProcessor'
 import { init as initWhiteboard } from './whiteboardService'
 import { init as initSttService } from './sttService'
+import { extractCandidates as extractGlossaryCandidates } from './glossary/suggestionService'
 
 const {
   app,
@@ -138,6 +139,20 @@ app.whenReady().then(() => {
     .then((memoryService) => {
       const recovered = memoryService.recoverInterruptedMeetings()
       if (recovered > 0) console.log(`[memory] recovered ${recovered} interrupted meeting(s)`)
+      const pendingGlossaryExtractions = new Set<string>()
+      memoryService.onMeetingUpdated((evt) => {
+        if (evt.kind === 'ended') {
+          pendingGlossaryExtractions.add(evt.meetingId)
+          return
+        }
+        if (evt.kind !== 'summary-ready' && evt.kind !== 'summary-failed') return
+        if (!pendingGlossaryExtractions.delete(evt.meetingId)) return
+        void extractGlossaryCandidates(memoryService, evt.meetingId, () => {
+          for (const win of BrowserWindow.getAllWindows()) {
+            win.webContents.send('glossary:suggestions-updated')
+          }
+        })
+      })
       return memoryService
     })
     .catch((err) => {
