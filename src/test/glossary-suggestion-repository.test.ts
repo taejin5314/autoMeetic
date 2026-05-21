@@ -197,3 +197,22 @@ describe('MemoryRepository dismissSuggestion', () => {
     repo.close()
   })
 })
+
+describe('upsertGlossary cleanup hook for pending suggestions', () => {
+  it('deletes any pending suggestion matching the same sourceTerm when a user adds the entry manually', () => {
+    const repo = makeRepo()
+    repo.insertMeeting(sampleMeeting())
+    repo.upsertSuggestion(sampleSuggestion({ sourceTerm: 'autoMeetic' }))
+    expect(repo.countPendingSuggestions()).toBe(1)
+    repo.upsertGlossary({
+      scope: 'global',
+      meetingId: null,
+      sourceTerm: 'AutoMeetic',
+      translations: { ko: '오토미틱' },
+      preserve: true,
+      note: null,
+    })
+    expect(repo.countPendingSuggestions()).toBe(0)
+    repo.close()
+  })
+})

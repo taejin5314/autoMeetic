@@ -465,7 +465,10 @@ export class MemoryRepository {
           input.note,
           now,
           input.id
-        )
+      )
+      this.db
+        .prepare('DELETE FROM glossary_suggestions WHERE LOWER(source_term) = LOWER(?)')
+        .run(term)
       return this.getGlossaryEntry(input.id)!
     }
 
@@ -498,6 +501,9 @@ export class MemoryRepository {
         now,
         now
       )
+    this.db
+      .prepare('DELETE FROM glossary_suggestions WHERE LOWER(source_term) = LOWER(?)')
+      .run(term)
     return this.getGlossaryEntry(id)!
   }
 
