@@ -11,6 +11,7 @@ import { SummaryService, type SummarizeCall } from './summaryService'
 import type {
   GlossaryEntry,
   GlossaryEntryInput,
+  GlossarySuggestion,
   MeetingDetail,
   MeetingSummary,
   MeetingUpdatedEvent,
@@ -186,6 +187,26 @@ export class MemoryService {
 
   activeGlossary(meetingId: string | null): GlossaryEntry[] {
     return this.repo.activeGlossary(meetingId)
+  }
+
+  listSuggestionsByMeeting(meetingId: string): GlossarySuggestion[] {
+    return this.repo.listSuggestionsByMeeting(meetingId)
+  }
+
+  listAllPendingSuggestions(): GlossarySuggestion[] {
+    return this.repo.listAllPendingSuggestions()
+  }
+
+  countPendingSuggestions(): number {
+    return this.repo.countPendingSuggestions()
+  }
+
+  acceptSuggestion(id: string): GlossaryEntry {
+    return this.repo.acceptSuggestion(id)
+  }
+
+  dismissSuggestion(id: string): void {
+    this.repo.dismissSuggestion(id)
   }
 
   get repository(): MemoryRepository {
