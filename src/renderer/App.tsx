@@ -168,6 +168,29 @@ function ThemeToggle({
   )
 }
 
+function useGlossarySuggestionCount(): number {
+  const [count, setCount] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    const api = window.electronAPI?.glossary?.suggestions
+    if (!api) return
+    const refresh = () => {
+      void api.count().then((n) => {
+        if (!cancelled) setCount(n)
+      })
+    }
+    refresh()
+    const unsub = api.onUpdated(refresh)
+    return () => {
+      cancelled = true
+      unsub()
+    }
+  }, [])
+
+  return count
+}
+
 type PipelineStatus = 'connected' | 'degraded' | 'disconnected'
 
 function PipelineStage({
@@ -220,6 +243,7 @@ function App() {
   const [whiteboardMaximized, setWhiteboardMaximized] = useState(false)
   const [memoryLibraryOpen, setMemoryLibraryOpen] = useState(false)
   const [glossaryOpen, setGlossaryOpen] = useState(false)
+  const glossarySuggestionCount = useGlossarySuggestionCount()
   const enColRef = useRef<HTMLDivElement>(null)
   const koColRef = useRef<HTMLDivElement>(null)
   const syncingScrollRef = useRef(false)
@@ -1015,6 +1039,9 @@ function App() {
               <path d="M3 1.5h7.5a.5.5 0 0 1 .5.5v9.5a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5V2a.5.5 0 0 1 .5-.5z" />
               <path d="M2.5 9.5h8M6.75 1.5v10" />
             </svg>
+            {glossarySuggestionCount > 0 && (
+              <span className="v4p-iconbtn-badge amw-mono">{glossarySuggestionCount}</span>
+            )}
           </button>
 
           <button
