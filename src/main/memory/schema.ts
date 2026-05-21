@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY);
@@ -63,4 +63,26 @@ CREATE INDEX IF NOT EXISTS idx_glossary_scope_meeting
   ON glossary_entries(scope, meeting_id);
 CREATE INDEX IF NOT EXISTS idx_glossary_source
   ON glossary_entries(source_term COLLATE NOCASE);
+
+CREATE TABLE IF NOT EXISTS glossary_suggestions (
+  id              TEXT PRIMARY KEY,
+  meeting_id      TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+  source_term     TEXT NOT NULL,
+  translations    TEXT NOT NULL DEFAULT '{}',
+  preserve        INTEGER NOT NULL DEFAULT 0,
+  confidence      REAL NOT NULL,
+  reason          TEXT,
+  frequency       INTEGER,
+  variants        TEXT NOT NULL DEFAULT '[]',
+  created_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_glossary_suggestions_meeting
+  ON glossary_suggestions(meeting_id);
+CREATE INDEX IF NOT EXISTS idx_glossary_suggestions_term
+  ON glossary_suggestions(source_term COLLATE NOCASE);
+
+CREATE TABLE IF NOT EXISTS glossary_dismissed_terms (
+  source_term     TEXT PRIMARY KEY COLLATE NOCASE,
+  dismissed_at    INTEGER NOT NULL
+);
 `

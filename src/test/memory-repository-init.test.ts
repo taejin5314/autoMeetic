@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { MemoryRepository } from '../main/memory/repository'
 
 describe('MemoryRepository init', () => {
-  it('creates schema and reports version 2 on a fresh in-memory db', () => {
+  it('creates schema and reports version 3 on a fresh in-memory db', () => {
     const repo = new MemoryRepository(':memory:')
-    expect(repo.getSchemaVersion()).toBe(2)
+    expect(repo.getSchemaVersion()).toBe(3)
     repo.close()
   })
 
@@ -12,7 +12,7 @@ describe('MemoryRepository init', () => {
     const repo = new MemoryRepository(':memory:')
     repo.close()
     const repo2 = new MemoryRepository(':memory:')
-    expect(repo2.getSchemaVersion()).toBe(2)
+    expect(repo2.getSchemaVersion()).toBe(3)
     repo2.close()
   })
 
