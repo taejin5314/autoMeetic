@@ -16,7 +16,7 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 | Phase | Status | Commits | Tests passing |
 |---|---|---|---|
 | 1 — Storage + types + repository CRUD + backfill + cleanup hook | ✅ COMPLETE | `4acc27f` → `d317a38` (6 commits) | 143/143 (`npx vitest run`); `npm test` blocked pre-Vitest by Windows `EBUSY` |
-| 2 — Extraction prompt + parser + suggestionService | ⏳ PENDING | — | — |
+| 2 — Extraction prompt + parser + suggestionService | ✅ COMPLETE | `b6aedcb` → `9b80542` (2 commits) | 152/152 (`npx vitest run`); `npm test` blocked pre-Vitest by Windows `EBUSY` |
 | 3 — IPC handlers + preload bridge + lifecycle wiring + IPC tests | ⏳ PENDING | — | — |
 | 4 — Renderer types + useGlossaryStore extension | ⏳ PENDING | — | — |
 | 5 — SuggestionRow + Panel tab + header badge + styles | ⏳ PENDING | — | — |
