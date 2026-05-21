@@ -2,6 +2,7 @@ import type { ProcessedTurnsEvent } from '../main/stt/types'
 import type {
   GlossaryEntry,
   GlossaryEntryInput,
+  GlossarySuggestion,
   MeetingDetail,
   MeetingSummary,
   MeetingUpdatedEvent,
@@ -36,6 +37,17 @@ export interface GlossaryAPI {
   delete(id: string): Promise<void>
   active(meetingId?: string): Promise<GlossaryEntry[]>
   onChanged(handler: () => void): () => void
+  suggestions: {
+    list(meetingId?: string): Promise<GlossarySuggestion[]>
+    accept(id: string): Promise<GlossaryEntry>
+    dismiss(id: string): Promise<void>
+    bulkAccept(ids: string[]): Promise<{
+      accepted: string[]
+      failed: Array<{ id: string; error: string }>
+    }>
+    count(): Promise<number>
+    onUpdated(handler: () => void): () => void
+  }
 }
 
 export interface ElectronAPI {

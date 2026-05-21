@@ -34,6 +34,16 @@ const electronAPI: ElectronAPI = {
     delete: (id) => ipcRenderer.invoke('glossary:delete', { id }),
     active: (meetingId) => ipcRenderer.invoke('glossary:active', { meetingId }),
     onChanged: createEventListener('glossary:changed') as ElectronAPI['glossary']['onChanged'],
+    suggestions: {
+      list: (meetingId) => ipcRenderer.invoke('glossary:suggestions:list', { meetingId }),
+      accept: (id) => ipcRenderer.invoke('glossary:suggestions:accept', { id }),
+      dismiss: (id) => ipcRenderer.invoke('glossary:suggestions:dismiss', { id }),
+      bulkAccept: (ids) => ipcRenderer.invoke('glossary:suggestions:bulk-accept', { ids }),
+      count: () => ipcRenderer.invoke('glossary:suggestions:count'),
+      onUpdated: createEventListener(
+        'glossary:suggestions-updated'
+      ) as ElectronAPI['glossary']['suggestions']['onUpdated'],
+    },
   },
 
   // Actions
