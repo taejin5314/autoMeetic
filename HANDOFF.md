@@ -2,14 +2,14 @@
 
 Live handoff document. Any agent (Claude, Codex, human) can resume from this file.
 
-## 🚀 Next active stream
+## ✅ Completed stream
 
-> **Glossary Auto-Suggestions (v2 of the glossary feature).** 8 phases, ~16-20 hours of solo work, designed to be executed by Codex without me. See:
+> **Glossary Auto-Suggestions (v2 of the glossary feature).** Implemented and pushed to `origin/master`. See:
 >
 > - **Spec:** `docs/superpowers/specs/2026-05-20-glossary-auto-suggestions-design.md`
 > - **Plan:** `docs/superpowers/plans/2026-05-20-glossary-auto-suggestions.md`
 >
-> Start at Phase 1 (Task 1.1). Each task has exact code blocks, exact commit messages, and TDD steps. Update the **Active stream state** table below as you finish each phase.
+> Automated regression passed. Manual Electron smoke is intentionally deferred for the user to run separately.
 
 ## Active stream state — Glossary Auto-Suggestions
 
@@ -21,7 +21,9 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 | 4 — Renderer types + useGlossaryStore extension | ✅ COMPLETE | `312ccb0` → `5ad6cbf` (2 commits) | 158/158 (`npx vitest run`); `npm test` blocked pre-Vitest by Windows `EBUSY` |
 | 5 — SuggestionRow + Panel tab + header badge + styles | ✅ COMPLETE | `21455ab` → `af622d0` (3 commits) | 158/158 (`npx vitest run`); `npm test` blocked pre-Vitest by Windows `EBUSY` |
 | 6 — Telemetry counters | ✅ COMPLETE | `2a6c14d` | 10/10 IPC telemetry-adjacent tests; typecheck clean |
-| 7 — Final regression + manual smoke + push | ⏳ PENDING | — | — |
+| 7 — Final regression + manual smoke + push | ✅ COMPLETE | `b47eb53` → `HEAD` | 158/158 (`npx vitest run`); typecheck/lint/build clean; manual smoke deferred to user; `npm test` blocked pre-Vitest by Windows `EBUSY` |
+
+**Stream completion notes:** Auto-suggestions now persist extracted candidates, dedupe against existing/dismissed terms, surface a Suggestions tab with accept/dismiss/bulk-accept flows, backfill accepted terms into meeting transcript segments, show a header badge, and emit telemetry counters. The telemetry event names in use are `glossary.extraction.success`, `glossary.extraction.failure`, `glossary.extraction.empty-transcript`, `glossary.extraction.no-meeting`, `glossary.extraction.upsert-failed`, `glossary.suggestion.accepted`, `glossary.suggestion.dismissed`, and `glossary.suggestion.bulk-accepted`. Known gap: Phase 7 manual Electron smoke is not run in this pass and is assigned to the user.
 
 ## How to resume (Codex or any agent)
 
