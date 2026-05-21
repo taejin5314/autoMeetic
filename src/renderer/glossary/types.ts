@@ -1,4 +1,8 @@
-export type { GlossaryEntry, GlossaryEntryInput } from '../../main/memory/types'
+export type {
+  GlossaryEntry,
+  GlossaryEntryInput,
+  GlossarySuggestion,
+} from '../../main/memory/types'
 
 export const LANGUAGE_OPTIONS = [
   { code: 'ko', label: 'Korean' },
