@@ -36,7 +36,6 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 
 - **Spec:** `docs/superpowers/specs/2026-05-19-glossary-and-diagram-label-language-design.md`
 - **Plan:** `docs/superpowers/plans/2026-05-19-glossary-and-diagram-label-language.md`
-- **Plan:** `docs/superpowers/plans/2026-05-19-glossary-and-diagram-label-language.md`
 
 ## Working branch
 
