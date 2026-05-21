@@ -20,7 +20,7 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 | 3 — IPC handlers + preload bridge + lifecycle wiring + IPC tests | ✅ COMPLETE | `e34a5c5` → `b5afab8` (4 commits) | 158/158 (`npx vitest run`); `npm test` blocked pre-Vitest by Windows `EBUSY` |
 | 4 — Renderer types + useGlossaryStore extension | ✅ COMPLETE | `312ccb0` → `5ad6cbf` (2 commits) | 158/158 (`npx vitest run`); `npm test` blocked pre-Vitest by Windows `EBUSY` |
 | 5 — SuggestionRow + Panel tab + header badge + styles | ✅ COMPLETE | `21455ab` → `af622d0` (3 commits) | 158/158 (`npx vitest run`); `npm test` blocked pre-Vitest by Windows `EBUSY` |
-| 6 — Telemetry counters | ⏳ PENDING | — | — |
+| 6 — Telemetry counters | ✅ COMPLETE | `2a6c14d` | 10/10 IPC telemetry-adjacent tests; typecheck clean |
 | 7 — Final regression + manual smoke + push | ⏳ PENDING | — | — |
 
 ## How to resume (Codex or any agent)
