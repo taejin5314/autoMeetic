@@ -133,6 +133,19 @@ export class MemoryRepository {
       .all(meetingId) as Segment[]
   }
 
+  listSegmentsByMeeting(meetingId: string): Segment[] {
+    return this.db
+      .prepare(
+        `SELECT id, meeting_id AS meetingId, seq, created_at AS createdAt,
+                speaker_id AS speakerId, speaker_label AS speakerLabel,
+                source_text AS sourceText, translated_text AS translatedText,
+                source_language AS sourceLanguage
+         FROM segments WHERE meeting_id = ?
+         ORDER BY seq ASC, rowid ASC`
+      )
+      .all(meetingId) as Segment[]
+  }
+
   nextSeq(meetingId: string): number {
     const row = this.db
       .prepare('SELECT COALESCE(MAX(seq), -1) + 1 AS next FROM segments WHERE meeting_id = ?')
@@ -710,6 +723,71 @@ export class MemoryRepository {
       .prepare('SELECT COUNT(*) AS n FROM glossary_suggestions')
       .get() as { n: number }
     return row.n
+  }
+
+  acceptSuggestion(id: string): GlossaryEntry {
+    return this.db.transaction((suggestionId: string): GlossaryEntry => {
+      const sugg = this.getSuggestion(suggestionId)
+      if (!sugg) throw new Error(`suggestion not found: ${suggestionId}`)
+      const entry = this.upsertGlossary({
+        scope: 'global',
+        meetingId: null,
+        sourceTerm: sugg.sourceTerm,
+        translations: sugg.translations,
+        preserve: sugg.preserve,
+        note: null,
+      })
+      this.backfillSegments(sugg.meetingId, entry, sugg.variants)
+      this.db.prepare('DELETE FROM glossary_suggestions WHERE id = ?').run(suggestionId)
+      return entry
+    })(id)
+  }
+
+  dismissSuggestion(id: string): void {
+    this.db.transaction((suggestionId: string) => {
+      const sugg = this.getSuggestion(suggestionId)
+      if (!sugg) return
+      this.db
+        .prepare(
+          `INSERT INTO glossary_dismissed_terms (source_term, dismissed_at)
+           VALUES (?, ?)
+           ON CONFLICT(source_term) DO UPDATE SET dismissed_at = excluded.dismissed_at`
+        )
+        .run(sugg.sourceTerm, Date.now())
+      this.db.prepare('DELETE FROM glossary_suggestions WHERE id = ?').run(suggestionId)
+    })(id)
+  }
+
+  isDismissed(sourceTerm: string): boolean {
+    const row = this.db
+      .prepare('SELECT 1 FROM glossary_dismissed_terms WHERE LOWER(source_term) = LOWER(?)')
+      .get(sourceTerm)
+    return row !== undefined
+  }
+
+  getDismissedAt(sourceTerm: string): number | null {
+    const row = this.db
+      .prepare(
+        'SELECT dismissed_at AS dismissedAt FROM glossary_dismissed_terms WHERE LOWER(source_term) = LOWER(?)'
+      )
+      .get(sourceTerm) as { dismissedAt: number } | undefined
+    return row?.dismissedAt ?? null
+  }
+
+  listDismissedTerms(limit = 200): string[] {
+    const rows = this.db
+      .prepare(
+        'SELECT source_term AS sourceTerm FROM glossary_dismissed_terms ORDER BY dismissed_at DESC LIMIT ?'
+      )
+      .all(limit) as Array<{ sourceTerm: string }>
+    return rows.map((r) => r.sourceTerm)
+  }
+
+  backfillSegments(meetingId: string, entry: GlossaryEntry, variants: string[]): number {
+    void meetingId
+    void entry
+    void variants
+    return 0
   }
 
   close(): void {
