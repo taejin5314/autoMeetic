@@ -112,3 +112,28 @@ export interface GlossaryEntryInput {
   preserve: boolean
   note: string | null
 }
+
+export interface GlossarySuggestion {
+  id: string
+  meetingId: string
+  sourceTerm: string
+  translations: Record<string, string>
+  preserve: boolean
+  confidence: number
+  reason: string | null
+  frequency: number | null
+  variants: string[]
+  createdAt: number
+}
+
+export interface GlossarySuggestionInput {
+  id?: string
+  meetingId: string
+  sourceTerm: string
+  translations: Record<string, string>
+  preserve: boolean
+  confidence: number
+  reason: string | null
+  frequency: number | null
+  variants: string[]
+}
