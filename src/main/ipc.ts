@@ -3,6 +3,7 @@ import { buildGlossaryHandlers } from './ipc-glossary-handlers'
 import { buildMemoryHandlers } from './ipc-memory-handlers'
 import { resolveMeetingLanguages, type TranscriptLanguageState } from './memory/meetingLanguages'
 import type { MemoryService } from './memory/memoryService'
+import type { WhiteboardMode } from './whiteboard/types'
 
 // Electron exposes its runtime APIs through CommonJS in main/preload.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -128,6 +129,12 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('whiteboard:set-label-language', (_event, args: { code: string | null }) => {
     void import('./whiteboardService').then(({ setDiagramLabelLanguage }) => {
       setDiagramLabelLanguage(args.code)
+    })
+  })
+
+  ipcMain.handle('whiteboard:set-mode', (_event, args: { mode: WhiteboardMode }) => {
+    void import('./whiteboardService').then(({ setWhiteboardMode }) => {
+      setWhiteboardMode(args.mode)
     })
   })
 
