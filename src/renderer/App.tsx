@@ -33,6 +33,7 @@ import { MemoryLibraryPanel } from './library/MemoryLibraryPanel'
 import { CaptionOverlay } from './overlay/CaptionOverlay'
 import { useCaptionStore } from './overlay/useCaptionStore'
 import { SourceBar } from './shell/SourceBar'
+import { TranscriptColumns } from './shell/TranscriptColumns'
 import { useThemeStore, type Theme } from './theme/useThemeStore'
 import { ExcalidrawCanvas } from './whiteboard/ExcalidrawCanvas'
 import { WhiteboardModal } from './whiteboard/WhiteboardModal'
@@ -1106,94 +1107,21 @@ function App() {
 
       {/* ── Main: columns + shelf ─────────────────────────────── */}
       <div className="v4p-main">
-        <section className="v4p-cols">
-          <div className="v4p-col">
-            <div className="v4p-col-hd">
-              <span className="v4p-col-mark">{langCode(sourceLang)}</span>
-              <span className="v4p-col-name">
-                <em>Original</em>
-                {languageLock && <> · {LANGUAGE_LABEL_BY_CODE.get(languageLock) ?? languageLock}</>}
-                {!languageLock && detectedLanguage && (
-                  <>
-                    {' '}
-                    · detecting {LANGUAGE_LABEL_BY_CODE.get(detectedLanguage) ?? detectedLanguage}
-                  </>
-                )}
-              </span>
-            </div>
-            <div className="v4p-col-body amw-scroll" ref={enColRef}>
-              <div className="v4p-col-pad">
-                {!hasFeedContent && (
-                  <p className="v4p-empty">
-                    <em>Idle.</em> Press <kbd>Start</kbd> and share a tab with audio to begin.
-                  </p>
-                )}
-                {items.map((item) => (
-                  <div className="v4p-line" key={`en-${item.id}`}>
-                    <div className="v4p-line-time amw-mono">
-                      {formatDuration(
-                        Math.max(item.createdAtMs - (sessionStartMs ?? item.createdAtMs), 0)
-                      )}
-                    </div>
-                    <div
-                      className={`v4p-line-text${
-                        item.typing && item.displayedSource.length < item.fullSource.length
-                          ? ' v4p-line-typing'
-                          : ''
-                      }`}
-                    >
-                      {item.displayedSource}
-                    </div>
-                  </div>
-                ))}
-                <div className="v4p-trail">· · ·</div>
-              </div>
-            </div>
-          </div>
-
-          {showTranslationColumn && (
-            <div className="v4p-col v4p-col-trans">
-              <div className="v4p-col-hd">
-                <span className="v4p-col-mark v4p-col-mark-alt">{langCode(targetLang)}</span>
-                <span className="v4p-col-name">
-                  <em>Translation</em> · {LANGUAGE_LABEL_BY_CODE.get(targetLang) ?? targetLang}
-                </span>
-              </div>
-              <div className="v4p-col-body amw-scroll" ref={koColRef}>
-                <div className="v4p-col-pad">
-                  {items.length === 0 && (
-                    <p className="v4p-empty">
-                      <em>Translations appear here.</em>
-                    </p>
-                  )}
-                  {items.map((item) => {
-                    if (item.fullTranslation === null) return null
-                    return (
-                      <div className="v4p-line" key={`tr-${item.id}`}>
-                        <div className="v4p-line-time amw-mono">
-                          {formatDuration(
-                            Math.max(item.createdAtMs - (sessionStartMs ?? item.createdAtMs), 0)
-                          )}
-                        </div>
-                        <div
-                          className={`v4p-line-text${
-                            item.typing &&
-                            item.displayedTranslation.length < item.fullTranslation.length
-                              ? ' v4p-line-typing'
-                              : ''
-                          }`}
-                        >
-                          {item.displayedTranslation}
-                        </div>
-                      </div>
-                    )
-                  })}
-                  <div className="v4p-trail">· · ·</div>
-                </div>
-              </div>
-            </div>
-          )}
-        </section>
+        <TranscriptColumns
+          items={items}
+          hasFeedContent={hasFeedContent}
+          showTranslationColumn={showTranslationColumn}
+          sourceLang={sourceLang}
+          targetLang={targetLang}
+          languageLock={languageLock}
+          detectedLanguage={detectedLanguage}
+          sessionStartMs={sessionStartMs}
+          enColRef={enColRef}
+          koColRef={koColRef}
+          langCode={langCode}
+          formatDuration={formatDuration}
+          languageLabelByCode={LANGUAGE_LABEL_BY_CODE}
+        />
 
         {/* Right shelf */}
         {shelf !== 'closed' && (
