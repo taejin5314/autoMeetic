@@ -10,7 +10,7 @@ interface SourceBarProps {
   sourceWordCount: number
 }
 
-export default function SourceBar({
+export function SourceBar({
   running,
   analyser,
   error,
