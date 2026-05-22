@@ -19,7 +19,6 @@ import { PipelineHealthStore } from '../main/health/pipelineHealth'
 import { RealtimeSttClient } from '../main/stt/realtimeClient'
 import { TranscriptBus } from '../main/stt/transcriptBus'
 import type { ViewportCommand, WhiteboardElement } from '../main/whiteboard/types'
-import { ActionItemsPanel } from './actions/ActionItemsPanel'
 import { isActionItem } from './actions/types'
 import { useActionItemsStore } from './actions/useActionItemsStore'
 import { AnswerAssistCard } from './answer-assist/AnswerAssistCard'
@@ -32,12 +31,11 @@ import { GlossaryPanel } from './glossary/GlossaryPanel'
 import { MemoryLibraryPanel } from './library/MemoryLibraryPanel'
 import { CaptionOverlay } from './overlay/CaptionOverlay'
 import { useCaptionStore } from './overlay/useCaptionStore'
+import { RightShelf } from './shell/RightShelf'
 import { SourceBar } from './shell/SourceBar'
 import { TranscriptColumns } from './shell/TranscriptColumns'
 import { useThemeStore, type Theme } from './theme/useThemeStore'
-import { ExcalidrawCanvas } from './whiteboard/ExcalidrawCanvas'
 import { WhiteboardModal } from './whiteboard/WhiteboardModal'
-import { WhiteboardLabelLangSelect } from './whiteboard/WhiteboardLabelLangSelect'
 
 const LANGUAGE_OPTIONS = [
   { code: 'auto', label: 'Auto detect' },
@@ -1124,92 +1122,20 @@ function App() {
         />
 
         {/* Right shelf */}
-        {shelf !== 'closed' && (
-          <aside className="v4p-shelf">
-            <div className="v4p-shelf-tabs">
-              <button
-                className={`v4p-shelf-tab ${shelf === 'whiteboard' ? 'on' : ''}`}
-                onClick={() => setShelf('whiteboard')}
-              >
-                Whiteboard
-                {whiteboardElements.length > 0 && (
-                  <span className="v4p-shelf-tab-badge amw-mono">
-                    {whiteboardElements.length}
-                  </span>
-                )}
-              </button>
-              <button
-                className={`v4p-shelf-tab ${shelf === 'actions' ? 'on' : ''}`}
-                onClick={() => setShelf('actions')}
-              >
-                Actions
-                {actionItemList.length > 0 && (
-                  <span className="v4p-shelf-tab-badge amw-mono">{actionItemList.length}</span>
-                )}
-              </button>
-              {shelf === 'whiteboard' && <WhiteboardLabelLangSelect />}
-              <button
-                className="v4p-shelf-x"
-                onClick={() => setShelf('closed')}
-                title="Close panel"
-                aria-label="Close panel"
-              >
-                <svg
-                  width="11"
-                  height="11"
-                  viewBox="0 0 11 11"
-                  stroke="currentColor"
-                  strokeWidth="1.3"
-                  fill="none"
-                  strokeLinecap="round"
-                >
-                  <path d="M2 2l7 7M9 2l-7 7" />
-                </svg>
-              </button>
-            </div>
-            <div className="v4p-shelf-body">
-              <div
-                className={`v4p-shelf-panel ${shelf === 'whiteboard' ? 'on' : ''}`}
-                aria-hidden={shelf !== 'whiteboard'}
-              >
-                <div className="v4p-wb">
-                  <ExcalidrawCanvas
-                    key={`canvas-${canvasResetVersion}`}
-                    elements={whiteboardElements}
-                    viewportCommand={viewportCommand}
-                    compact
-                    onMaximize={() => setWhiteboardMaximized(true)}
-                  />
-                  {whiteboardElements.length === 0 && (
-                    <div className="v4p-wb-empty">
-                      <em>Diagram appears here</em> as the agent finds key concepts.
-                    </div>
-                  )}
-                  {agentStatus === 'thinking' && (
-                    <div className="v4p-wb-badge">
-                      <span className="v4p-wb-spinner" /> Agent thinking
-                    </div>
-                  )}
-                  {agentStatus === 'error' && (
-                    <div className="v4p-wb-badge error">Diagram failed</div>
-                  )}
-                </div>
-              </div>
-              <div
-                className={`v4p-shelf-panel ${shelf === 'actions' ? 'on' : ''}`}
-                aria-hidden={shelf !== 'actions'}
-              >
-                <ActionItemsPanel
-                  items={actionItemList}
-                  onAccept={acceptActionItem}
-                  onDismiss={dismissActionItem}
-                  onDone={markActionItemDone}
-                  onUpdate={updateActionItem}
-                />
-              </div>
-            </div>
-          </aside>
-        )}
+        <RightShelf
+          shelf={shelf}
+          whiteboardElements={whiteboardElements}
+          actionItemList={actionItemList}
+          canvasResetVersion={canvasResetVersion}
+          viewportCommand={viewportCommand}
+          agentStatus={agentStatus}
+          onShelfChange={setShelf}
+          onWhiteboardMaximize={() => setWhiteboardMaximized(true)}
+          onAcceptActionItem={acceptActionItem}
+          onDismissActionItem={dismissActionItem}
+          onDoneActionItem={markActionItemDone}
+          onUpdateActionItem={updateActionItem}
+        />
       </div>
 
       {/* ── Broadcast lower-third console ─────────────────────── */}
