@@ -34,6 +34,10 @@ import { useCaptionStore } from './overlay/useCaptionStore'
 import { RightShelf } from './shell/RightShelf'
 import { SourceBar } from './shell/SourceBar'
 import { TranscriptColumns } from './shell/TranscriptColumns'
+import { useAnswerAssistHotkey } from './shell/useAnswerAssistHotkey'
+import { useClockMs } from './shell/useClockMs'
+import { useFullscreenState } from './shell/useFullscreenState'
+import { useTranscriptScrollSync } from './shell/useTranscriptScrollSync'
 import { useThemeStore, type Theme } from './theme/useThemeStore'
 import { WhiteboardModal } from './whiteboard/WhiteboardModal'
 
@@ -222,7 +226,6 @@ function App() {
   const resetTimeoutRef = useRef<number | null>(null)
   const [running, setRunning] = useState(false)
   const [starting, setStarting] = useState(false)
-  const [isFullscreen, setIsFullscreen] = useState(false)
   const [canvasResetVersion, setCanvasResetVersion] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [resetConfirming, setResetConfirming] = useState(false)
@@ -231,7 +234,8 @@ function App() {
   const [sessionStartMs, setSessionStartMs] = useState<number | null>(null)
   const [runStartMs, setRunStartMs] = useState<number | null>(null)
   const [whiteboardConnected, setWhiteboardConnected] = useState(false)
-  const [clockMs, setClockMs] = useState(() => Date.now())
+  const clockMs = useClockMs()
+  const { isFullscreen, toggleFullscreen } = useFullscreenState(shellRef)
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null)
   const [sttLanguage, setSttLanguage] = useState(DEFAULT_STT_LANGUAGE)
   const [translationTarget, setTranslationTarget] = useState(getInitialTranslationTarget)
@@ -243,10 +247,6 @@ function App() {
   const [memoryLibraryOpen, setMemoryLibraryOpen] = useState(false)
   const [glossaryOpen, setGlossaryOpen] = useState(false)
   const glossarySuggestionCount = useGlossarySuggestionCount()
-  const enColRef = useRef<HTMLDivElement>(null)
-  const koColRef = useRef<HTMLDivElement>(null)
-  const syncingScrollRef = useRef(false)
-  const programmaticScrollUntilRef = useRef(0)
   const {
     items,
     currentPartial,
@@ -284,7 +284,6 @@ function App() {
   const acceptedFinalTranscriptIdsRef = useRef<Set<string>>(new Set())
   const rejectedFinalTranscriptIdsRef = useRef<Set<string>>(new Set())
   const recentFinalTextsRef = useRef<Array<{ normalized: string; createdAtMs: number }>>([])
-  const [autoScroll, setAutoScroll] = useState(true)
   const captionTimerRef = useRef<number | null>(null)
 
   // Stable service instances — same lifecycle pattern as autopreso
@@ -374,62 +373,11 @@ function App() {
     }
   }, [applyPartial, appendProcessed, patchSource, patchTranslation])
 
-  // V4: auto-scroll bilingual columns to bottom when content changes.
-  useEffect(() => {
-    if (!autoScroll) return
-    const en = enColRef.current
-    const ko = koColRef.current
-    requestAnimationFrame(() => {
-      programmaticScrollUntilRef.current = performance.now() + 250
-      syncingScrollRef.current = true
-      if (en) en.scrollTop = en.scrollHeight
-      if (ko) ko.scrollTop = ko.scrollHeight
-      requestAnimationFrame(() => {
-        syncingScrollRef.current = false
-      })
-    })
-  }, [items, currentPartial, autoScroll])
-
-  // V4: keep the EN and KO column scroll positions linked, and track
-  // manual scrolling to toggle the auto-scroll state.
-  useEffect(() => {
-    const en = enColRef.current
-    const ko = koColRef.current
-    if (!en) return
-
-    const updateAutoScroll = (el: HTMLDivElement) => {
-      if (syncingScrollRef.current || performance.now() < programmaticScrollUntilRef.current) {
-        return
-      }
-      const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60
-      setAutoScroll(isNearBottom)
-    }
-
-    const link = (from: HTMLDivElement, to: HTMLDivElement | null) => () => {
-      updateAutoScroll(from)
-      if (!to || syncingScrollRef.current) return
-      syncingScrollRef.current = true
-      const denom = from.scrollHeight - from.clientHeight || 1
-      const ratio = from.scrollTop / denom
-      to.scrollTop = ratio * (to.scrollHeight - to.clientHeight)
-      programmaticScrollUntilRef.current = performance.now() + 120
-      requestAnimationFrame(() => {
-        syncingScrollRef.current = false
-      })
-    }
-
-    const onEn = link(en, ko)
-    en.addEventListener('scroll', onEn, { passive: true })
-    let onKo: (() => void) | null = null
-    if (ko) {
-      onKo = link(ko, en)
-      ko.addEventListener('scroll', onKo, { passive: true })
-    }
-    return () => {
-      en.removeEventListener('scroll', onEn)
-      if (ko && onKo) ko.removeEventListener('scroll', onKo)
-    }
-  }, [translationTarget])
+  const { enColRef, koColRef } = useTranscriptScrollSync({
+    items,
+    currentPartial,
+    syncKey: translationTarget,
+  })
 
   useEffect(() => {
     if (!running || sttLanguage !== 'auto' || !languageLock) return
@@ -551,17 +499,6 @@ function App() {
     }
   }, [addSuggestedActionItems, resetActionItems])
 
-  useEffect(() => {
-    const handler = () => setIsFullscreen(Boolean(document.fullscreenElement))
-    document.addEventListener('fullscreenchange', handler)
-    return () => document.removeEventListener('fullscreenchange', handler)
-  }, [])
-
-  useEffect(() => {
-    const id = window.setInterval(() => setClockMs(Date.now()), 1000)
-    return () => window.clearInterval(id)
-  }, [])
-
   useEffect(
     () => () => {
       if (resetTimeoutRef.current !== null) {
@@ -573,19 +510,6 @@ function App() {
     },
     []
   )
-
-  const toggleFullscreen = useCallback(async () => {
-    try {
-      if (document.fullscreenElement) {
-        await document.exitFullscreen()
-        return
-      }
-      const target = shellRef.current
-      if (target?.requestFullscreen) await target.requestFullscreen()
-    } catch {
-      // No-op: fullscreen is best-effort for sharing mode.
-    }
-  }, [])
 
   // ── Feed transcripts to whiteboard agent ──────────────────────────────────
   useEffect(() => {
@@ -796,16 +720,7 @@ function App() {
     translationTarget,
   ])
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey && e.key === 'A') {
-        e.preventDefault()
-        triggerAnswerAssist()
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [triggerAnswerAssist])
+  useAnswerAssistHotkey(triggerAnswerAssist)
 
   // ── V4 Bilingual Editorial layout ────────────────────────────────────────
   const sourceLang =
