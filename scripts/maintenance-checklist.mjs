@@ -7,11 +7,12 @@ const BUILD_PATH_PATTERNS = [
   /^src\/renderer\//,
   /^src\/preload\//,
   /^electron\.vite\.config\.ts$/,
+  /^electron-builder\.yml$/,
   /^vite\.config\.ts$/,
   /^vitest\.config\.ts$/,
   /^tsconfig[^/]*\.json$/,
-  /^package\.json$/,
-  /^package-lock\.json$/,
+  /(^|\/)package\.json$/,
+  /(^|\/)package-lock\.json$/,
 ]
 
 const HIGH_RISK_PATTERNS = [
