@@ -1,17 +1,37 @@
-# autoMeetic Glossary — Implementation Handoff
+# autoMeetic — Implementation Handoff
 
 Live handoff document. Any agent (Claude, Codex, human) can resume from this file.
 
-## ✅ Completed stream
+## 🚀 Next active stream
 
-> **Glossary Auto-Suggestions (v2 of the glossary feature).** Implemented and pushed to `origin/master`. See:
+> **Whiteboard Mind-Map Mode.** 6 phases, ~16-20 hours of solo work, designed for Codex to execute without me. See:
+>
+> - **Spec:** `docs/superpowers/specs/2026-05-21-mindmap-mode-design.md`
+> - **Plan:** `docs/superpowers/plans/2026-05-21-mindmap-mode.md`
+>
+> Start at Phase 1 (Task 1.1). Each task has exact code blocks and exact commit messages. TDD pattern for Phases 1-3 (state, layout, prompt). Update the **Active stream state** table below as phases finish.
+
+## Active stream state — Whiteboard Mind-Map Mode
+
+| Phase | Status | Commits | Tests passing |
+|---|---|---|---|
+| 1 — Types + colors + state | ⏳ PENDING | — | — |
+| 2 — Radial layout engine | ⏳ PENDING | — | — |
+| 3 — Prompt + parser | ⏳ PENDING | — | — |
+| 4 — Service routing + IPC + preload | ⏳ PENDING | — | — |
+| 5 — Shelf header mode toggle UI | ⏳ PENDING | — | — |
+| 6 — Lifecycle wire + telemetry + regression + push | ⏳ PENDING | — | — |
+
+## ✅ Completed stream — Glossary Auto-Suggestions
+
+> Implemented and pushed to `origin/master`. See:
 >
 > - **Spec:** `docs/superpowers/specs/2026-05-20-glossary-auto-suggestions-design.md`
 > - **Plan:** `docs/superpowers/plans/2026-05-20-glossary-auto-suggestions.md`
 >
 > Automated regression passed. Manual Electron smoke is intentionally deferred for the user to run separately.
 
-## Active stream state — Glossary Auto-Suggestions
+## Completed stream state — Glossary Auto-Suggestions
 
 | Phase | Status | Commits | Tests passing |
 |---|---|---|---|
@@ -28,11 +48,11 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 ## How to resume (Codex or any agent)
 
 1. Read this file end-to-end.
-2. Find the **Active stream state** table. Next phase = first row marked `⏳ PENDING`.
-3. For that phase, read the corresponding section in `docs/superpowers/plans/2026-05-20-glossary-auto-suggestions.md`.
+2. Find the **Active stream state** table at the top. Next phase = first row marked `⏳ PENDING`.
+3. For that phase, read the corresponding section in `docs/superpowers/plans/2026-05-21-mindmap-mode.md`.
 4. Implement per the plan (TDD where indicated). Each task has exact code blocks and exact commit messages.
 5. After each phase: run `npm run typecheck` and `npx vitest run <phase-test-file>`. Commit each task individually (the plan specifies the commit message). Update the **Active stream state** table here.
-6. After all phases: run `npm run lint` (expect 0 errors) and `npx vitest run` (expect 140+ tests passing). Manual smoke per the spec's success criteria.
+6. After all phases: run `npm run lint` (expect 0 errors) and `npx vitest run` (expect 158+24 ≈ 182 tests passing). Manual smoke per the spec's success criteria.
 
 ## Previously shipped — Glossary v1 (Diagram Label Language)
 
