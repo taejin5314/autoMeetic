@@ -15,7 +15,7 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 
 | Phase | Status | Commits | Tests passing |
 |---|---|---|---|
-| 1 — Types + colors + state | ⏳ PENDING | — | — |
+| 1 — Types + colors + state | ✅ COMPLETE | `4f3990b` → `1f36499` (3 commits) | 170/170 (`npx vitest run`); typecheck/lint clean |
 | 2 — Radial layout engine | ⏳ PENDING | — | — |
 | 3 — Prompt + parser | ⏳ PENDING | — | — |
 | 4 — Service routing + IPC + preload | ⏳ PENDING | — | — |
