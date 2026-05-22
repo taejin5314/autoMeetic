@@ -37,7 +37,6 @@ import { useThemeStore, type Theme } from './theme/useThemeStore'
 import { ExcalidrawCanvas } from './whiteboard/ExcalidrawCanvas'
 import { WhiteboardModal } from './whiteboard/WhiteboardModal'
 import { WhiteboardLabelLangSelect } from './whiteboard/WhiteboardLabelLangSelect'
-import { WhiteboardModeToggle } from './whiteboard/WhiteboardModeToggle'
 
 const LANGUAGE_OPTIONS = [
   { code: 'auto', label: 'Auto detect' },
@@ -1268,7 +1267,6 @@ function App() {
                   <span className="v4p-shelf-tab-badge amw-mono">{actionItemList.length}</span>
                 )}
               </button>
-              {shelf === 'whiteboard' && <WhiteboardModeToggle />}
               {shelf === 'whiteboard' && <WhiteboardLabelLangSelect />}
               <button
                 className="v4p-shelf-x"
@@ -1307,27 +1305,6 @@ function App() {
                       <em>Diagram appears here</em> as the agent finds key concepts.
                     </div>
                   )}
-                  <button
-                    type="button"
-                    className="v4p-wb-expand"
-                    onClick={() => setWhiteboardMaximized(true)}
-                    title="Expand whiteboard"
-                    aria-label="Expand whiteboard"
-                  >
-                    <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 13 13"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M8 1h4v4M5 12H1V8M12 1L8 5M1 12l4-4" />
-                    </svg>
-                    <span>Expand</span>
-                  </button>
                   {agentStatus === 'thinking' && (
                     <div className="v4p-wb-badge">
                       <span className="v4p-wb-spinner" /> Agent thinking

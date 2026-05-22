@@ -1054,37 +1054,6 @@ body,
   border-radius: 10px;
 }
 
-/* Expand button on the whiteboard preview */
-.v4p-wb-expand {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 6;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 9px 5px 8px;
-  border-radius: 6px;
-  background: var(--p-bg-card);
-  border: 1px solid var(--p-border-strong);
-  color: var(--p-ink);
-  font-family: var(--p-serif);
-  font-style: italic;
-  font-size: 11.5px;
-  cursor: pointer;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
-  transition:
-    transform 0.12s,
-    box-shadow 0.15s,
-    background 0.15s;
-}
-
-.v4p-wb-expand:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-  background: var(--p-bg);
-}
-
 .v4p-wb-empty {
   position: absolute;
   inset: 0;
@@ -1992,15 +1961,6 @@ body,
 
 .v4p-wb-empty em {
   font-style: normal;
-  font-weight: 600;
-}
-
-.v4p-wb-expand {
-  font-family: var(--p-mono);
-  font-style: normal;
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   font-weight: 600;
 }
 
@@ -3512,8 +3472,14 @@ mark.memory-match {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  margin-left: auto;
   margin-right: 8px;
 }
+
+.v4p-wb-labellang + .v4p-shelf-x {
+  margin-left: 0;
+}
+
 .v4p-wb-labellang-prefix {
   font-size: 9.5px;
   font-weight: 700;
@@ -3529,40 +3495,4 @@ mark.memory-match {
   color: var(--p-text);
   font-size: 11px;
   font-weight: 600;
-}
-
-.v4p-wb-mode {
-  display: inline-flex;
-  align-items: center;
-  margin-right: 10px;
-  border: 1px solid var(--p-border);
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.v4p-wb-mode-btn {
-  height: 22px;
-  padding: 0 10px;
-  background: var(--p-bg-card);
-  border: none;
-  color: var(--p-mute);
-  font-family: var(--p-mono);
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  cursor: pointer;
-}
-
-.v4p-wb-mode-btn + .v4p-wb-mode-btn {
-  border-left: 1px solid var(--p-border);
-}
-
-.v4p-wb-mode-btn.on {
-  background: var(--p-primary);
-  color: var(--p-primary-on);
-}
-
-.v4p-wb-mode-btn:hover:not(.on) {
-  background: var(--p-bg-sub);
-  color: var(--p-text);
 }
