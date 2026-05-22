@@ -2,16 +2,16 @@
 
 Live handoff document. Any agent (Claude, Codex, human) can resume from this file.
 
-## 🚀 Next active stream
+## ✅ Completed stream — Whiteboard Mind-Map Mode
 
-> **Whiteboard Mind-Map Mode.** 6 phases, ~16-20 hours of solo work, designed for Codex to execute without me. See:
+> Implemented and pushed to `origin/master`. See:
 >
 > - **Spec:** `docs/superpowers/specs/2026-05-21-mindmap-mode-design.md`
 > - **Plan:** `docs/superpowers/plans/2026-05-21-mindmap-mode.md`
 >
-> Start at Phase 1 (Task 1.1). Each task has exact code blocks and exact commit messages. TDD pattern for Phases 1-3 (state, layout, prompt). Update the **Active stream state** table below as phases finish.
+> Automated regression passed. Manual Electron smoke is not run in this pass.
 
-## Active stream state — Whiteboard Mind-Map Mode
+## Completed stream state — Whiteboard Mind-Map Mode
 
 | Phase | Status | Commits | Tests passing |
 |---|---|---|---|
@@ -20,7 +20,9 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 | 3 — Prompt + parser | ✅ COMPLETE | `956baea` | 186/186 (`npx vitest run`); typecheck/lint clean |
 | 4 — Service routing + IPC + preload | ✅ COMPLETE | `e9866a5` → `fcf8160` (3 commits) | 186/186 (`npx vitest run`); typecheck/lint clean |
 | 5 — Shelf header mode toggle UI | ✅ COMPLETE | `a9818b4` | 186/186 (`npx vitest run`); typecheck/lint clean |
-| 6 — Lifecycle wire + telemetry + regression + push | ⏳ PENDING | — | — |
+| 6 — Lifecycle wire + telemetry + regression + push | ✅ COMPLETE | `78f9f11` → `HEAD` | 186/186 (`npx vitest run`); typecheck/lint/build clean; manual smoke not run; `npm test` blocked pre-Vitest by Windows `EBUSY` |
+
+**Stream completion notes:** Whiteboard now supports a dedicated Mind map mode with in-memory tree state, deterministic radial layout, a strict JSON operation parser, OpenAI-backed tree updates, glossary-aware label preservation, a shelf-header `[Freeform | Mind map]` toggle, meeting-title root initialization on lifecycle begin, and telemetry for mode toggles plus mind-map turns. Known gap: manual Electron smoke is still needed.
 
 ## ✅ Completed stream — Glossary Auto-Suggestions
 
@@ -53,6 +55,13 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 4. Implement per the plan (TDD where indicated). Each task has exact code blocks and exact commit messages.
 5. After each phase: run `npm run typecheck` and `npx vitest run <phase-test-file>`. Commit each task individually (the plan specifies the commit message). Update the **Active stream state** table here.
 6. After all phases: run `npm run lint` (expect 0 errors) and `npx vitest run` (expect 158+24 ≈ 182 tests passing). Manual smoke per the spec's success criteria.
+
+## Previously shipped — Mind-map mode
+
+- **Spec:** `docs/superpowers/specs/2026-05-21-mindmap-mode-design.md`
+- **Plan:** `docs/superpowers/plans/2026-05-21-mindmap-mode.md`
+
+Notes: Electron-only mind-map mode is implemented with no persistence by design. Web-mode whiteboard parity remains out of scope for this stream.
 
 ## Previously shipped — Glossary v1 (Diagram Label Language)
 
