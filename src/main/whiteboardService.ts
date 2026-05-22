@@ -9,7 +9,7 @@
  * Results are sent to the renderer via mainWindow.webContents.send().
  */
 import type { BrowserWindow } from 'electron'
-import type { WhiteboardElement, ViewportCommand } from './whiteboard/types'
+import type { WhiteboardElement, WhiteboardMode, ViewportCommand } from './whiteboard/types'
 import { formatLineNumberedWhiteboard } from './whiteboard/tools'
 import {
   appendLayoutWarnings,
@@ -18,10 +18,15 @@ import {
 } from './whiteboard/elements'
 import { isTrivialTranscript } from './whiteboard/session'
 import { whiteboardSystemPrompt, type WhiteboardViewport } from './whiteboard/prompt'
+import * as mindmapState from './whiteboard/mindmapState'
+import { computeMindMapLayout } from './whiteboard/mindmapLayout'
+import { buildMindMapSystemPrompt, parseOperations } from './whiteboard/mindmapPrompt'
+import { serializeForPrompt } from './whiteboard/mindmapState'
 import { ensureFreshGlossary, getCachedGlossary } from './glossary/cache'
-import { normalizePreserveTerms } from './glossary/promptInjection'
+import { formatGlossaryPromptSection, normalizePreserveTerms } from './glossary/promptInjection'
 import type { GlossaryEntry } from './memory/types'
 import type { MemoryService } from './memory/memoryService'
+import { log } from './telemetry/logger'
 
 // Viewport size the whiteboard agent should lay out for. Matches the maximize
 // modal at typical desktop sizing; can be made dynamic later via IPC.
@@ -79,8 +84,9 @@ const buffer: BufferState = {
 }
 
 let mainWindowRef: BrowserWindow | null = null
-let memoryServiceRef: Pick<MemoryService, 'activeGlossary' | 'getCurrentMeetingId'> | null = null
+let memoryServiceRef: Pick<MemoryService, 'activeGlossary' | 'getCurrentMeetingId' | 'getMeeting'> | null = null
 let cachedLabelLanguage: string | null = null
+let cachedMode: WhiteboardMode = 'freeform'
 
 export function setDiagramLabelLanguage(code: string | null): void {
   cachedLabelLanguage = code && code.length > 0 ? code : null
@@ -88,6 +94,31 @@ export function setDiagramLabelLanguage(code: string | null): void {
 
 export function getDiagramLabelLanguage(): string | null {
   return cachedLabelLanguage
+}
+
+export function setWhiteboardMode(mode: WhiteboardMode): void {
+  if (cachedMode === mode) return
+  cachedMode = mode
+  clearFreeformElements()
+  mindmapState.clear()
+
+  if (mode === 'mindmap') {
+    const meetingId = memoryServiceRef?.getCurrentMeetingId() ?? null
+    const meetingDetail = meetingId ? memoryServiceRef?.getMeeting(meetingId) : null
+    if (meetingDetail) {
+      mindmapState.init(meetingDetail.meeting.title)
+      const elements = computeMindMapLayout(mindmapState.getState()!)
+      state.elements = elements
+      sendToRenderer('whiteboard:update', { elements })
+      return
+    }
+  }
+
+  sendToRenderer('whiteboard:update', { elements: [] })
+}
+
+export function getWhiteboardMode(): WhiteboardMode {
+  return cachedMode
 }
 
 // ── Post-pass for glossary term normalization ─────────────────────────────────
@@ -113,7 +144,7 @@ function applyGlossaryPostPass(
 
 export function init(
   mainWindow: BrowserWindow,
-  memoryServicePromise?: Promise<Pick<MemoryService, 'activeGlossary' | 'getCurrentMeetingId'>>
+  memoryServicePromise?: Promise<Pick<MemoryService, 'activeGlossary' | 'getCurrentMeetingId' | 'getMeeting'>>
 ): void {
   mainWindowRef = mainWindow
   if (memoryServicePromise) {
@@ -161,6 +192,20 @@ export function enqueueTranscript(text: string): void {
 }
 
 export function resetWhiteboard(): void {
+  clearFreeformElements()
+  mindmapState.clear()
+  sendToRenderer('whiteboard:update', { elements: [] })
+}
+
+export function onMeetingBegin(meetingTitle: string): void {
+  if (cachedMode !== 'mindmap') return
+  mindmapState.init(meetingTitle)
+  const elements = computeMindMapLayout(mindmapState.getState()!)
+  state.elements = elements
+  sendToRenderer('whiteboard:update', { elements })
+}
+
+function clearFreeformElements(): void {
   state.elements = []
   state.agentHistory = []
   state.resetVersion++
@@ -175,7 +220,6 @@ export function resetWhiteboard(): void {
     clearTimeout(buffer.flushTimer)
     buffer.flushTimer = null
   }
-  sendToRenderer('whiteboard:update', { elements: [] })
 }
 
 // ── Buffer logic (ported from proxy.mjs) ────────────────────────────────────
@@ -235,6 +279,20 @@ async function flushWhiteboardBuffer(): Promise<void> {
   if (!apiKey) return
 
   try {
+    const dispatchedMode = cachedMode
+    if (dispatchedMode === 'mindmap') {
+      buffer.lastRendererMs = Date.now()
+      state.agentBusy = true
+      sendToRenderer('whiteboard:agent-status', { status: 'thinking' })
+      try {
+        await runMindMapAgent(transcript, apiKey, dispatchedMode, turnResetVersion)
+      } finally {
+        state.agentBusy = false
+        sendToRenderer('whiteboard:agent-status', { status: 'idle' })
+      }
+      return
+    }
+
     const canvasEmpty = state.elements.length === 0
 
     // Stage 1: Gatekeeper
@@ -327,6 +385,114 @@ function applyResult(result: { elements: WhiteboardElement[] | null; viewport: V
 
 function sendToRenderer(channel: string, data: unknown): void {
   mainWindowRef?.webContents.send(channel, data)
+}
+
+async function runMindMapAgent(
+  transcriptText: string,
+  apiKey: string,
+  dispatchedMode: WhiteboardMode,
+  expectedResetVersion: number
+): Promise<void> {
+  const s = mindmapState.getState()
+  if (!s) return
+
+  const currentMeetingId = memoryServiceRef?.getCurrentMeetingId() ?? null
+  if (memoryServiceRef) {
+    ensureFreshGlossary(memoryServiceRef, currentMeetingId)
+  }
+  const glossary = getCachedGlossary()
+  const treeText = serializeForPrompt(s)
+  const labelLanguage = cachedLabelLanguage ?? 'Auto'
+  const glossaryBlock =
+    glossary.length > 0
+      ? formatGlossaryPromptSection(
+          glossary,
+          labelLanguage === 'Auto' || labelLanguage === 'off' ? null : labelLanguage
+        )
+      : ''
+  const systemPrompt = buildMindMapSystemPrompt({ treeText, labelLanguage, glossaryBlock })
+
+  let raw: string
+  try {
+    raw = await requestMindMapCompletion(systemPrompt, transcriptText, apiKey)
+  } catch (err) {
+    log('warn', 'whiteboard-mindmap', 'mindmap.turn.failure', {
+      reason: 'llm-error',
+      error: String(err),
+    })
+    return
+  }
+
+  if (cachedMode !== dispatchedMode || expectedResetVersion !== state.resetVersion) return
+
+  const ops = parseOperations(raw)
+  if (ops.length === 0) {
+    log('info', 'whiteboard-mindmap', 'mindmap.turn.success', {
+      opsApplied: 0,
+      totalNodes: s.nodes.length,
+    })
+    return
+  }
+
+  const result = mindmapState.applyOperations(ops, glossary)
+  const nextState = mindmapState.getState()
+  if (!nextState) return
+
+  if (result.rootUpgraded) {
+    log('info', 'whiteboard-mindmap', 'mindmap.root.upgraded', {
+      newLabel: nextState.nodes[0].label,
+    })
+  }
+  for (const id of result.addedNodeIds) {
+    const node = nextState.nodes.find((n) => n.id === id)
+    if (node) {
+      log('info', 'whiteboard-mindmap', 'mindmap.node.added', { depth: node.depth })
+    }
+  }
+
+  const opsApplied = result.addedNodeIds.length + (result.rootUpgraded ? 1 : 0)
+  log('info', 'whiteboard-mindmap', 'mindmap.turn.success', {
+    opsApplied,
+    totalNodes: nextState.nodes.length,
+  })
+
+  const elements = computeMindMapLayout(nextState)
+  state.elements = elements
+  sendToRenderer('whiteboard:update', { elements })
+}
+
+async function requestMindMapCompletion(
+  systemPrompt: string,
+  transcriptText: string,
+  apiKey: string
+): Promise<string> {
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      max_tokens: 512,
+      temperature: 0.2,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: transcriptText },
+      ],
+    }),
+  })
+
+  if (!res.ok) {
+    const errText = await res.text()
+    throw new Error(`Mind-map API error ${res.status}: ${errText}`)
+  }
+
+  const data = (await res.json()) as {
+    choices?: Array<{ message?: { content?: string } }>
+  }
+  return data.choices?.[0]?.message?.content ?? ''
 }
 
 // ── Gatekeeper (ported from proxy.mjs) ──────────────────────────────────────
