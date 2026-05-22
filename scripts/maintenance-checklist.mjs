@@ -17,26 +17,32 @@ const BUILD_PATH_PATTERNS = [
 const HIGH_RISK_PATTERNS = [
   {
     label: 'live feed sentence grouping/auto-scroll',
+    check: 'Verify sentence boundaries, incremental grouping, and auto-scroll behavior with streaming updates.',
     patterns: [/live[-/]?feed/i, /sentence[-/]?group/i, /auto[-/]?scroll/i, /transcript/i],
   },
   {
     label: 'translation language routing',
+    check: 'Confirm source and target language selection stays correct across translation paths.',
     patterns: [/translation/i, /translate/i, /language[-/]?routing/i, /source[-/]?language/i, /target[-/]?language/i],
   },
   {
     label: 'answer assist prompt context',
+    check: 'Review prompt inputs so answer assist keeps the intended transcript, memory, and user context.',
     patterns: [/answer[-/]?assist/i, /prompt[-/]?context/i],
   },
   {
     label: 'whiteboard layout/Excalidraw conversion',
+    check: 'Inspect compact layouts and Excalidraw conversion output for readable diagrams.',
     patterns: [/whiteboard/i, /excalidraw/i],
   },
   {
     label: 'theme rendering',
+    check: 'Check dark and light theme rendering for preserved state and readable contrast.',
     patterns: [/theme/i, /dark[-/]?light/i, /dark/i, /light/i],
   },
   {
     label: 'renderer/main IPC contracts',
+    check: 'Validate renderer, preload, and main process IPC payloads stay compatible.',
     patterns: [/ipc/i, /^src\/preload\//i, /renderer[-/]?main/i],
   },
 ]
@@ -54,8 +60,9 @@ function matchesAnyPattern(file, patterns) {
 export function classifyChangedFiles(files) {
   const changedFiles = [...new Set(files.map(normalizeFilePath).filter(Boolean))]
   const buildFiles = changedFiles.filter((file) => matchesAnyPattern(file, BUILD_PATH_PATTERNS))
-  const highRiskAreas = HIGH_RISK_PATTERNS.map(({ label, patterns }) => ({
+  const highRiskAreas = HIGH_RISK_PATTERNS.map(({ label, check, patterns }) => ({
     label,
+    check,
     files: changedFiles.filter((file) => matchesAnyPattern(file, patterns)),
   })).filter((area) => area.files.length > 0)
 
@@ -94,9 +101,16 @@ export function formatChecklist(classification) {
     lines.push('- No high-risk path matches detected')
   } else {
     for (const area of classification.highRiskAreas) {
-      lines.push(`- ${area.label}: ${area.files.join(', ')}`)
+      lines.push(`- ${area.label}: ${area.check}`)
+      lines.push(`  Matched files: ${area.files.join(', ')}`)
     }
   }
+
+  lines.push(
+    '',
+    'Before editing, classify the task as cleanup, refactor, bug fix, or performance work.',
+    'For performance work, capture before/after measurements under the same conditions.',
+  )
 
   return `${lines.join('\n')}\n`
 }
