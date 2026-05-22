@@ -15,6 +15,7 @@
     "test": "node scripts/prepare-native-deps.mjs node && vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "maintenance:check": "node scripts/maintenance-checklist.mjs",
     "ci": "npm run typecheck && npm run lint && npm test && npm run build",
     "typecheck": "tsc --noEmit",
     "format": "prettier . --write",
