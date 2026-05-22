@@ -85,3 +85,22 @@ export type AgentEvent =
   | { type: "tool:end"; tool: string; result: string; elements: WhiteboardElement[]; timestamp: string }
   | { type: "agent:thinking"; timestamp: string }
   | { type: "agent:done"; timestamp: string };
+
+export type WhiteboardMode = 'freeform' | 'mindmap'
+
+export interface MindMapNode {
+  id: string
+  parentId: string | null
+  label: string
+  depth: number
+}
+
+export interface MindMapState {
+  rootId: string
+  nodes: MindMapNode[]
+  topicSource: 'meeting-title' | 'llm-detected'
+}
+
+export type MindMapOperation =
+  | { type: 'add_branch'; parentLabel: string; label: string }
+  | { type: 'upgrade_root'; newLabel: string }
