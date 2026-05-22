@@ -1,7 +1,7 @@
 import type { RefObject } from 'react'
 import type { CaptionItem } from '../overlay/types'
 
-export type TranscriptColumnItem = Pick<
+type TranscriptColumnItem = Pick<
   CaptionItem,
   | 'id'
   | 'createdAtMs'
@@ -25,7 +25,7 @@ type TranscriptColumnsProps = {
   koColRef: RefObject<HTMLDivElement | null>
   langCode: (code: string) => string
   formatDuration: (ms: number) => string
-  languageLabelByCode: Map<string, string>
+  languageLabelByCode: ReadonlyMap<string, string>
 }
 
 export function TranscriptColumns({
