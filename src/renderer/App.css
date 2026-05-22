@@ -3530,3 +3530,39 @@ mark.memory-match {
   font-size: 11px;
   font-weight: 600;
 }
+
+.v4p-wb-mode {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 10px;
+  border: 1px solid var(--p-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.v4p-wb-mode-btn {
+  height: 22px;
+  padding: 0 10px;
+  background: var(--p-bg-card);
+  border: none;
+  color: var(--p-mute);
+  font-family: var(--p-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.v4p-wb-mode-btn + .v4p-wb-mode-btn {
+  border-left: 1px solid var(--p-border);
+}
+
+.v4p-wb-mode-btn.on {
+  background: var(--p-primary);
+  color: var(--p-primary-on);
+}
+
+.v4p-wb-mode-btn:hover:not(.on) {
+  background: var(--p-bg-sub);
+  color: var(--p-text);
+}

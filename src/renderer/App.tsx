@@ -37,6 +37,7 @@ import { useThemeStore, type Theme } from './theme/useThemeStore'
 import { ExcalidrawCanvas } from './whiteboard/ExcalidrawCanvas'
 import { WhiteboardModal } from './whiteboard/WhiteboardModal'
 import { WhiteboardLabelLangSelect } from './whiteboard/WhiteboardLabelLangSelect'
+import { WhiteboardModeToggle } from './whiteboard/WhiteboardModeToggle'
 
 const LANGUAGE_OPTIONS = [
   { code: 'auto', label: 'Auto detect' },
@@ -1267,6 +1268,7 @@ function App() {
                   <span className="v4p-shelf-tab-badge amw-mono">{actionItemList.length}</span>
                 )}
               </button>
+              {shelf === 'whiteboard' && <WhiteboardModeToggle />}
               {shelf === 'whiteboard' && <WhiteboardLabelLangSelect />}
               <button
                 className="v4p-shelf-x"
