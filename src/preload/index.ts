@@ -69,6 +69,8 @@ const electronAPI: ElectronAPI = {
   whiteboard: {
     setLabelLanguage: (code: string | null) =>
       ipcRenderer.invoke('whiteboard:set-label-language', { code }),
+    setMode: (mode: 'freeform' | 'mindmap') =>
+      ipcRenderer.invoke('whiteboard:set-mode', { mode }),
   },
 
   // Events

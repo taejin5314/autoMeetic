@@ -83,6 +83,7 @@ export interface ElectronAPI {
   sendWhiteboardScreenshot(imageDataUrl: string): void
   whiteboard: {
     setLabelLanguage(code: string | null): Promise<void>
+    setMode(mode: 'freeform' | 'mindmap'): Promise<void>
   }
 
   // Events (main → renderer)
