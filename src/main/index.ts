@@ -5,7 +5,7 @@ import { registerIpcHandlers, registerWindowNotifiers, setMemoryServicePromise }
 import { init as initActionItems } from './actionItemService'
 import { MemoryService, defaultWorkerPath } from './memory/memoryService'
 import { init as initTranscriptPostProcessor } from './transcriptPostProcessor'
-import { init as initWhiteboard } from './whiteboardService'
+import { init as initWhiteboard, onMeetingBegin as onWhiteboardMeetingBegin } from './whiteboardService'
 import { init as initSttService } from './sttService'
 import { extractCandidates as extractGlossaryCandidates } from './glossary/suggestionService'
 
@@ -141,6 +141,11 @@ app.whenReady().then(() => {
       if (recovered > 0) console.log(`[memory] recovered ${recovered} interrupted meeting(s)`)
       const pendingGlossaryExtractions = new Set<string>()
       memoryService.onMeetingUpdated((evt) => {
+        if (evt.kind === 'began') {
+          const detail = memoryService.getMeeting(evt.meetingId)
+          if (detail) onWhiteboardMeetingBegin(detail.meeting.title)
+          return
+        }
         if (evt.kind === 'ended') {
           pendingGlossaryExtractions.add(evt.meetingId)
           return
