@@ -2,9 +2,17 @@ import { normalizePreserveTerms } from '../glossary/promptInjection'
 import type { GlossaryEntry } from '../memory/types'
 import type { MindMapNode, MindMapOperation, MindMapState } from './types'
 
-const MAX_FIRST_LEVEL = 7
-const MAX_SUB_PER_PARENT = 5
+const MAX_FIRST_LEVEL = 24
+const MAX_SUB_PER_PARENT = 12
 const MAX_LABEL_CHARS = 80
+
+// Golden angle (≈ 137.5°) distributes new first-level branches without
+// clustering — each new arrival lands roughly opposite the recent ones,
+// and the position is determined purely by insertion order so existing
+// branches never shift when new siblings join.
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5))
+const FIRST_LEVEL_START = -Math.PI / 2 // 12 o'clock
+const SUB_ARC = (2 * Math.PI) / 3 // 120° spread for sub-branches
 
 let state: MindMapState | null = null
 
@@ -12,7 +20,7 @@ export function init(meetingTitle: string): void {
   const title = meetingTitle.trim().slice(0, MAX_LABEL_CHARS) || 'Meeting'
   state = {
     rootId: 'root',
-    nodes: [{ id: 'root', parentId: null, label: title, depth: 0 }],
+    nodes: [{ id: 'root', parentId: null, label: title, depth: 0, slotAngle: null }],
     topicSource: 'meeting-title',
   }
 }
@@ -59,6 +67,7 @@ export function applyOperations(
       if (parent.id === 'root' && siblings.length >= MAX_FIRST_LEVEL) continue
       if (parent.depth === 1 && siblings.length >= MAX_SUB_PER_PARENT) continue
 
+      const slotAngle = computeSlotAngle(parent, siblings)
       const now = Date.now()
       const id = `br_${now.toString(36)}_${Math.random().toString(36).slice(2, 8)}`
       state.nodes.push({
@@ -66,12 +75,55 @@ export function applyOperations(
         parentId: parent.id,
         label: normalized,
         depth: parent.depth + 1,
+        slotAngle,
       })
       result.addedNodeIds.push(id)
     }
   }
 
   return result
+}
+
+function computeSlotAngle(parent: MindMapNode, siblings: MindMapNode[]): number {
+  if (parent.id === 'root') {
+    // Golden-angle sequence keyed by insertion order: new first-level branch
+    // i lands at FIRST_LEVEL_START + i * GOLDEN_ANGLE. Stable forever.
+    return normalizeAngle(FIRST_LEVEL_START + siblings.length * GOLDEN_ANGLE)
+  }
+  // Sub-branch: largest-gap fill within the bounded arc centered on parent.
+  const parentAngle = parent.slotAngle ?? 0
+  const occupied = siblings
+    .map((s) => s.slotAngle)
+    .filter((a): a is number => a !== null)
+  return pickSubBranchAngle(parentAngle, occupied)
+}
+
+function pickSubBranchAngle(parentAngle: number, occupied: number[]): number {
+  const arcStart = parentAngle - SUB_ARC / 2
+  const arcEnd = parentAngle + SUB_ARC / 2
+  if (occupied.length === 0) return parentAngle
+  const sorted = [...occupied].sort((a, b) => a - b)
+  let bestGap = sorted[0] - arcStart
+  let bestMid = arcStart + bestGap / 2
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const gap = sorted[i + 1] - sorted[i]
+    if (gap > bestGap) {
+      bestGap = gap
+      bestMid = sorted[i] + gap / 2
+    }
+  }
+  const tailGap = arcEnd - sorted[sorted.length - 1]
+  if (tailGap > bestGap) {
+    bestMid = sorted[sorted.length - 1] + tailGap / 2
+  }
+  return bestMid
+}
+
+function normalizeAngle(a: number): number {
+  let v = a
+  while (v > Math.PI) v -= 2 * Math.PI
+  while (v < -Math.PI) v += 2 * Math.PI
+  return v
 }
 
 function findNodeByLabel(label: string): MindMapNode | null {

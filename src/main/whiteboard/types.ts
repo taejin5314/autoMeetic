@@ -93,6 +93,12 @@ export interface MindMapNode {
   parentId: string | null
   label: string
   depth: number
+  /**
+   * Persistent radial angle in radians (only set on branches; null on root).
+   * Assigned at insertion time and never changed, so existing nodes never
+   * shift when new siblings join.
+   */
+  slotAngle: number | null
 }
 
 export interface MindMapState {

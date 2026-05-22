@@ -10,7 +10,7 @@ function state(nodes: MindMapState['nodes']): MindMapState {
 describe('computeMindMapLayout', () => {
   it('renders only the root ellipse when no branches', () => {
     const els = computeMindMapLayout(
-      state([{ id: 'root', parentId: null, label: 'Topic', depth: 0 }])
+      state([{ id: 'root', parentId: null, label: 'Topic', depth: 0, slotAngle: null }])
     )
     expect(els).toHaveLength(1)
     expect(els[0].type).toBe('ellipse')
@@ -21,8 +21,8 @@ describe('computeMindMapLayout', () => {
   it("places one first-level branch at top (12 o'clock)", () => {
     const els = computeMindMapLayout(
       state([
-        { id: 'root', parentId: null, label: 'Topic', depth: 0 },
-        { id: 'b1', parentId: 'root', label: 'A', depth: 1 },
+        { id: 'root', parentId: null, label: 'Topic', depth: 0, slotAngle: null },
+        { id: 'b1', parentId: 'root', label: 'A', depth: 1, slotAngle: null },
       ])
     )
     const branch = els.find((e) => e.id === 'b1')!
@@ -32,10 +32,10 @@ describe('computeMindMapLayout', () => {
 
   it('distributes 7 first-level branches evenly around the root', () => {
     const nodes: MindMapState['nodes'] = [
-      { id: 'root', parentId: null, label: 'Topic', depth: 0 },
+      { id: 'root', parentId: null, label: 'Topic', depth: 0, slotAngle: null },
     ]
     for (let i = 0; i < 7; i++) {
-      nodes.push({ id: `b${i}`, parentId: 'root', label: `B${i}`, depth: 1 })
+      nodes.push({ id: `b${i}`, parentId: 'root', label: `B${i}`, depth: 1, slotAngle: null })
     }
     const els = computeMindMapLayout(state(nodes))
     const branches = els.filter((e) => e.id?.startsWith('b'))
@@ -51,11 +51,11 @@ describe('computeMindMapLayout', () => {
   it('places sub-branches in an outward arc relative to parent', () => {
     const els = computeMindMapLayout(
       state([
-        { id: 'root', parentId: null, label: 'Topic', depth: 0 },
-        { id: 'b1', parentId: 'root', label: 'A', depth: 1 },
-        { id: 's1', parentId: 'b1', label: 's1', depth: 2 },
-        { id: 's2', parentId: 'b1', label: 's2', depth: 2 },
-        { id: 's3', parentId: 'b1', label: 's3', depth: 2 },
+        { id: 'root', parentId: null, label: 'Topic', depth: 0, slotAngle: null },
+        { id: 'b1', parentId: 'root', label: 'A', depth: 1, slotAngle: null },
+        { id: 's1', parentId: 'b1', label: 's1', depth: 2, slotAngle: null },
+        { id: 's2', parentId: 'b1', label: 's2', depth: 2, slotAngle: null },
+        { id: 's3', parentId: 'b1', label: 's3', depth: 2, slotAngle: null },
       ])
     )
     const branch = els.find((e) => e.id === 'b1')!
@@ -73,8 +73,8 @@ describe('computeMindMapLayout', () => {
   it('arrow endpoints sit near shape edges, not centers', () => {
     const els = computeMindMapLayout(
       state([
-        { id: 'root', parentId: null, label: 'Topic', depth: 0 },
-        { id: 'b1', parentId: 'root', label: 'A', depth: 1 },
+        { id: 'root', parentId: null, label: 'Topic', depth: 0, slotAngle: null },
+        { id: 'b1', parentId: 'root', label: 'A', depth: 1, slotAngle: null },
       ])
     )
     const arrow = els.find((e) => e.id === 'arrow-b1')!
@@ -85,9 +85,9 @@ describe('computeMindMapLayout', () => {
   it('first-level branch color is palette[index].primary', () => {
     const els = computeMindMapLayout(
       state([
-        { id: 'root', parentId: null, label: 'Topic', depth: 0 },
-        { id: 'b1', parentId: 'root', label: 'A', depth: 1 },
-        { id: 'b2', parentId: 'root', label: 'B', depth: 1 },
+        { id: 'root', parentId: null, label: 'Topic', depth: 0, slotAngle: null },
+        { id: 'b1', parentId: 'root', label: 'A', depth: 1, slotAngle: null },
+        { id: 'b2', parentId: 'root', label: 'B', depth: 1, slotAngle: null },
       ])
     )
     expect(els.find((e) => e.id === 'b1')!.backgroundColor).toBe(BRANCH_PALETTE[0].primary)
@@ -97,9 +97,9 @@ describe('computeMindMapLayout', () => {
   it('sub-branch color is the parent palette entry.secondary', () => {
     const els = computeMindMapLayout(
       state([
-        { id: 'root', parentId: null, label: 'Topic', depth: 0 },
-        { id: 'b1', parentId: 'root', label: 'A', depth: 1 },
-        { id: 's1', parentId: 'b1', label: 'a1', depth: 2 },
+        { id: 'root', parentId: null, label: 'Topic', depth: 0, slotAngle: null },
+        { id: 'b1', parentId: 'root', label: 'A', depth: 1, slotAngle: null },
+        { id: 's1', parentId: 'b1', label: 'a1', depth: 2, slotAngle: null },
       ])
     )
     expect(els.find((e) => e.id === 's1')!.backgroundColor).toBe(BRANCH_PALETTE[0].secondary)
@@ -107,10 +107,10 @@ describe('computeMindMapLayout', () => {
 
   it('color palette wraps around after 7 branches', () => {
     const nodes: MindMapState['nodes'] = [
-      { id: 'root', parentId: null, label: 'Topic', depth: 0 },
+      { id: 'root', parentId: null, label: 'Topic', depth: 0, slotAngle: null },
     ]
     for (let i = 0; i < 8; i++) {
-      nodes.push({ id: `b${i}`, parentId: 'root', label: `B${i}`, depth: 1 })
+      nodes.push({ id: `b${i}`, parentId: 'root', label: `B${i}`, depth: 1, slotAngle: null })
     }
     const els = computeMindMapLayout(state(nodes))
     expect(els.find((e) => e.id === 'b7')!.backgroundColor).toBe(BRANCH_PALETTE[0].primary)

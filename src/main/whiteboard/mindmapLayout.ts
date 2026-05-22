@@ -8,6 +8,12 @@ const RADIUS_L1 = 280
 const RADIUS_L2 = 180
 const SUB_ARC = (2 * Math.PI) / 3
 const ARROW_GAP = 6
+const FIRST_LEVEL_SCALE_THRESHOLD = 12
+
+function firstLevelRadius(count: number): number {
+  if (count <= FIRST_LEVEL_SCALE_THRESHOLD) return RADIUS_L1
+  return RADIUS_L1 * Math.sqrt(count / FIRST_LEVEL_SCALE_THRESHOLD)
+}
 
 export function computeMindMapLayout(state: MindMapState): WhiteboardElement[] {
   const out: WhiteboardElement[] = []
@@ -31,11 +37,15 @@ export function computeMindMapLayout(state: MindMapState): WhiteboardElement[] {
   const firstLevel = state.nodes.filter((n) => n.parentId === 'root')
   if (firstLevel.length === 0) return out
 
-  const angleStep = (2 * Math.PI) / firstLevel.length
+  const radius = firstLevelRadius(firstLevel.length)
   firstLevel.forEach((branch, i) => {
-    const angle = -Math.PI / 2 + i * angleStep
-    const cx = Math.cos(angle) * RADIUS_L1
-    const cy = Math.sin(angle) * RADIUS_L1
+    // Stable per-branch angle (assigned once at insertion). Legacy nodes
+    // without a slotAngle fall back to even distribution so old test
+    // fixtures keep working.
+    const angle =
+      branch.slotAngle ?? -Math.PI / 2 + i * ((2 * Math.PI) / firstLevel.length)
+    const cx = Math.cos(angle) * radius
+    const cy = Math.sin(angle) * radius
     out.push(
       makeShape({
         type: 'rectangle',
@@ -59,10 +69,14 @@ export function computeMindMapLayout(state: MindMapState): WhiteboardElement[] {
 
     const subs = state.nodes.filter((n) => n.parentId === branch.id)
     if (subs.length === 0) return
+    // Sub-branches: use stored slotAngle when available; fallback distributes
+    // evenly across the outward arc (legacy node compatibility).
     const subAngleStep = subs.length === 1 ? 0 : SUB_ARC / (subs.length - 1)
     const startAngle = angle - SUB_ARC / 2
     subs.forEach((sub, j) => {
-      const subAngle = subs.length === 1 ? angle : startAngle + j * subAngleStep
+      const fallback =
+        subs.length === 1 ? angle : startAngle + j * subAngleStep
+      const subAngle = sub.slotAngle ?? fallback
       const sx = cx + Math.cos(subAngle) * RADIUS_L2
       const sy = cy + Math.sin(subAngle) * RADIUS_L2
       out.push(

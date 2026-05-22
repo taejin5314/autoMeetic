@@ -82,28 +82,82 @@ describe('mindmapState.applyOperations - add_branch', () => {
     expect(getState()!.nodes.filter((n) => n.label.toLowerCase() === 'hiring')).toHaveLength(1)
   })
 
-  it('caps first-level children at 7', () => {
+  it('caps first-level children at 24', () => {
     init('Meeting')
-    const ops = Array.from({ length: 9 }, (_, i) => ({
+    const ops = Array.from({ length: 30 }, (_, i) => ({
       type: 'add_branch' as const,
       parentLabel: 'Meeting',
       label: `B${i}`,
     }))
     applyOperations(ops, [])
-    expect(getState()!.nodes.filter((n) => n.parentId === 'root')).toHaveLength(7)
+    expect(getState()!.nodes.filter((n) => n.parentId === 'root')).toHaveLength(24)
   })
 
-  it('caps sub-branches per first-level at 5', () => {
+  it('caps sub-branches per first-level at 12', () => {
     init('Meeting')
     applyOperations([{ type: 'add_branch', parentLabel: 'Meeting', label: 'Parent' }], [])
-    const ops = Array.from({ length: 7 }, (_, i) => ({
+    const ops = Array.from({ length: 16 }, (_, i) => ({
       type: 'add_branch' as const,
       parentLabel: 'Parent',
       label: `Sub${i}`,
     }))
     applyOperations(ops, [])
     const parent = getState()!.nodes.find((n) => n.label === 'Parent')!
-    expect(getState()!.nodes.filter((n) => n.parentId === parent.id)).toHaveLength(5)
+    expect(getState()!.nodes.filter((n) => n.parentId === parent.id)).toHaveLength(12)
+  })
+
+  it('assigns slotAngle once and never moves existing branches', () => {
+    init('Meeting')
+    applyOperations(
+      [
+        { type: 'add_branch', parentLabel: 'Meeting', label: 'A' },
+        { type: 'add_branch', parentLabel: 'Meeting', label: 'B' },
+        { type: 'add_branch', parentLabel: 'Meeting', label: 'C' },
+      ],
+      []
+    )
+    const snapshot = getState()!.nodes
+      .filter((n) => n.parentId === 'root')
+      .map((n) => ({ label: n.label, slotAngle: n.slotAngle }))
+    applyOperations(
+      [
+        { type: 'add_branch', parentLabel: 'Meeting', label: 'D' },
+        { type: 'add_branch', parentLabel: 'Meeting', label: 'E' },
+      ],
+      []
+    )
+    const after = getState()!.nodes.filter((n) => n.parentId === 'root')
+    for (const original of snapshot) {
+      const node = after.find((n) => n.label === original.label)!
+      expect(node.slotAngle).toBe(original.slotAngle)
+    }
+  })
+
+  it('places the first first-level branch at the top (12 o\'clock)', () => {
+    init('Meeting')
+    applyOperations([{ type: 'add_branch', parentLabel: 'Meeting', label: 'A' }], [])
+    const branch = getState()!.nodes.find((n) => n.parentId === 'root')!
+    expect(branch.slotAngle).toBeCloseTo(-Math.PI / 2, 5)
+  })
+
+  it('places sub-branches inside the parent arc (±60° from parent angle)', () => {
+    init('Meeting')
+    applyOperations(
+      [
+        { type: 'add_branch', parentLabel: 'Meeting', label: 'Parent' },
+        { type: 'add_branch', parentLabel: 'Parent', label: 's1' },
+        { type: 'add_branch', parentLabel: 'Parent', label: 's2' },
+        { type: 'add_branch', parentLabel: 'Parent', label: 's3' },
+      ],
+      []
+    )
+    const parent = getState()!.nodes.find((n) => n.label === 'Parent')!
+    const parentAngle = parent.slotAngle!
+    const subs = getState()!.nodes.filter((n) => n.parentId === parent.id)
+    for (const sub of subs) {
+      const diff = Math.abs(sub.slotAngle! - parentAngle)
+      expect(diff).toBeLessThanOrEqual(Math.PI / 3 + 1e-9)
+    }
   })
 
   it('applies normalizePreserveTerms on the new label', () => {
