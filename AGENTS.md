@@ -16,6 +16,44 @@ Also run `npm run build` when changes touch:
 - Electron/Vite/TypeScript config
 - package dependencies
 
+## Maintenance Verification Matrix
+
+Before cleanup, refactoring, bug fixes, or performance work, classify the change:
+
+- `cleanup`: removing unused files, imports, variables, assets, local generated artifacts, or dead code paths.
+- `refactor`: changing structure while preserving behavior.
+- `bug fix`: changing behavior to correct a defect.
+- `performance`: improving latency, bundle size, memory use, startup time, or render work.
+
+Use the smallest focused verification loop while editing, then run the required verification gate before claiming completion.
+
+### Cleanup
+
+- Confirm removed symbols or files have no active references with `rg`.
+- Prefer TypeScript and ESLint unused-code signals over manual guessing.
+- For generated artifacts, confirm the path is ignored or reproducible.
+
+### Refactor
+
+- State the behavior-preserving invariant before editing.
+- Run the closest focused tests before restructuring when practical.
+- Add a characterization test first if existing coverage does not protect the behavior.
+- Refactor in small steps and rerun focused tests after meaningful steps.
+
+### Bug Fix
+
+- Write or update a failing regression test first when feasible.
+- Keep the test focused on the observed defect.
+- Make the smallest fix that passes the regression test.
+
+### Performance
+
+- Define the metric before editing.
+- Capture a before measurement with a repeatable command or script.
+- Define an initial budget or target.
+- Capture the after measurement under the same conditions.
+- Treat noisy performance checks as reports before promoting them to blocking CI gates.
+
 ## TDD Rule
 
 For behavior changes and bug fixes, write or update a failing test first when the behavior can be exercised without a full manual UI session.
