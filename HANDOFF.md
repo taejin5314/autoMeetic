@@ -19,7 +19,7 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 | 2 — Radial layout engine | ✅ COMPLETE | `db208c6` | 178/178 (`npx vitest run`); typecheck/lint clean |
 | 3 — Prompt + parser | ✅ COMPLETE | `956baea` | 186/186 (`npx vitest run`); typecheck/lint clean |
 | 4 — Service routing + IPC + preload | ✅ COMPLETE | `e9866a5` → `fcf8160` (3 commits) | 186/186 (`npx vitest run`); typecheck/lint clean |
-| 5 — Shelf header mode toggle UI | ⏳ PENDING | — | — |
+| 5 — Shelf header mode toggle UI | ✅ COMPLETE | `a9818b4` | 186/186 (`npx vitest run`); typecheck/lint clean |
 | 6 — Lifecycle wire + telemetry + regression + push | ⏳ PENDING | — | — |
 
 ## ✅ Completed stream — Glossary Auto-Suggestions
