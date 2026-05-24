@@ -1,6 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { runChat } from '../main/memory/chatService'
 import type { GlossaryEntry, SearchHit } from '../main/memory/types'
+
+const logger = vi.hoisted(() => ({
+  log: vi.fn(),
+}))
+
+vi.mock('../main/telemetry/logger', () => ({
+  log: logger.log,
+}))
+
+import { runChat } from '../main/memory/chatService'
 
 interface FakeSearch {
   search: (query: string, limit: number) => Promise<SearchHit[]>
@@ -45,6 +54,7 @@ const originalFetch = globalThis.fetch
 
 beforeEach(() => {
   process.env.OPENAI_API_KEY = 'test-key'
+  logger.log.mockReset()
 })
 
 afterEach(() => {
@@ -69,6 +79,12 @@ describe('chatService.runChat', () => {
     await runChat({ question: 'q', history: [] }, f.sendEvent, f.search, f.repo)
     expect(f.events).toEqual([{ type: 'searching' }, { type: 'no_context' }])
     expect(f.search.search).toHaveBeenCalledWith('q', 10)
+    expect(logger.log).toHaveBeenCalledWith('info', 'memory-chat', 'memory.chat.submit', {
+      questionLength: 1,
+    })
+    expect(logger.log).toHaveBeenCalledWith('info', 'memory-chat', 'memory.chat.no-context', {
+      questionLength: 1,
+    })
   })
 
   it('emits searching -> retrieved -> delta(s) -> done in order', async () => {
@@ -90,6 +106,18 @@ describe('chatService.runChat', () => {
     expect(types[types.length - 1]).toBe('done')
     const done = f.events[f.events.length - 1] as { type: string; content: string }
     expect(done.content).toBe('hello world')
+    expect(logger.log).toHaveBeenCalledWith(
+      'info',
+      'memory-chat',
+      'memory.chat.retrieved',
+      expect.objectContaining({ sourceCount: 1 })
+    )
+    expect(logger.log).toHaveBeenCalledWith(
+      'info',
+      'memory-chat',
+      'memory.chat.completed',
+      expect.objectContaining({ answerChars: 11, citationCount: 0 })
+    )
   })
 
   it('emits error on fetch non-ok', async () => {
@@ -101,6 +129,9 @@ describe('chatService.runChat', () => {
     const last = f.events[f.events.length - 1] as { type: string; message: string }
     expect(last.type).toBe('error')
     expect(last.message).toContain('OpenAI 500')
+    expect(logger.log).toHaveBeenCalledWith('warn', 'memory-chat', 'memory.chat.error', {
+      reason: 'llm',
+    })
   })
 
   it('maps SearchHit results to ChatSource with marker 1..N', async () => {
@@ -200,5 +231,25 @@ describe('chatService.runChat', () => {
     const done = f.events[f.events.length - 1] as { type: string; content: string }
     expect(done.content).toBe('GPU test')
     expect(f.repo.activeGlossary).toHaveBeenCalledWith(null)
+  })
+
+  it('counts citations in completed telemetry', async () => {
+    const f = makeFakes([hit({ sourceText: 'citation source' })])
+    globalThis.fetch = vi.fn(async () =>
+      makeFetchResponse([
+        'data: {"choices":[{"delta":{"content":"answer [^1] "}}]}',
+        'data: {"choices":[{"delta":{"content":"and [^2]"}}]}',
+        'data: [DONE]',
+      ])
+    ) as typeof fetch
+
+    await runChat({ question: 'q', history: [] }, f.sendEvent, f.search, f.repo)
+
+    expect(logger.log).toHaveBeenCalledWith(
+      'info',
+      'memory-chat',
+      'memory.chat.completed',
+      expect.objectContaining({ citationCount: 2 })
+    )
   })
 })

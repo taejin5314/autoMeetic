@@ -1,4 +1,5 @@
 import { formatGlossaryPromptSection, normalizePreserveTerms } from '../glossary/promptInjection'
+import { log } from '../telemetry/logger'
 import {
   buildChatSystemPrompt,
   enforceContextBudget,
@@ -80,24 +81,39 @@ function parseDelta(line: string): string | null {
   return typeof delta === 'string' && delta.length > 0 ? delta : null
 }
 
+function countCitations(text: string): number {
+  return (text.match(/\[\^\d+\]/g) ?? []).length
+}
+
 export async function runChat(
   args: { question: string; history: ChatMessage[] },
   sendEvent: SendEvent,
   search: ChatSearchAdapter,
   repo: ChatGlossaryAdapter
 ): Promise<void> {
+  log('info', 'memory-chat', 'memory.chat.submit', { questionLength: args.question.length })
   sendEvent({ type: 'searching' })
 
   let hits: SearchHit[]
+  const queryStartedAt = Date.now()
   try {
     hits = await search.search(args.question, RETRIEVAL_K)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
+    log('warn', 'memory-chat', 'memory.chat.error', { reason: 'search' })
     sendEvent({ type: 'error', message: `Search failed: ${message}` })
     return
   }
+  const queryDurationMs = Date.now() - queryStartedAt
+  log('info', 'memory-chat', 'memory.chat.retrieved', {
+    sourceCount: hits.length,
+    queryDurationMs,
+  })
 
   if (hits.length === 0) {
+    log('info', 'memory-chat', 'memory.chat.no-context', {
+      questionLength: args.question.length,
+    })
     sendEvent({ type: 'no_context' })
     return
   }
@@ -118,6 +134,7 @@ export async function runChat(
   ]
 
   let res: Response
+  const llmStartedAt = Date.now()
   try {
     res = await fetch(OPENAI_CHAT_URL, {
       method: 'POST',
@@ -135,15 +152,18 @@ export async function runChat(
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
+    log('warn', 'memory-chat', 'memory.chat.error', { reason: 'network' })
     sendEvent({ type: 'error', message: `Network error: ${message}` })
     return
   }
 
   if (!res.ok) {
+    log('warn', 'memory-chat', 'memory.chat.error', { reason: 'llm' })
     sendEvent({ type: 'error', message: `OpenAI ${res.status}` })
     return
   }
   if (!res.body) {
+    log('warn', 'memory-chat', 'memory.chat.error', { reason: 'llm' })
     sendEvent({ type: 'error', message: 'OpenAI response missing body' })
     return
   }
@@ -177,5 +197,10 @@ export async function runChat(
   }
 
   const normalized = normalizePreserveTerms(fullText, glossary)
+  log('info', 'memory-chat', 'memory.chat.completed', {
+    answerChars: normalized.length,
+    llmDurationMs: Date.now() - llmStartedAt,
+    citationCount: countCitations(normalized),
+  })
   sendEvent({ type: 'done', content: normalized, sources })
 }
