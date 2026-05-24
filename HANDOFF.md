@@ -2,6 +2,36 @@
 
 Live handoff document. Any agent (Claude, Codex, human) can resume from this file.
 
+## 🚀 Next active stream
+
+> **Memory Library Chat (Cross-meeting RAG).** 7 phases, ~25-30 hours / 3-4 days solo. Table-stakes catchup feature — Granola/Otter/Fellow all have it, autoMeetic doesn't. Infrastructure 60% already exists (`SearchService`, `EmbeddingService`, `segment_embeddings`); only LLM streaming + UI layer is new. See:
+>
+> - **Spec:** `docs/superpowers/specs/2026-05-23-memory-chat-design.md`
+> - **Plan:** `docs/superpowers/plans/2026-05-23-memory-chat.md`
+>
+> Start at Phase 1 (Task 1.1). TDD pattern through Phase 4; Phase 5 is UI build (less testable, more manual smoke); Phase 6-7 wrap-up.
+
+## Active stream state — Memory Library Chat
+
+| Phase | Status | Commits | Tests passing |
+|---|---|---|---|
+| 1 — Types + prompt helpers (TDD) | ⏳ PENDING | — | — |
+| 2 — Chat service orchestration (TDD) | ⏳ PENDING | — | — |
+| 3 — IPC handler + preload + IPC tests | ⏳ PENDING | — | — |
+| 4 — Renderer types + parser + store | ⏳ PENDING | — | — |
+| 5 — UI (AskInput, SourcesList, ChatMessageView, AskTab, panel refactor, styles) | ⏳ PENDING | — | — |
+| 6 — Telemetry counters | ⏳ PENDING | — | — |
+| 7 — Regression + manual smoke + push | ⏳ PENDING | — | — |
+
+## How to resume (Codex or any agent)
+
+1. Read this file end-to-end.
+2. Find the **Active stream state** table at the top. Next phase = first row marked `⏳ PENDING`.
+3. For that phase, read the corresponding section in `docs/superpowers/plans/2026-05-23-memory-chat.md`.
+4. Implement per the plan (TDD where indicated). Each task has exact code blocks and exact commit messages.
+5. After each phase: run `npm run typecheck` and `npx vitest run <phase-test-file>`. Commit each task individually (the plan specifies the commit message). Update the **Active stream state** table here.
+6. After all phases: run `npm run lint` (expect 0 errors) and `npx vitest run` (expect 189+17 ≈ 206 tests passing). Manual smoke per the spec's success criteria 1-12.
+
 ## ✅ Completed stream — Whiteboard Mind-Map Mode
 
 > Implemented and pushed to `origin/master`. See:
@@ -46,15 +76,6 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 | 7 — Final regression + manual smoke + push | ✅ COMPLETE | `b47eb53` → `HEAD` | 158/158 (`npx vitest run`); typecheck/lint/build clean; manual smoke deferred to user; `npm test` blocked pre-Vitest by Windows `EBUSY` |
 
 **Stream completion notes:** Auto-suggestions now persist extracted candidates, dedupe against existing/dismissed terms, surface a Suggestions tab with accept/dismiss/bulk-accept flows, backfill accepted terms into meeting transcript segments, show a header badge, and emit telemetry counters. The telemetry event names in use are `glossary.extraction.success`, `glossary.extraction.failure`, `glossary.extraction.empty-transcript`, `glossary.extraction.no-meeting`, `glossary.extraction.upsert-failed`, `glossary.suggestion.accepted`, `glossary.suggestion.dismissed`, and `glossary.suggestion.bulk-accepted`. Known gap: Phase 7 manual Electron smoke is not run in this pass and is assigned to the user.
-
-## How to resume (Codex or any agent)
-
-1. Read this file end-to-end.
-2. Find the **Active stream state** table at the top. Next phase = first row marked `⏳ PENDING`.
-3. For that phase, read the corresponding section in `docs/superpowers/plans/2026-05-21-mindmap-mode.md`.
-4. Implement per the plan (TDD where indicated). Each task has exact code blocks and exact commit messages.
-5. After each phase: run `npm run typecheck` and `npx vitest run <phase-test-file>`. Commit each task individually (the plan specifies the commit message). Update the **Active stream state** table here.
-6. After all phases: run `npm run lint` (expect 0 errors) and `npx vitest run` (expect 158+24 ≈ 182 tests passing). Manual smoke per the spec's success criteria.
 
 ## Previously shipped — Mind-map mode
 
