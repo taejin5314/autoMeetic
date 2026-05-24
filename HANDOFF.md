@@ -19,7 +19,7 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 | 2 — Chat service orchestration (TDD) | ✅ COMPLETE | `f9e0b07` | 206/206 (`npx vitest run` + `npm test`); typecheck/lint clean |
 | 3 — IPC handler + preload + IPC tests | ✅ COMPLETE | `582944c` | 211/211 (`npx vitest run` + `npm test`); typecheck/lint clean |
 | 4 — Renderer types + parser + store | ✅ COMPLETE | `259b0b3` | 216/216 (`npx vitest run` + `npm test`); typecheck/lint clean |
-| 5 — UI (AskInput, SourcesList, ChatMessageView, AskTab, panel refactor, styles) | ⏳ PENDING | — | — |
+| 5 — UI (AskInput, SourcesList, ChatMessageView, AskTab, panel refactor, styles) | ✅ COMPLETE | `847d912` → `45aae2e` (5 commits) | 216/216 (`npx vitest run` + `npm test`); typecheck/lint/build clean |
 | 6 — Telemetry counters | ⏳ PENDING | — | — |
 | 7 — Regression + manual smoke + push | ⏳ PENDING | — | — |
 
