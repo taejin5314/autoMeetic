@@ -304,6 +304,7 @@ export class MemoryRepository {
         meetingTitle: r.meetingTitle,
         startedAt: r.startedAt,
         segmentId: null,
+        createdAt: null,
         seq: -1,
         speakerLabel: null,
         sourceText: r.meetingTitle,
@@ -369,6 +370,7 @@ export class MemoryRepository {
         meetingTitle: r.meetingTitle,
         startedAt: r.startedAt,
         segmentId: null,
+        createdAt: null,
         seq: -1,
         speakerLabel: null,
         sourceText: matchedText,
@@ -383,7 +385,7 @@ export class MemoryRepository {
     const placeholders = rows.map(() => '?').join(',')
     const found = this.db
       .prepare(
-        `SELECT s.id AS segmentId, s.seq AS seq, s.speaker_label AS speakerLabel,
+        `SELECT s.id AS segmentId, s.created_at AS createdAt, s.seq AS seq, s.speaker_label AS speakerLabel,
                 s.source_text AS sourceText, s.translated_text AS translatedText,
                 m.id AS meetingId, m.title AS meetingTitle, m.started_at AS startedAt
          FROM segments s JOIN meetings m ON m.id = s.meeting_id
@@ -391,6 +393,7 @@ export class MemoryRepository {
       )
       .all(...rows.map((r) => r.segmentId)) as Array<{
       segmentId: string
+      createdAt: number
       seq: number
       speakerLabel: string | null
       sourceText: string
@@ -410,6 +413,7 @@ export class MemoryRepository {
         meetingTitle: foundRow.meetingTitle,
         startedAt: foundRow.startedAt,
         segmentId: foundRow.segmentId,
+        createdAt: foundRow.createdAt,
         seq: foundRow.seq,
         speakerLabel: foundRow.speakerLabel,
         sourceText: foundRow.sourceText,

@@ -64,6 +64,7 @@ export interface SearchHit {
   meetingTitle: string
   startedAt: number
   segmentId: string | null
+  createdAt: number | null
   seq: number
   speakerLabel: string | null
   sourceText: string
