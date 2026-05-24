@@ -3,6 +3,7 @@ import { buildGlossaryHandlers } from './ipc-glossary-handlers'
 import { buildMemoryHandlers } from './ipc-memory-handlers'
 import { resolveMeetingLanguages, type TranscriptLanguageState } from './memory/meetingLanguages'
 import type { MemoryService } from './memory/memoryService'
+import type { ChatMessage, GlossaryEntry, SearchHit } from './memory/types'
 import { log } from './telemetry/logger'
 import type { WhiteboardMode } from './whiteboard/types'
 
@@ -38,6 +39,27 @@ async function getMemoryService(): Promise<MemoryService> {
   if (memoryServiceRef) return memoryServiceRef
   if (!memoryServicePromise) throw new Error('Memory service startup was not scheduled')
   return memoryServicePromise
+}
+
+interface MemoryChatService {
+  search(query: string, limit?: number): Promise<SearchHit[]>
+  activeGlossary(meetingId: string | null): GlossaryEntry[]
+}
+
+export function buildMemoryChatHandler(
+  getMemory: () => Promise<MemoryChatService>,
+  sendEvent: (channel: string, payload: unknown) => void
+) {
+  return async (args: { question: string; history: ChatMessage[] }): Promise<void> => {
+    const memory = await getMemory()
+    const { runChat } = await import('./memory/chatService')
+    await runChat(
+      args,
+      (event) => sendEvent('memory:chat:event', event),
+      memory,
+      memory
+    )
+  }
 }
 
 export function registerIpcHandlers(mainWindow: BrowserWindow): void {
@@ -171,6 +193,14 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       handleScreenshot(args.image)
     })
   })
+
+  ipcMain.handle(
+    'memory:chat',
+    async (_event, args: { question: string; history: ChatMessage[] }) =>
+      buildMemoryChatHandler(getMemoryService, (channel, payload) => {
+        mainWindowRef?.webContents.send(channel, payload)
+      })(args)
+  )
 
   const memHandlers = buildMemoryHandlers(getMemoryService)
   for (const [channel, handler] of Object.entries(memHandlers)) {

@@ -3,6 +3,7 @@ import type {
   GlossaryEntry,
   GlossaryEntryInput,
   GlossarySuggestion,
+  ChatMessage,
   MeetingDetail,
   MeetingSummary,
   MeetingUpdatedEvent,
@@ -28,7 +29,9 @@ export interface MemoryAPI {
   deleteMeeting(id: string): Promise<void>
   exportMeeting(id: string, format?: 'markdown', language?: ExportLanguageMode): Promise<string>
   regenerateSummary(id: string): Promise<void>
+  chat(args: { question: string; history: ChatMessage[] }): Promise<void>
   onMeetingUpdated(callback: (event: MeetingUpdatedEvent) => void): () => void
+  onChatEvent(handler: (event: unknown) => void): () => void
 }
 
 export interface GlossaryAPI {
