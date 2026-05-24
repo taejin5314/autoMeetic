@@ -15,7 +15,7 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 
 | Phase | Status | Commits | Tests passing |
 |---|---|---|---|
-| 1 — Types + prompt helpers (TDD) | ⏳ PENDING | — | — |
+| 1 — Types + prompt helpers (TDD) | ✅ COMPLETE | `1e1569e` → `9183b79` (2 commits) | 199/199 (`npx vitest run` + `npm test`); typecheck/lint clean |
 | 2 — Chat service orchestration (TDD) | ⏳ PENDING | — | — |
 | 3 — IPC handler + preload + IPC tests | ⏳ PENDING | — | — |
 | 4 — Renderer types + parser + store | ⏳ PENDING | — | — |
