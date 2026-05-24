@@ -17,7 +17,7 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 |---|---|---|---|
 | 1 — Types + prompt helpers (TDD) | ✅ COMPLETE | `1e1569e` → `9183b79` (2 commits) | 199/199 (`npx vitest run` + `npm test`); typecheck/lint clean |
 | 2 — Chat service orchestration (TDD) | ✅ COMPLETE | `f9e0b07` | 206/206 (`npx vitest run` + `npm test`); typecheck/lint clean |
-| 3 — IPC handler + preload + IPC tests | ⏳ PENDING | — | — |
+| 3 — IPC handler + preload + IPC tests | ✅ COMPLETE | `582944c` | 211/211 (`npx vitest run` + `npm test`); typecheck/lint clean |
 | 4 — Renderer types + parser + store | ⏳ PENDING | — | — |
 | 5 — UI (AskInput, SourcesList, ChatMessageView, AskTab, panel refactor, styles) | ⏳ PENDING | — | — |
 | 6 — Telemetry counters | ⏳ PENDING | — | — |
