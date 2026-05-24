@@ -2,8 +2,10 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type React
 import type { MeetingDetail, MeetingSummary, SearchHit } from '../../main/memory/types'
 
 interface MeetingsTabProps {
-  open: boolean
-  onClose: () => void
+  selectedMeetingId?: string | null
+  onSelectMeeting?: (id: string | null) => void
+  highlightSegmentId?: string | null
+  onMeetingCountChange?: (count: number) => void
 }
 
 type DetailState =
@@ -67,9 +69,15 @@ function highlightMatches(text: string, query: string): ReactNode {
   return parts.length > 0 ? parts : text
 }
 
-export function MeetingsTab({ open, onClose }: MeetingsTabProps) {
+export function MeetingsTab({
+  selectedMeetingId,
+  onSelectMeeting,
+  highlightSegmentId,
+  onMeetingCountChange,
+}: MeetingsTabProps) {
   const [meetings, setMeetings] = useState<MeetingSummary[]>([])
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [localSelectedId, setLocalSelectedId] = useState<string | null>(null)
+  const selectedId = selectedMeetingId === undefined ? localSelectedId : selectedMeetingId
   const [detail, setDetail] = useState<DetailState>({ status: 'idle', meeting: null })
   const [query, setQuery] = useState('')
   const [hits, setHits] = useState<SearchHit[]>([])
@@ -84,13 +92,23 @@ export function MeetingsTab({ open, onClose }: MeetingsTabProps) {
   const segmentRefs = useRef<Map<string, HTMLElement>>(new Map())
 
   const api = getMemoryApi()
+  const activeSegmentId = highlightSegmentId ?? focusSegmentId
+
+  const selectMeeting = useCallback(
+    (id: string | null) => {
+      setLocalSelectedId(id)
+      onSelectMeeting?.(id)
+    },
+    [onSelectMeeting]
+  )
 
   const loadMeetings = useCallback(async () => {
     if (!api) return
     const next = await api.listMeetings({ limit: 50 })
     setMeetings(next)
-    if (!selectedId && next[0]) setSelectedId(next[0].meeting.id)
-  }, [api, selectedId])
+    onMeetingCountChange?.(next.length)
+    if (!selectedId && next[0]) selectMeeting(next[0].meeting.id)
+  }, [api, onMeetingCountChange, selectMeeting, selectedId])
 
   const loadDetail = useCallback(
     async (id: string) => {
@@ -111,31 +129,30 @@ export function MeetingsTab({ open, onClose }: MeetingsTabProps) {
   )
 
   useEffect(() => {
-    if (!open || !api) return
+    if (!api) return
     const timeout = window.setTimeout(() => {
       void loadMeetings().catch((err) => {
         setError(err instanceof Error ? err.message : String(err))
       })
     }, 0)
     return () => window.clearTimeout(timeout)
-  }, [api, loadMeetings, open])
+  }, [api, loadMeetings])
 
   useEffect(() => {
-    if (!open || !api || !selectedId) return
+    if (!api || !selectedId) return
     const timeout = window.setTimeout(() => {
       void loadDetail(selectedId)
     }, 0)
     return () => window.clearTimeout(timeout)
-  }, [api, loadDetail, open, selectedId])
+  }, [api, loadDetail, selectedId])
 
   useEffect(() => {
     if (!api) return undefined
     return api.onMeetingUpdated(() => {
-      if (!open) return
       void loadMeetings()
       if (selectedId) void loadDetail(selectedId)
     })
-  }, [api, loadDetail, loadMeetings, open, selectedId])
+  }, [api, loadDetail, loadMeetings, selectedId])
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -146,24 +163,24 @@ export function MeetingsTab({ open, onClose }: MeetingsTabProps) {
   }, [selectedId])
 
   useEffect(() => {
-    if (!focusSegmentId) return
-    const el = segmentRefs.current.get(focusSegmentId)
+    if (!activeSegmentId) return
+    const el = segmentRefs.current.get(activeSegmentId)
     if (!el) return
     el.scrollIntoView({ behavior: 'smooth', block: 'center' })
     const timeout = window.setTimeout(() => {
-      setFocusSegmentId((current) => (current === focusSegmentId ? null : current))
+      setFocusSegmentId((current) => (current === activeSegmentId ? null : current))
     }, 1800)
     return () => window.clearTimeout(timeout)
-  }, [focusSegmentId, detail.meeting?.meeting.id])
+  }, [activeSegmentId, detail.meeting?.meeting.id])
 
   function jumpToHit(hit: SearchHit) {
     const targetSegment = hit.kind === 'segment' ? hit.segmentId : null
-    if (hit.meetingId !== selectedId) setSelectedId(hit.meetingId)
+    if (hit.meetingId !== selectedId) selectMeeting(hit.meetingId)
     setFocusSegmentId(targetSegment)
   }
 
   useEffect(() => {
-    if (!api || !open) return
+    if (!api) return
     const trimmed = query.trim()
     if (!trimmed) {
       const timeout = window.setTimeout(() => {
@@ -193,7 +210,7 @@ export function MeetingsTab({ open, onClose }: MeetingsTabProps) {
       cancelled = true
       window.clearTimeout(timeout)
     }
-  }, [api, open, query])
+  }, [api, query])
 
   const selectedMeeting = detail.meeting
   const titleDraft = selectedMeeting?.meeting.title ?? ''
@@ -236,7 +253,7 @@ export function MeetingsTab({ open, onClose }: MeetingsTabProps) {
     try {
       await api.deleteMeeting(selectedMeeting.meeting.id)
       setConfirmDelete(false)
-      setSelectedId(null)
+      selectMeeting(null)
       setDetail({ status: 'idle', meeting: null })
       await loadMeetings()
     } finally {
@@ -290,46 +307,12 @@ export function MeetingsTab({ open, onClose }: MeetingsTabProps) {
     }
   }
 
-  if (!open) return null
-
   return (
-    <div
-      className="memory-panel-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Meeting Library"
-    >
-      <section className="memory-panel">
-        <header className="memory-panel-head">
-          <div>
-            <span className="memory-kicker">Library</span>
-            <h2>Meeting Memory</h2>
-          </div>
-          <button
-            className="memory-icon-btn"
-            type="button"
-            onClick={onClose}
-            title="Close"
-            aria-label="Close"
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 14 14"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            >
-              <path d="M3 3l8 8M11 3l-8 8" />
-            </svg>
-          </button>
-        </header>
-
-        {!api ? (
-          <div className="memory-empty">Memory is available in the desktop app.</div>
-        ) : (
-          <div className="memory-panel-grid">
+    <>
+      {!api ? (
+        <div className="memory-empty">Memory is available in the desktop app.</div>
+      ) : (
+        <div className="memory-panel-grid">
             <aside className="memory-list-pane">
               <label className="memory-search">
                 <svg
@@ -389,7 +372,7 @@ export function MeetingsTab({ open, onClose }: MeetingsTabProps) {
                       key={item.meeting.id}
                       type="button"
                       className={`memory-meeting-row ${selectedId === item.meeting.id ? 'selected' : ''}`}
-                      onClick={() => setSelectedId(item.meeting.id)}
+                      onClick={() => selectMeeting(item.meeting.id)}
                     >
                       <span>{item.meeting.title}</span>
                       <small>
@@ -555,10 +538,11 @@ export function MeetingsTab({ open, onClose }: MeetingsTabProps) {
                           segment.speakerLabel && segment.speakerLabel !== 'Unknown'
                             ? segment.speakerLabel
                             : null
-                        const isFocused = focusSegmentId === segment.id
+                        const isFocused = activeSegmentId === segment.id
                         return (
                           <article
                             className={`memory-segment${isFocused ? ' is-focused' : ''}`}
+                            data-highlight={isFocused ? 'true' : undefined}
                             key={segment.id}
                             ref={(node) => {
                               if (node) segmentRefs.current.set(segment.id, node)
@@ -583,9 +567,8 @@ export function MeetingsTab({ open, onClose }: MeetingsTabProps) {
                 </>
               )}
             </div>
-          </div>
-        )}
-      </section>
-    </div>
+        </div>
+      )}
+    </>
   )
 }
