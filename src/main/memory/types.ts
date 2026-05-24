@@ -137,3 +137,29 @@ export interface GlossarySuggestionInput {
   frequency: number | null
   variants: string[]
 }
+
+export interface ChatSource {
+  marker: number
+  kind: 'segment' | 'meeting-title' | 'meeting-summary'
+  meetingId: string
+  meetingTitle: string
+  segmentId?: string
+  segmentText: string
+  timestampMs: number
+  meetingStartedAt: number
+  score: number
+}
+
+export interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  sources?: ChatSource[]
+  createdAt: number
+  error?: string
+}
+
+export interface ChatHistoryStored {
+  version: 1
+  messages: ChatMessage[]
+}
