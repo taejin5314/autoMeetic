@@ -21,7 +21,9 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 | 4 — Renderer types + parser + store | ✅ COMPLETE | `259b0b3` | 216/216 (`npx vitest run` + `npm test`); typecheck/lint clean |
 | 5 — UI (AskInput, SourcesList, ChatMessageView, AskTab, panel refactor, styles) | ✅ COMPLETE | `847d912` → `45aae2e` (5 commits) | 216/216 (`npx vitest run` + `npm test`); typecheck/lint/build clean |
 | 6 — Telemetry counters | ✅ COMPLETE | `f69c7ed` | 217/217 (`npx vitest run`); typecheck/lint clean; `npm test` blocked pre-Vitest by Windows `EBUSY` on `better_sqlite3.node` |
-| 7 — Regression + manual smoke + push | ⏳ PENDING | — | — |
+| 7 — Regression + manual smoke + push | ✅ COMPLETE | verification/docs only | 217/217 (`npx vitest run`); typecheck/lint/build clean; manual smoke deferred to user; `npm test` blocked pre-Vitest by Windows `EBUSY` on `better_sqlite3.node` |
+
+**Stream completion notes:** Memory Library Chat now adds an Ask tab backed by cross-meeting search, streamed OpenAI answers, citation chips/sources, clickable citation navigation into Meetings with segment flash, persistent rolling chat history, glossary preserve post-pass, and telemetry counters (`memory.chat.submit`, `memory.chat.retrieved`, `memory.chat.no-context`, `memory.chat.completed`, `memory.chat.error`). Known gaps by v1 scope: plain text only, no markdown rendering, no export, no filter UI, no web-mode parity. Phase 7 manual Electron smoke is deferred to the user.
 
 ## How to resume (Codex or any agent)
 
