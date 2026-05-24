@@ -27,12 +27,12 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 
 ## How to resume (Codex or any agent)
 
-1. Read this file end-to-end.
+1. Read this file end-to-end. Also read `CLAUDE.md` "Phase verification convention" — it is MANDATORY.
 2. Find the **Active stream state** table at the top. Next phase = first row marked `⏳ PENDING`.
-3. For that phase, read the corresponding section in `docs/superpowers/plans/2026-05-23-memory-chat.md`.
+3. For that phase, read the corresponding section in the active plan (linked in "Next active stream" above).
 4. Implement per the plan (TDD where indicated). Each task has exact code blocks and exact commit messages.
-5. After each phase: run `npm run typecheck` and `npx vitest run <phase-test-file>`. Commit each task individually (the plan specifies the commit message). Update the **Active stream state** table here.
-6. After all phases: run `npm run lint` (expect 0 errors) and `npx vitest run` (expect 189+17 ≈ 206 tests passing). Manual smoke per the spec's success criteria 1-12.
+5. **Before marking a phase ✅ COMPLETE in the table below, you MUST run `npm run verify:phase <N>` and paste the verbatim output.** A phase is only complete when the `VERDICT` line shows `✅ Phase N verified`. Do not edit the output or fabricate a passing run.
+6. After all phases: also run `npm run verify` (general) one more time. Manual smoke per the spec's success criteria is deferred to the user unless explicitly assigned.
 
 ## ✅ Completed stream — Whiteboard Mind-Map Mode
 

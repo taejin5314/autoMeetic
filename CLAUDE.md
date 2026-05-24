@@ -6,6 +6,27 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 
 ---
 
+## Phase verification convention (MANDATORY)
+
+When implementing any multi-phase plan in `docs/superpowers/plans/*.md`, you MUST verify before marking a phase ✅ COMPLETE anywhere (HANDOFF.md, task reports, status updates):
+
+1. Run `npm run verify` (general) or `npm run verify:phase <N>` (Phase N of active plan).
+2. Paste the verbatim output in your final report — do not summarize, edit, or paraphrase.
+3. Only mark ✅ COMPLETE when the `VERDICT` line shows `✅`.
+4. If `VERDICT` shows `❌`, fix the failures, re-run, and only mark complete after a passing run.
+
+The script exits 0 only when all checks pass. Trust the exit code over self-assessment.
+
+**Unacceptable behavior:**
+- Marking ✅ in HANDOFF without running the script
+- Pasting fabricated, summarized, or partial output
+- Skipping verification because "I'm confident it works"
+- Claiming a phase is complete when expected files are missing or tests fail
+
+This guardrail exists because LLM agents (including past sessions of you) have historically over-declared completion. The script is the single source of truth.
+
+---
+
 ## Coding Harness (Meta-Harness Principles)
 
 Source: https://github.com/stanford-iris-lab/meta-harness

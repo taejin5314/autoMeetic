@@ -16,6 +16,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "maintenance:check": "node scripts/maintenance-checklist.mjs",
+    "verify": "node scripts/verify.mjs",
+    "verify:phase": "node scripts/verify.mjs --phase",
     "ci": "npm run typecheck && npm run lint && npm test && npm run build",
     "typecheck": "tsc --noEmit",
     "format": "prettier . --write",
