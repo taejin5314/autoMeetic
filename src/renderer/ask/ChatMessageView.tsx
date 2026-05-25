@@ -1,6 +1,7 @@
 import { parseAnswerWithCitations } from './parseAnswerWithCitations'
 import { SourcesList } from './SourcesList'
 import type { ChatMessage, ChatSource } from './types'
+import { canSendToMindMap } from './canSendToMindMap'
 
 function formatTime(ms: number): string {
   const date = new Date(ms)
@@ -11,9 +12,19 @@ interface Props {
   message: ChatMessage
   isStreaming: boolean
   onCitationClick: (source: ChatSource) => void
+  onSendToMindMap?: (message: ChatMessage) => void
+  mindMapPending?: boolean
+  mindMapError?: string | null
 }
 
-export function ChatMessageView({ message, isStreaming, onCitationClick }: Props) {
+export function ChatMessageView({
+  message,
+  isStreaming,
+  onCitationClick,
+  onSendToMindMap,
+  mindMapPending = false,
+  mindMapError = null,
+}: Props) {
   if (message.role === 'user') {
     return (
       <div className="ask-msg ask-msg-user">
@@ -52,6 +63,19 @@ export function ChatMessageView({ message, isStreaming, onCitationClick }: Props
           </div>
           {message.sources && message.sources.length > 0 && (
             <SourcesList sources={message.sources} onClickSource={onCitationClick} />
+          )}
+          {canSendToMindMap(message, isStreaming) && onSendToMindMap && (
+            <div className="ask-msg-actions">
+              <button
+                type="button"
+                className="ask-mindmap-btn"
+                onClick={() => onSendToMindMap(message)}
+                disabled={mindMapPending}
+              >
+                {mindMapPending ? 'Creating mind map...' : 'Send to Mind Map'}
+              </button>
+              {mindMapError && <span className="ask-mindmap-error">{mindMapError}</span>}
+            </div>
           )}
         </>
       )}

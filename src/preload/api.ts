@@ -70,6 +70,8 @@ export function buildPreloadApi(ipcRenderer: IpcRendererLike): ElectronAPI {
         ipcRenderer.invoke('whiteboard:set-label-language', { code }),
       setMode: (mode: 'freeform' | 'mindmap') =>
         ipcRenderer.invoke('whiteboard:set-mode', { mode }),
+      createMindMapFromAsk: (payload) =>
+        ipcRenderer.invoke('whiteboard:create-mindmap-from-ask', payload),
     },
 
     onSttReady: listen('stt:ready') as ElectronAPI['onSttReady'],
