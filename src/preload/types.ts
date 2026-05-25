@@ -10,6 +10,7 @@ import type {
   SearchHit,
 } from '../main/memory/types'
 import type { ExportLanguageMode } from '../main/memory/markdownExporter'
+import type { AskMindMapPayload, AskMindMapResult } from '../main/whiteboard/askMindMap'
 
 export interface TranslationPatchEvent {
   id: string
@@ -87,6 +88,7 @@ export interface ElectronAPI {
   whiteboard: {
     setLabelLanguage(code: string | null): Promise<void>
     setMode(mode: 'freeform' | 'mindmap'): Promise<void>
+    createMindMapFromAsk(payload: AskMindMapPayload): Promise<AskMindMapResult>
   }
 
   // Events (main → renderer)

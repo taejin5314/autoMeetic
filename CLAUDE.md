@@ -1,251 +1,260 @@
 # CLAUDE.md
 
-Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
+Behavior contract for Claude-style agents working in this repository. Merge with `AGENTS.md`, active user instructions, and tool/system instructions. When instructions conflict, obey the higher-priority instruction and document the conflict briefly.
 
-**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
-
----
-
-## Phase verification convention (MANDATORY)
-
-When implementing any multi-phase plan in `docs/superpowers/plans/*.md`, you MUST verify before marking a phase ✅ COMPLETE anywhere (HANDOFF.md, task reports, status updates):
-
-1. Run `npm run verify` (general) or `npm run verify:phase <N>` (Phase N of active plan).
-2. Paste the verbatim output in your final report — do not summarize, edit, or paraphrase.
-3. Only mark ✅ COMPLETE when the `VERDICT` line shows `✅`.
-4. If `VERDICT` shows `❌`, fix the failures, re-run, and only mark complete after a passing run.
-
-The script exits 0 only when all checks pass. Trust the exit code over self-assessment.
-
-**Unacceptable behavior:**
-- Marking ✅ in HANDOFF without running the script
-- Pasting fabricated, summarized, or partial output
-- Skipping verification because "I'm confident it works"
-- Claiming a phase is complete when expected files are missing or tests fail
-
-This guardrail exists because LLM agents (including past sessions of you) have historically over-declared completion. The script is the single source of truth.
+**Tradeoff:** These rules bias toward caution, evidence, and small diffs over speed. For trivial docs-only edits, use judgment but still report what was and was not verified.
 
 ---
 
-## Coding Harness (Meta-Harness Principles)
+## Project Entry Contract
 
-Source: https://github.com/stanford-iris-lab/meta-harness
+Before starting work in this repo:
 
-Before any non-trivial implementation, define a **domain spec** for the task. This prevents hidden assumptions, scope creep, and unmeasurable outcomes.
+1. Read `HANDOFF.md` for the active stream, phase state, environment quirks, and verification convention.
+2. Read `INDEX.md` to find the relevant code paths before searching broadly.
+3. Read `AGENTS.md` for required verification, TDD expectations, and high-risk areas.
+4. Inspect `git status --short` and do not overwrite unrelated user changes.
+5. For planned work, open the linked spec/plan under `docs/superpowers/specs/` and `docs/superpowers/plans/`.
 
-### 1. Problem Framing (before writing code)
+`README.md` is not the primary source of truth for current architecture. Treat `HANDOFF.md`, `INDEX.md`, and the code as fresher unless the user says otherwise.
 
-Answer these before touching any file:
+---
 
-- **What exactly is being improved?** State the specific behavior, not a vague goal.
-- **Unit of evaluation:** One component? One user flow? One API endpoint? One test suite?
-- **Fixed vs. changeable:** What is frozen (existing APIs, data shapes, routing) and what is allowed to change?
-- **Budget:** Estimated time, file count, or lines changed. If unknown, propose a conservative default and mark it explicitly.
+## Phase Verification Convention (Mandatory)
 
-> Rule: If the unit of evaluation cannot be stated in one sentence, do not write code yet. Ask one focused question.
+When implementing any multi-phase plan in `docs/superpowers/plans/*.md`, verify before marking a phase complete anywhere (`HANDOFF.md`, task reports, status updates, PR text):
 
-### 2. Harness Definition (scope boundary)
+1. Run `npm run verify` for general verification or `npm run verify:phase <N>` for phase N of the active plan when the plan/HANDOFF requires phase verification.
+2. Paste the verbatim output in the final report when requested by the convention. Do not summarize, edit, or fabricate it.
+3. Only mark a phase complete when the script's `VERDICT` line is passing.
+4. If the verdict fails, fix the failures, rerun, and only then update status.
 
-- Define the **interface** every implementation candidate must satisfy before choosing an approach.
-- State what is **explicitly out of scope** for this task.
-- If multiple approaches exist, list them and state the tradeoffs — do not pick silently.
-- Prefer the approach with the smallest blast radius (fewest files touched, fewest new dependencies).
+The script exit code and verdict are the source of truth, not confidence or visual inspection.
 
-### 3. Evaluation Plan (success criteria)
+Unacceptable behavior:
 
-Before implementing, state:
+- Marking a phase complete in `HANDOFF.md` without the required verification.
+- Claiming a phase is complete while expected files, IPC bridges, preload types, renderer surfaces, or tests are missing.
+- Treating partial verification as full verification.
+- Hiding `npm test` failures such as Windows `EBUSY` on `better_sqlite3.node`.
 
-- **Primary metric:** What does passing look like? (`tsc --noEmit` clean, test passes, visual match, etc.)
-- **Secondary metrics:** Latency, bundle size, accessibility, mobile layout.
-- **Noise / leakage risk:** Could the fix accidentally break something adjacent? Name it.
-- **One candidate evaluation time:** How long does verifying this change take?
+If manual Electron smoke is not run, say so plainly. Use the existing convention: "manual smoke deferred to user."
 
-> Rule: "Make it work" is not an evaluation plan. Restate as a verifiable check.
+---
 
-### 4. Experience and Logging (learn from runs)
+## Required Verification Gate
 
-- After each non-trivial change, note what was tried and what failed — do not silently discard dead ends.
-- If a pattern recurs (same bug, same type of component, same edge case), capture it as a project-level rule in this file.
-- Store the outcome of each significant decision so future sessions can inspect prior runs without re-investigating.
+Before claiming a coding task is complete, run the repo-required checks from `AGENTS.md`:
 
-### 5. Meta-Harness Fit Check
+```bash
+npm run typecheck
+npm run lint
+npm test
+```
 
-Meta-Harness principles add the most value when:
+Also run `npm run build` when changes touch:
 
-- The task is **long-horizon or multi-step** (more than one file, more than one concept).
-- The same type of task **repeats** across the codebase (forms, API calls, data display, etc.).
-- There are **recurring error patterns** that a structural change could address systematically.
-- A **measurable evaluation loop** exists before implementation begins.
+- `src/main/**`
+- `src/renderer/**`
+- `src/preload/**`
+- Electron/Vite/TypeScript config
+- package dependencies
 
-Skip the full spec for trivial one-liner changes. Apply it in full for features, refactors, and bug investigations.
+When `npm test` is blocked before Vitest by the known Windows native-module lock, report the exact blocker and run the closest direct test command that still provides useful evidence, usually `npx vitest run`.
+
+For docs-only edits, a focused formatting check is enough unless the docs change scripts, generated files, or instructions that affect build/test behavior.
+
+---
+
+## Coding Harness Principles
+
+Before non-trivial implementation, define the task boundary. This prevents hidden assumptions, scope creep, and unmeasurable outcomes.
+
+### 1. Problem Framing
+
+Answer these before touching code:
+
+- What exact behavior is being improved?
+- What is the unit of evaluation: one component, one user flow, one IPC contract, one test suite?
+- What is frozen: public APIs, data shapes, routing, UI conventions?
+- What can change?
+- What is the expected budget: time, file count, or risk level?
+
+If the unit of evaluation cannot be stated in one sentence, ask one focused question before editing.
+
+### 2. Scope Boundary
+
+- Define the interface the change must satisfy.
+- State what is explicitly out of scope.
+- If multiple approaches exist, list tradeoffs instead of silently choosing.
+- Prefer the smallest blast radius: fewest files, fewest new dependencies, no speculative abstraction.
+
+### 3. Evaluation Plan
+
+Before implementation, state:
+
+- Primary check: test, typecheck, lint, build, visual smoke, or script.
+- Secondary risks: latency, bundle size, accessibility, compact layout, IPC compatibility.
+- Adjacent areas that could regress.
+- Approximate time for one verification loop.
+
+"Make it work" is not an evaluation plan. Convert it to a concrete command or observable behavior.
+
+### 4. Learn From Runs
+
+- Note failed attempts that changed your approach.
+- If a recurring error pattern appears, capture a durable rule in this file or `HANDOFF.md` when appropriate.
+- Do not silently discard relevant investigation.
 
 ---
 
 ## Superpowers Development Methodology
 
-Source: https://github.com/obra/superpowers
+Use the available Superpowers skills when their trigger conditions match the task.
 
-Superpowers is a complete software development methodology built on composable skills that auto-trigger at the right moments.
+Core workflow:
 
-### Core Workflow
+1. Brainstorming: refine rough ideas, explore alternatives, present design before implementation.
+2. Planning: break work into small tasks with exact file paths and verification steps.
+3. Execution: implement in batches with checkpoints.
+4. TDD: for behavior changes and bug fixes, write or update a failing test first when feasible.
+5. Review: prioritize regressions, race conditions, missing tests, and contract mismatches.
+6. Verification: run the proof before declaring success.
 
-1. **Brainstorming** — Refine rough ideas through questions, explore alternatives, present design in sections for validation. Saves design document.
-2. **Planning** — Break work into bite-sized tasks (2-5 min each) with exact file paths, complete code, and verification steps.
-3. **Execution** — Dispatch subagents per task with two-stage review (spec compliance, then code quality), or execute in batches with human checkpoints.
-4. **TDD** — Enforce RED-GREEN-REFACTOR: write failing test, watch it fail, write minimal code, watch it pass, commit.
-5. **Code Review** — Review against plan, report issues by severity. Critical issues block progress.
-6. **Verification** — Ensure it's actually fixed before declaring success.
+Philosophy:
 
-### Philosophy
-
-- **Test-Driven Development** — Write tests first, always
-- **Systematic over ad-hoc** — Process over guessing
-- **Complexity reduction** — Simplicity as primary goal
-- **Evidence over claims** — Verify before declaring success
+- Evidence over claims.
+- Systematic over ad hoc.
+- Simplicity over speculative flexibility.
+- Small diffs over broad rewrites.
 
 ---
 
 ## 1. Think Before Coding
 
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
+Do not assume. Do not hide confusion. Surface tradeoffs.
 
 Before implementing:
 
-- State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them - don't pick silently.
-- If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
+- State assumptions explicitly.
+- If multiple interpretations exist, present them.
+- If a simpler approach exists, say so.
+- If requirements are unclear and cannot be inferred from local context, ask one focused question.
+
+---
 
 ## 2. Simplicity First
 
-**Minimum code that solves the problem. Nothing speculative.**
+Minimum code that solves the problem. Nothing speculative.
 
 - No features beyond what was asked.
 - No abstractions for single-use code.
-- No "flexibility" or "configurability" that wasn't requested.
+- No new dependencies unless the project already uses them or the user approves.
 - No error handling for impossible scenarios.
-- If you write 200 lines and it could be 50, rewrite it.
+- If a change grows large, look for a smaller boundary before continuing.
 
-Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+Ask: would a senior engineer call this overcomplicated? If yes, simplify.
+
+---
 
 ## 3. Surgical Changes
 
-**Touch only what you must. Clean up only your own mess.**
+Touch only what you must. Clean up only your own mess.
 
 When editing existing code:
 
-- Don't "improve" adjacent code, comments, or formatting.
-- Don't refactor things that aren't broken.
-- Match existing style, even if you'd do it differently.
-- If you notice unrelated dead code, mention it - don't delete it.
+- Do not refactor adjacent code unless required by the task.
+- Match the local style even when it is not your preferred style.
+- Do not reformat whole files casually.
+- If you notice unrelated dead code, mention it instead of deleting it.
 
 When your changes create orphans:
 
-- Remove imports/variables/functions that YOUR changes made unused.
-- Don't remove pre-existing dead code unless asked.
+- Remove imports, variables, functions, and tests made obsolete by your change.
+- Do not remove pre-existing dead code unless asked.
 
-The test: Every changed line should trace directly to the user's request.
+Every changed line should trace to the user request or required verification cleanup.
+
+---
 
 ## 4. Goal-Driven Execution
 
-**Define success criteria. Loop until verified.**
-
 Transform tasks into verifiable goals:
 
-- "Add validation" → "Write tests for invalid inputs, then make them pass"
-- "Fix the bug" → "Write a test that reproduces it, then make it pass"
-- "Refactor X" → "Ensure tests pass before and after"
+- "Add validation" means write tests for invalid inputs, then make them pass.
+- "Fix the bug" means reproduce it with a focused test or manual proof, then make it pass.
+- "Refactor X" means preserve behavior and run the closest characterization tests before and after.
 
-For multi-step tasks, state a brief plan:
+For multi-step tasks, state a short plan:
 
+```text
+1. [Step] -> verify: [check]
+2. [Step] -> verify: [check]
+3. [Step] -> verify: [check]
 ```
-1. [Step] → verify: [check]
-2. [Step] → verify: [check]
-3. [Step] → verify: [check]
-```
 
-Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+Loop until the stated check passes or the blocker is documented.
 
 ---
-
-**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
 
 ## Project-Specific Guidelines
 
-- Use TypeScript strict mode (no `any` — strictly forbidden)
-- Every implementation decision must map to a product requirement
-- Define success criteria before writing code
-- After each change, verify with typecheck (`tsc --noEmit`), lint (`eslint`), or manual QA
-- If requirements are ambiguous, document the assumption before implementing
+- Use TypeScript strict mode. Do not introduce `any` unless there is no safer boundary and the reason is documented.
+- Treat `src/main/**`, `src/preload/**`, and `src/renderer/**` as a contract chain. IPC changes usually require updates in all three plus tests.
+- Use `INDEX.md` to locate the relevant feature area before editing.
+- Use `HANDOFF.md` for active stream state. Keep its table accurate; never mark future phases complete.
+- Behavior changes and bug fixes should follow TDD when feasible.
+- Renderer/main/preload/config/package changes require `npm run build` before completion.
+- Preserve user work in a dirty worktree. Never revert unrelated changes.
+- If requirements are ambiguous, document the assumption before implementing.
+
+High-risk areas:
+
+- Live feed sentence grouping and auto-scroll.
+- Translation source/target language routing.
+- Answer assist prompt context.
+- Whiteboard element layout and Excalidraw conversion.
+- Dark/light theme rendering.
+- Renderer/main IPC contracts.
+- Memory Library chat citations, source navigation, and cross-meeting search.
 
 ---
 
-## UI/Design Guidelines (taste-skill — Anti-Slop)
+## UI / Design Guidelines
 
-Source: https://github.com/leonxlnx/taste-skill
+This app is a React + Vite + Electron workspace with custom CSS, not a Tailwind-first app. Follow existing component and CSS patterns unless the user asks for a design-system change.
 
-Active dials: DESIGN_VARIANCE=8 · MOTION_INTENSITY=6 · VISUAL_DENSITY=4
+Architecture:
 
-### Architecture
+- Check `package.json` before importing any third-party library.
+- Prefer existing local components, stores, and CSS classes.
+- Keep operational tool UI dense, quiet, and scannable.
+- Do not add landing-page or marketing-style layouts for app features.
+- Avoid nested cards and decorative page sections.
+- Use stable dimensions for toolbars, boards, tiles, and fixed-format controls.
 
-- Check `package.json` before importing any 3rd-party library. Output `npm install <pkg>` if missing.
-- Stack: React + Vite. Use local `useState`/`useReducer` for UI state.
-- Styling: Tailwind CSS v3. Check version before writing config.
-- Icons: `@phosphor-icons/react` or `@radix-ui/react-icons` only. Standardize `strokeWidth` to `1.5`.
-- No emojis anywhere — code, markup, alt text, content. Use icons or SVG primitives instead.
-- Full-height sections: always `min-h-[100dvh]`, never `h-screen`.
-- Layouts: CSS Grid (`grid grid-cols-1 md:grid-cols-3 gap-6`), never flex percentage math.
-- Page containers: `max-w-[1400px] mx-auto` or `max-w-7xl`.
+Typography and layout:
 
-### Typography
+- Match nearby heading scale and spacing.
+- Do not use viewport-width-based font sizing.
+- Keep letter spacing at `0` unless an existing class nearby says otherwise.
+- Ensure button labels and table text fit at desktop and mobile widths.
+- Prefer predictable navigation and compact controls over oversized hero composition.
 
-- Headlines: `text-4xl md:text-6xl tracking-tighter leading-none`
-- Body: `text-base text-gray-600 leading-relaxed max-w-[65ch]`
-- Fonts: `Geist`, `Satoshi`, or `Cabinet Grotesk` — **Inter is banned**.
-- No oversized H1s; control hierarchy with weight and color, not scale alone.
-- Serif fonts banned for dashboards/software UI.
+Color and visual style:
 
-### Color
+- Respect existing light/dark theme variables.
+- Avoid one-note palettes and dominant purple/blue gradients.
+- Do not add glow/orb/bokeh decoration.
+- Use contrast that remains readable in both themes.
 
-- Max 1 accent color. Saturation < 80%.
-- Base: Zinc/Slate neutrals. Accents: Emerald, Electric Blue, or Deep Rose.
-- **AI Purple/Blue aesthetic is banned** — no purple glows, no neon gradients.
-- No pure `#000000`. Use Zinc-950 or off-black.
-- No oversaturated accents, no excessive gradient text on large headers.
-- Stay on one palette. Do not mix warm and cool grays in the same project.
+Interaction states:
 
-### Layout
+- Provide loading, empty, error, and disabled states for new interactive surfaces.
+- Use familiar controls: icon buttons for tools, tabs for views, toggles for binary settings, inputs/sliders for numeric values, menus for option sets.
+- Do not describe UI instructions in visible app text unless it is needed for the workflow.
 
-- Centered Hero/H1 is banned when DESIGN_VARIANCE > 4. Use Split Screen, Left-Aligned, or Asymmetric Whitespace.
-- No 3-column equal-card layouts. Use 2-col zig-zag, asymmetric grid, or horizontal scroll.
-- Cards only when elevation communicates hierarchy. Shadow must be tinted to background hue.
-- Mobile fallback (< 768px): always single-column `w-full px-4 py-8` for asymmetric layouts.
+Manual UI verification:
 
-### Motion
-
-- Interactive components with animation must be isolated `'use client'` leaf components.
-- Spring physics: `type: "spring", stiffness: 100, damping: 20` — no linear easing.
-- Magnetic hover: use Framer Motion `useMotionValue`/`useTransform` outside render cycle. Never `useState` for continuous animations.
-- Animate exclusively `transform` and `opacity`. Never `top`, `left`, `width`, or `height`.
-- Stagger list/grid reveals with `staggerChildren` or `animation-delay: calc(var(--index) * 100ms)`.
-- Perpetual animations must be memoized (`React.memo`) and isolated in their own Client Component.
-- Grain/noise overlays: fixed, `pointer-events-none` pseudo-elements only — never on scrolling containers.
-- No arbitrary `z-50` spam. Z-index only for systemic layers (navbars, modals, overlays).
-- Glassmorphism: add `border-white/10` inner border + `shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]`.
-
-### Interaction States (mandatory)
-
-- Loading: skeletal loaders matching layout shape — no generic circular spinners.
-- Empty state: composed empty state showing how to populate.
-- Error state: clear inline error reporting on forms.
-- Tactile feedback on `:active`: `scale-[0.98]` or `-translate-y-[1px]`.
-
-### Forbidden Patterns
-
-- No neon/outer glows (`box-shadow` glows banned).
-- No generic placeholder names: "John Doe", "Sarah Chan", "Acme", "Nexus", "SmartFlow".
-- No predictable fake numbers: use organic data (`47.2%`, `+1 (312) 847-1928`).
-- No Unsplash links. Use `https://picsum.photos/seed/{string}/800/600` or SVG avatars.
-- No filler copy: "Elevate", "Seamless", "Unleash", "Next-Gen" are banned.
-- No custom mouse cursors.
-- shadcn/ui allowed but never in its default state — customize radii, colors, shadows.
+- For significant frontend changes, run the app and inspect the affected flow when feasible.
+- If manual smoke is deferred to the user, record it honestly in `HANDOFF.md` or the final report.
