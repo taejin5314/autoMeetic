@@ -3660,6 +3660,42 @@ mark.memory-match {
   border: 1px solid var(--p-error);
 }
 
+.ask-msg-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.ask-mindmap-btn {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--p-border);
+  background: var(--p-bg-sub);
+  color: var(--p-text);
+  font-family: var(--p-sans);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ask-mindmap-btn:hover:not(:disabled) {
+  border-color: var(--p-primary);
+  color: var(--p-primary-ink);
+  background: var(--p-primary-soft);
+}
+
+.ask-mindmap-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.ask-mindmap-error {
+  font-size: 12px;
+  color: var(--p-error-ink);
+}
+
 .ask-citation {
   display: inline-flex;
   align-items: center;

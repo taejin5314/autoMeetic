@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { parseAnswerWithCitations } from '../renderer/ask/parseAnswerWithCitations'
 import { applyChatEventToMessages } from '../renderer/ask/useChatStore'
 import type { ChatMessage, ChatSource } from '../renderer/ask/types'
+import { canSendToMindMap } from '../renderer/ask/canSendToMindMap'
 
 function source(marker: number): ChatSource {
   return {
@@ -81,5 +82,22 @@ describe('applyChatEventToMessages', () => {
 
     expect(noContext[0].content).toBe('No relevant meetings found.')
     expect(errored[0].error).toBe('network down')
+  })
+})
+
+describe('canSendToMindMap', () => {
+  it('is active only for completed sourced assistant messages', () => {
+    const sourcedAssistant: ChatMessage = {
+      id: 'a1',
+      role: 'assistant',
+      content: 'Decision [^1]',
+      sources: [source(1)],
+      createdAt: 1,
+    }
+    expect(canSendToMindMap(sourcedAssistant, false)).toBe(true)
+    expect(canSendToMindMap(sourcedAssistant, true)).toBe(false)
+    expect(canSendToMindMap({ ...sourcedAssistant, sources: [] }, false)).toBe(false)
+    expect(canSendToMindMap({ ...sourcedAssistant, error: 'failed' }, false)).toBe(false)
+    expect(canSendToMindMap({ ...sourcedAssistant, role: 'user' }, false)).toBe(false)
   })
 })

@@ -33,6 +33,13 @@ export function getState(): MindMapState | null {
   return state
 }
 
+export function replace(nextState: MindMapState): void {
+  state = {
+    ...nextState,
+    nodes: nextState.nodes.map((node) => ({ ...node })),
+  }
+}
+
 interface ApplyResult {
   rootUpgraded: boolean
   addedNodeIds: string[]

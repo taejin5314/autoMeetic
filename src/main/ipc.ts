@@ -6,6 +6,7 @@ import type { MemoryService } from './memory/memoryService'
 import type { ChatMessage, GlossaryEntry, SearchHit } from './memory/types'
 import { log } from './telemetry/logger'
 import type { WhiteboardMode } from './whiteboard/types'
+import type { AskMindMapPayload } from './whiteboard/askMindMap'
 
 // Electron exposes its runtime APIs through CommonJS in main/preload.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -160,6 +161,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       setWhiteboardMode(args.mode)
       log('info', 'whiteboard-mindmap', 'mindmap.mode-toggled', { target: args.mode })
     })
+  })
+
+  ipcMain.handle('whiteboard:create-mindmap-from-ask', async (_event, args: AskMindMapPayload) => {
+    const { createMindMapFromAsk } = await import('./whiteboardService')
+    return createMindMapFromAsk(args)
   })
 
   ipcMain.handle(

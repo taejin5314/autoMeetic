@@ -27,6 +27,7 @@ import { formatGlossaryPromptSection, normalizePreserveTerms } from './glossary/
 import type { GlossaryEntry } from './memory/types'
 import type { MemoryService } from './memory/memoryService'
 import { log } from './telemetry/logger'
+import { buildAskMindMapState, type AskMindMapPayload, type AskMindMapResult } from './whiteboard/askMindMap'
 
 // Viewport size the whiteboard agent should lay out for. Matches the maximize
 // modal at typical desktop sizing; can be made dynamic later via IPC.
@@ -195,6 +196,35 @@ export function resetWhiteboard(): void {
   clearFreeformElements()
   mindmapState.clear()
   sendToRenderer('whiteboard:update', { elements: [] })
+}
+
+export function createMindMapFromAsk(payload: AskMindMapPayload): AskMindMapResult {
+  log('info', 'memory-ask-mindmap', 'memory.ask_mindmap.submit', {
+    answerChars: payload.answer.length,
+    sourceCount: payload.sources.length,
+  })
+
+  try {
+    const nextState = buildAskMindMapState(payload)
+    clearFreeformElements()
+    mindmapState.replace(nextState)
+    cachedMode = 'mindmap'
+
+    const elements = computeMindMapLayout(nextState)
+    state.elements = elements
+    sendToRenderer('whiteboard:update', { elements })
+
+    log('info', 'memory-ask-mindmap', 'memory.ask_mindmap.created', {
+      nodeCount: nextState.nodes.length,
+      sourceCount: payload.sources.length,
+    })
+    return { nodeCount: nextState.nodes.length }
+  } catch (err) {
+    log('warn', 'memory-ask-mindmap', 'memory.ask_mindmap.error', {
+      reason: err instanceof Error ? err.message : String(err),
+    })
+    throw err
+  }
 }
 
 export function onMeetingBegin(meetingTitle: string): void {

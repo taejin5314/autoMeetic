@@ -19,6 +19,7 @@ import { PipelineHealthStore } from '../main/health/pipelineHealth'
 import { RealtimeSttClient } from '../main/stt/realtimeClient'
 import { TranscriptBus } from '../main/stt/transcriptBus'
 import type { ViewportCommand, WhiteboardElement } from '../main/whiteboard/types'
+import type { AskMindMapPayload } from '../main/whiteboard/askMindMap'
 import { isActionItem } from './actions/types'
 import { useActionItemsStore } from './actions/useActionItemsStore'
 import { AnswerAssistCard } from './answer-assist/AnswerAssistCard'
@@ -722,6 +723,16 @@ function App() {
 
   useAnswerAssistHotkey(triggerAnswerAssist)
 
+  const handleSendAskToMindMap = useCallback(async (payload: AskMindMapPayload): Promise<void> => {
+    const api = window.electronAPI?.whiteboard
+    if (!api?.createMindMapFromAsk) {
+      throw new Error('Mind map creation is available in the desktop app.')
+    }
+    await api.createMindMapFromAsk(payload)
+    setShelf('whiteboard')
+    setWhiteboardMaximized(true)
+  }, [])
+
   // ── V4 Bilingual Editorial layout ────────────────────────────────────────
   const sourceLang =
     sttLanguage === 'auto' ? (languageLock ?? detectedLanguage ?? 'auto') : sttLanguage
@@ -1135,7 +1146,11 @@ function App() {
         onClose={() => setWhiteboardMaximized(false)}
       />
 
-      <MemoryLibraryPanel open={memoryLibraryOpen} onClose={() => setMemoryLibraryOpen(false)} />
+      <MemoryLibraryPanel
+        open={memoryLibraryOpen}
+        onClose={() => setMemoryLibraryOpen(false)}
+        onSendAskToMindMap={handleSendAskToMindMap}
+      />
       <GlossaryPanel open={glossaryOpen} meetingId={null} onClose={() => setGlossaryOpen(false)} />
     </main>
   )

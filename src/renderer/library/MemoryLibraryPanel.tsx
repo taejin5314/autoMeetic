@@ -6,11 +6,16 @@ import { MeetingsTab } from './MeetingsTab'
 interface MemoryLibraryPanelProps {
   open: boolean
   onClose: () => void
+  onSendAskToMindMap?: (payload: {
+    question: string
+    answer: string
+    sources: ChatSource[]
+  }) => Promise<void>
 }
 
 type Tab = 'meetings' | 'ask'
 
-export function MemoryLibraryPanel({ open, onClose }: MemoryLibraryPanelProps) {
+export function MemoryLibraryPanel({ open, onClose, onSendAskToMindMap }: MemoryLibraryPanelProps) {
   const [tab, setTab] = useState<Tab>('meetings')
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null)
   const [highlightSegmentId, setHighlightSegmentId] = useState<string | null>(null)
@@ -91,7 +96,11 @@ export function MemoryLibraryPanel({ open, onClose }: MemoryLibraryPanelProps) {
               onMeetingCountChange={setMeetingCount}
             />
           ) : (
-            <AskTab meetingCount={meetingCount} onCitationClick={handleCitationClick} />
+            <AskTab
+              meetingCount={meetingCount}
+              onCitationClick={handleCitationClick}
+              onSendToMindMap={onSendAskToMindMap}
+            />
           )}
         </div>
       </section>
