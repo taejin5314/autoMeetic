@@ -3,6 +3,7 @@ import { GlossaryRowEditor } from './GlossaryRowEditor'
 import { GlossarySaveSuccessCard } from './GlossarySaveSuccessCard'
 import { SuggestionRow } from './SuggestionRow'
 import type { GlossaryEntry, GlossaryEntryInput, VariantCandidate } from './types'
+import { useHighlightToggle } from './useHighlightToggle'
 import { useGlossaryStore } from './useGlossaryStore'
 
 interface Props {
@@ -26,6 +27,7 @@ export function GlossaryPanel({ open, meetingId, onClose }: Props) {
 
   const scope: 'global' | 'meeting' = tab === 'meeting' ? 'meeting' : 'global'
   const store = useGlossaryStore(scope, meetingId)
+  const [highlightEnabled, setHighlightEnabled] = useHighlightToggle()
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -146,14 +148,24 @@ export function GlossaryPanel({ open, meetingId, onClose }: Props) {
                 : `${filtered.length} of ${store.entries.length}`}
             </span>
           </div>
-          <button
-            type="button"
-            className="glossary-close"
-            onClick={onClose}
-            aria-label="Close glossary"
-          >
+          <div className="glossary-head-actions">
+            <label className="glossary-highlight-toggle">
+              <input
+                type="checkbox"
+                checked={highlightEnabled}
+                onChange={(e) => setHighlightEnabled(e.target.checked)}
+              />
+              하이라이트 표시
+            </label>
+            <button
+              type="button"
+              className="glossary-close"
+              onClick={onClose}
+              aria-label="Close glossary"
+            >
             ×
-          </button>
+            </button>
+          </div>
         </header>
 
         <div className="glossary-tabs">

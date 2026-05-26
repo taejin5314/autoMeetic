@@ -144,6 +144,16 @@
   color-scheme: dark;
 }
 
+:root {
+  --glossary-accent: rgba(37, 99, 235, 0.45);
+  --glossary-accent-hover: rgba(37, 99, 235, 0.72);
+}
+
+[data-theme='dark'] {
+  --glossary-accent: rgba(147, 197, 253, 0.5);
+  --glossary-accent-hover: rgba(147, 197, 253, 0.78);
+}
+
 [data-theme='dark'] body,
 [data-theme='dark'] html,
 [data-theme='dark'] #root {
@@ -2975,6 +2985,12 @@ mark.memory-match {
   gap: 12px;
 }
 
+.glossary-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .glossary-head-title h2 {
   margin: 0;
   font-family: var(--p-sans);
@@ -3003,6 +3019,31 @@ mark.memory-match {
 
 .glossary-close:hover {
   background: var(--p-bg-sub);
+}
+
+.glossary-highlight-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--p-mute);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.glossary-highlight-toggle input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+
+.glossary-mark {
+  border-bottom: 1px dotted var(--glossary-accent);
+  cursor: help;
+  transition: border-bottom-color 0.15s;
+}
+
+.glossary-mark:hover {
+  border-bottom-color: var(--glossary-accent-hover);
 }
 
 .glossary-tabs {
@@ -3147,6 +3188,23 @@ mark.memory-match {
 
 .glossary-row-empty {
   color: var(--p-faint);
+}
+
+.glossary-row-variants {
+  grid-column: 2 / 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.glossary-row-variant-chip {
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--p-bg-sub);
+  color: var(--p-mute);
+  border: 1px solid var(--p-border);
+  font-size: 11px;
+  overflow-wrap: anywhere;
 }
 
 .glossary-preserve-chip {
@@ -3386,6 +3444,181 @@ mark.memory-match {
   color: var(--p-text);
   font-size: 12px;
   cursor: pointer;
+}
+
+.glossary-editor-variants {
+  margin-top: 2px;
+  display: grid;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--p-mute);
+}
+
+.glossary-editor-variants-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.glossary-editor-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: var(--p-bg-card);
+  border: 1px solid var(--p-border);
+  color: var(--p-text);
+  font-size: 12px;
+}
+
+.glossary-editor-chip button {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--p-mute);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.glossary-editor-variants-add {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.glossary-editor-variants-add input[type='text'] {
+  flex: 1;
+  height: 28px;
+  padding: 6px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--p-border);
+  background: var(--p-bg-card);
+  color: var(--p-text);
+  font-size: 13px;
+}
+
+.glossary-editor-variants-add button {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 5px;
+  border: 1px solid var(--p-border);
+  background: var(--p-bg-card);
+  color: var(--p-text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.glossary-editor-variants-add button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.variant-picker {
+  margin-top: 8px;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--p-border);
+  background: var(--p-bg-card);
+}
+
+.variant-picker h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--p-text);
+}
+
+.variant-picker-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.variant-picker-list li {
+  padding: 7px 0;
+  border-top: 1px dashed var(--p-border);
+}
+
+.variant-picker-list li:first-child {
+  border-top: none;
+}
+
+.variant-picker-candidate {
+  margin: 0 8px;
+  font-family: var(--p-mono);
+  color: var(--p-text);
+}
+
+.variant-picker-frequency {
+  color: var(--p-faint);
+  font-size: 12px;
+}
+
+.variant-picker-example {
+  margin: 3px 0 0 24px;
+  color: var(--p-mute);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.variant-picker-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.variant-picker button {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 5px;
+  border: 1px solid var(--p-border);
+  background: var(--p-bg-card);
+  color: var(--p-text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.variant-picker button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.glossary-save-card {
+  margin: 8px 24px 0;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--p-primary-soft);
+  border-left: 3px solid var(--p-primary);
+  background: var(--p-bg-sub);
+  cursor: pointer;
+}
+
+.glossary-save-card-header {
+  margin-bottom: 6px;
+  color: var(--p-text);
+  font-weight: 600;
+}
+
+.glossary-save-card-variants,
+.glossary-save-card-example {
+  color: var(--p-mute);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.glossary-save-card-body {
+  color: var(--p-text);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.glossary-save-card-warning {
+  color: var(--p-warning-ink);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .glossary-editor-actions {
