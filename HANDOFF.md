@@ -4,14 +4,198 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 
 ## 🚀 Next active stream
 
-> **Memory Library Chat (Cross-meeting RAG).** 7 phases, ~25-30 hours / 3-4 days solo. Table-stakes catchup feature — Granola/Otter/Fellow all have it, autoMeetic doesn't. Infrastructure 60% already exists (`SearchService`, `EmbeddingService`, `segment_embeddings`); only LLM streaming + UI layer is new. See:
+> **Embedding Pipeline Durability + Startup Backfill.** Bug-fix + infra stream. 5 phases, ~6-10 hours. Fixes a critical silent failure surfaced by user testing on 2026-05-25: the existing 892 segments / 8 meetings have **0 embeddings** in `segment_embeddings`, and the model cache directory does not exist — meaning `Xenova/multilingual-e5-small` has never finished downloading. Root cause: in-memory queue + 3-second `endMeeting()` drain timeout + no startup recovery → first-run model download (~117MB) silently times out and all enqueued work is lost. Net effect: Memory Ask semantic search has never worked for any user, in any language. See:
+>
+> - **Spec:** `docs/superpowers/specs/2026-05-25-embedding-pipeline-durability-design.md`
+> - **Plan:** `docs/superpowers/plans/2026-05-25-embedding-pipeline-durability.md`
+>
+> Start at Phase 1 (Task 1.1). TDD pattern through Phases 1-3; Phase 4 is telemetry; Phase 5 is regression + handoff.
+
+## Active stream state — Embedding Pipeline Durability
+
+| Phase | Status | Commits | Tests passing |
+|---|---|---|---|
+| 1 — Schema + repo CRUD (TDD) | ✅ COMPLETE | `75359ce` → `b21e5d3` (3 commits) | 234/234 (`npm run verify:phase 1`); typecheck/lint clean |
+| 2 — EmbeddingQueue failure persistence (TDD) | ✅ COMPLETE | `747cb46` → `0ff363c` (2 commits) | 238/238 (`npm run verify:phase 2`); typecheck/lint clean |
+| 3 — Startup backfill + endMeeting fix (TDD) | ✅ COMPLETE | `090e2d6` → `d9944be` (2 commits) | 242/242 (`npm run verify:phase 3`); typecheck/lint clean |
+| 4 — Telemetry | ✅ COMPLETE | `a9078fb` → `59a3b39` (3 commits) | 242/242 (`npm run verify:phase 4`); typecheck/lint clean |
+| 5 — Regression + handoff + push | ✅ COMPLETE | `59a3b39` → `HEAD` (docs/final) | 242/242 (`npm run verify`); `npm test` blocked pre-Vitest by Windows `EBUSY`; build clean |
+
+**Phase 1 verification (`npm run verify:phase 1`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 1
+
+
+🔍 autoMeetic verification — 2026-05-25 21:42
+
+  Plan: docs/superpowers/plans/2026-05-25-embedding-pipeline-durability.md
+  Verifying Phase 1
+
+  Expected files (referenced in Phase 1 body):
+    ✅ src/main/memory/schema.ts
+    ✅ src/main/memory/types.ts
+    ✅ src/main/memory/repository.ts
+    ✅ src/test/embedding-failures-repository.test.ts
+
+Checks:
+  ✅ typecheck (0 errors, 0.9s)
+  ✅ lint (0 errors, 9.5s)
+  ✅ vitest (234 / 234 passed, 6.8s)
+
+Git context (last 5 commits):
+  b21e5d3 feat(embeddings): repo CRUD for embedding_failures + backfill derivation
+  c3638bf feat(embeddings): add EmbeddingFailure + PendingEmbedding types
+  75359ce feat(embeddings): add embedding_failures table (schema v4)
+  a005e2e Merge branch 'master' of https://github.com/taejin5314/autoMeetic
+  3c1b674 [codex] Send Memory Ask answers to mind maps (#4)
+
+VERDICT: ✅ Phase 1 verified
+```
+
+**Phase 2 verification (`npm run verify:phase 2`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 2
+
+
+🔍 autoMeetic verification — 2026-05-25 21:45
+
+  Plan: docs/superpowers/plans/2026-05-25-embedding-pipeline-durability.md
+  Verifying Phase 2
+
+  Expected files (referenced in Phase 2 body):
+    ✅ src/test/memory-embedding-queue.test.ts
+    ✅ src/main/memory/embeddingQueue.ts
+    ✅ src/test/embedding-queue-failure-persistence.test.ts
+
+Checks:
+  ✅ typecheck (0 errors, 1.0s)
+  ✅ lint (0 errors, 10.2s)
+  ✅ vitest (238 / 238 passed, 5.6s)
+
+Git context (last 5 commits):
+  0ff363c feat(embeddings): persist permanent embedding failures
+  747cb46 test(embeddings): expand fakeRepo with recordEmbeddingFailure
+  b21e5d3 feat(embeddings): repo CRUD for embedding_failures + backfill derivation
+  c3638bf feat(embeddings): add EmbeddingFailure + PendingEmbedding types
+  75359ce feat(embeddings): add embedding_failures table (schema v4)
+
+VERDICT: ✅ Phase 2 verified
+```
+
+**Phase 3 verification (`npm run verify:phase 3`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 3
+
+
+🔍 autoMeetic verification — 2026-05-25 21:49
+
+  Plan: docs/superpowers/plans/2026-05-25-embedding-pipeline-durability.md
+  Verifying Phase 3
+
+  Expected files (referenced in Phase 3 body):
+    ✅ src/main/memory/memoryService.ts
+    ✅ src/test/memory-service-backfill.test.ts
+
+Checks:
+  ✅ typecheck (0 errors, 1.1s)
+  ✅ lint (0 errors, 11.9s)
+  ✅ vitest (242 / 242 passed, 8.1s)
+
+Git context (last 5 commits):
+  d9944be feat(embeddings): startup backfill + non-blocking endMeeting
+  090e2d6 chore(embeddings): add __workerFactory test hook to MemoryServiceOptions
+  0ff363c feat(embeddings): persist permanent embedding failures
+  747cb46 test(embeddings): expand fakeRepo with recordEmbeddingFailure
+  b21e5d3 feat(embeddings): repo CRUD for embedding_failures + backfill derivation
+
+VERDICT: ✅ Phase 3 verified
+```
+
+**Phase 4 verification (`npm run verify:phase 4`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 4
+
+
+🔍 autoMeetic verification — 2026-05-25 21:52
+
+  Plan: docs/superpowers/plans/2026-05-25-embedding-pipeline-durability.md
+  Verifying Phase 4
+
+  Expected files (referenced in Phase 4 body):
+    ✅ src/main/memory/embeddingService.ts
+    ✅ src/main/memory/embeddingQueue.ts
+    ✅ src/main/memory/memoryService.ts
+
+Checks:
+  ✅ typecheck (0 errors, 0.9s)
+  ✅ lint (0 errors, 9.5s)
+  ✅ vitest (242 / 242 passed, 5.3s)
+
+Git context (last 5 commits):
+  59a3b39 feat(embeddings): telemetry for backfill start + completion
+  f584dd1 feat(embeddings): telemetry for batch success + failure
+  a9078fb feat(embeddings): telemetry for worker init success + failure
+  d9944be feat(embeddings): startup backfill + non-blocking endMeeting
+  090e2d6 chore(embeddings): add __workerFactory test hook to MemoryServiceOptions
+
+VERDICT: ✅ Phase 4 verified
+```
+
+**Phase 5 verification (`npm run verify`):**
+
+```text
+> automeetic@0.0.0 verify
+> node scripts/verify.mjs
+
+
+🔍 autoMeetic verification — 2026-05-25 21:53
+
+Checks:
+  ✅ typecheck (0 errors, 0.9s)
+  ✅ lint (0 errors, 9.5s)
+  ✅ vitest (242 / 242 passed, 5.6s)
+
+Git context (last 5 commits):
+  59a3b39 feat(embeddings): telemetry for backfill start + completion
+  f584dd1 feat(embeddings): telemetry for batch success + failure
+  a9078fb feat(embeddings): telemetry for worker init success + failure
+  d9944be feat(embeddings): startup backfill + non-blocking endMeeting
+  090e2d6 chore(embeddings): add __workerFactory test hook to MemoryServiceOptions
+
+VERDICT: ✅ Verified clean
+```
+
+**Phase 5 additional checks:**
+
+- `npm test` was attempted and blocked before Vitest by Windows native-module lock:
+
+```text
+prebuild-install warn install EBUSY: resource busy or locked, open 'C:\Users\taeji\OneDrive\바탕 화면\ai-projects\autoMeetic\node_modules\better-sqlite3\build\Release\better_sqlite3.node'
+```
+
+- `npm run build` completed successfully (`tsc -b && vite build`, Vite built in 12.30s).
+- Manual Electron smoke is deferred to the user. Check telemetry for `memory.embedding.worker-init.success`, `memory.embedding.backfill.started`, and `memory.embedding.backfill.completed`; first model download can take a few minutes, so backfill speed is gated on that.
+
+**Stream completion notes:** Embedding durability now persists per-boot permanent failures in `embedding_failures`, recomputes startup backfill from `segments` missing `segment_embeddings`, removes the misleading 3-second `endMeeting()` drain wait, and logs worker init, batch, and backfill telemetry. No UI, retry trigger, model swap, threshold change, query rewriting, or title generation was added.
+
+## ✅ Completed stream — Memory Library Chat (Cross-meeting RAG)
+
+> Implemented and pushed to `origin/master`. See:
 >
 > - **Spec:** `docs/superpowers/specs/2026-05-23-memory-chat-design.md`
 > - **Plan:** `docs/superpowers/plans/2026-05-23-memory-chat.md`
 >
-> Start at Phase 1 (Task 1.1). TDD pattern through Phase 4; Phase 5 is UI build (less testable, more manual smoke); Phase 6-7 wrap-up.
+> Automated regression passed. Manual Electron smoke deferred to user.
 
-## Active stream state — Memory Library Chat
+## Completed stream state — Memory Library Chat
 
 | Phase | Status | Commits | Tests passing |
 |---|---|---|---|
@@ -24,6 +208,8 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 | 7 — Regression + manual smoke + push | ✅ COMPLETE | verification/docs only | 217/217 (`npx vitest run`); typecheck/lint/build clean; manual smoke deferred to user; `npm test` blocked pre-Vitest by Windows `EBUSY` on `better_sqlite3.node` |
 
 **Stream completion notes:** Memory Library Chat now adds an Ask tab backed by cross-meeting search, streamed OpenAI answers, citation chips/sources, clickable citation navigation into Meetings with segment flash, persistent rolling chat history, glossary preserve post-pass, and telemetry counters (`memory.chat.submit`, `memory.chat.retrieved`, `memory.chat.no-context`, `memory.chat.completed`, `memory.chat.error`). Known gaps by v1 scope: plain text only, no markdown rendering, no export, no filter UI, no web-mode parity. Phase 7 manual Electron smoke is deferred to the user.
+
+**Post-ship discovery (2026-05-25):** Field testing revealed that the underlying semantic search has been silently broken since before this stream shipped — `segment_embeddings` is empty because the embedding pipeline never completes its first model download. Memory Chat's RAG layer was built correctly on top of a non-functional retrieval layer. The new active stream above (Embedding Pipeline Durability) addresses the root cause.
 
 ## How to resume (Codex or any agent)
 
