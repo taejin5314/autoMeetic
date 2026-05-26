@@ -1,4 +1,7 @@
 import type { RefObject } from 'react'
+import { HighlightedText } from '../glossary/HighlightedText'
+import { useActiveGlossary } from '../glossary/useActiveGlossary'
+import { useHighlightToggle } from '../glossary/useHighlightToggle'
 import type { CaptionItem } from '../overlay/types'
 
 type TranscriptColumnItem = Pick<
@@ -43,6 +46,9 @@ export function TranscriptColumns({
   formatDuration,
   languageLabelByCode,
 }: TranscriptColumnsProps) {
+  const entries = useActiveGlossary(null)
+  const [highlightEnabled] = useHighlightToggle()
+
   return (
     <section className="v4p-cols">
       <div className="v4p-col">
@@ -80,7 +86,11 @@ export function TranscriptColumns({
                       : ''
                   }`}
                 >
-                  {item.displayedSource}
+                  <HighlightedText
+                    text={item.displayedSource}
+                    entries={entries}
+                    enabled={highlightEnabled}
+                  />
                 </div>
               </div>
             ))}
@@ -121,7 +131,11 @@ export function TranscriptColumns({
                           : ''
                       }`}
                     >
-                      {item.displayedTranslation}
+                      <HighlightedText
+                        text={item.displayedTranslation}
+                        entries={entries}
+                        enabled={highlightEnabled}
+                      />
                     </div>
                   </div>
                 )

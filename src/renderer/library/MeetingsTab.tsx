@@ -1,5 +1,8 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { MeetingDetail, MeetingSummary, SearchHit } from '../../main/memory/types'
+import { HighlightedText } from '../glossary/HighlightedText'
+import { useActiveGlossary } from '../glossary/useActiveGlossary'
+import { useHighlightToggle } from '../glossary/useHighlightToggle'
 
 interface MeetingsTabProps {
   selectedMeetingId?: string | null
@@ -216,6 +219,9 @@ export function MeetingsTab({
   const titleDraft = selectedMeeting?.meeting.title ?? ''
   const summary = selectedMeeting?.summary
   const segments = selectedMeeting?.segments ?? []
+  const activeGlossary = useActiveGlossary(selectedMeeting?.meeting.id ?? null)
+  const [highlightEnabled] = useHighlightToggle()
+  const searchActive = query.trim().length > 0
 
   const actionItems = useMemo(() => summary?.actionItems ?? [], [summary])
 
@@ -553,10 +559,28 @@ export function MeetingsTab({
                               {speaker && <span>{speaker}</span>}
                               <small>#{segment.seq + 1}</small>
                             </div>
-                            <p>{highlightMatches(segment.sourceText, query)}</p>
+                            <p>
+                              {searchActive ? (
+                                highlightMatches(segment.sourceText, query)
+                              ) : (
+                                <HighlightedText
+                                  text={segment.sourceText}
+                                  entries={activeGlossary}
+                                  enabled={highlightEnabled}
+                                />
+                              )}
+                            </p>
                             {segment.translatedText && (
                               <blockquote>
-                                {highlightMatches(segment.translatedText, query)}
+                                {searchActive ? (
+                                  highlightMatches(segment.translatedText, query)
+                                ) : (
+                                  <HighlightedText
+                                    text={segment.translatedText}
+                                    entries={activeGlossary}
+                                    enabled={highlightEnabled}
+                                  />
+                                )}
                               </blockquote>
                             )}
                           </article>
