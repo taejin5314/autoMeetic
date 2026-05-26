@@ -221,6 +221,10 @@ export class MemoryService {
     return this.repo.activeGlossary(meetingId)
   }
 
+  listRecentSegmentsForScan(limit: number): { id: string; sourceText: string }[] {
+    return this.repo.listRecentSegmentsForScan(limit)
+  }
+
   listSuggestionsByMeeting(meetingId: string): GlossarySuggestion[] {
     return this.repo.listSuggestionsByMeeting(meetingId)
   }
