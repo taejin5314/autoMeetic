@@ -4,14 +4,295 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 
 ## 🚀 Next active stream
 
-> **Embedding Pipeline Durability + Startup Backfill.** Bug-fix + infra stream. 5 phases, ~6-10 hours. Fixes a critical silent failure surfaced by user testing on 2026-05-25: the existing 892 segments / 8 meetings have **0 embeddings** in `segment_embeddings`, and the model cache directory does not exist — meaning `Xenova/multilingual-e5-small` has never finished downloading. Root cause: in-memory queue + 3-second `endMeeting()` drain timeout + no startup recovery → first-run model download (~117MB) silently times out and all enqueued work is lost. Net effect: Memory Ask semantic search has never worked for any user, in any language. See:
+> **Glossary Variants & Inline Highlights.** UX value-surfacing + minor backend extension. 6 phases. Makes glossary value visible: variants as first-class field on `glossary_entries`, "변형 찾기" scan at registration with "aha" preview, live inline dotted-underline highlights in transcript columns + saved meetings, with hover tooltip. Fixes the user-reported "glossary 등록의 장점이 안 보임" + "STT가 잘못 들으면 매칭 0건이 되는" 문제. See:
+>
+> - **Spec:** `docs/superpowers/specs/2026-05-25-glossary-variants-and-highlights-design.md`
+> - **Plan:** `docs/superpowers/plans/2026-05-25-glossary-variants-and-highlights.md`
+>
+> Start at Phase 1 (Task 1.1). TDD pattern through Phases 1-3 + 5; Phase 4 is registration UI; Phase 6 is wrap-up.
+
+## Active stream state — Glossary Variants & Inline Highlights
+
+| Phase | Status | Commits | Tests passing |
+|---|---|---|---|
+| 1 — Schema + types + repo (TDD) | ✅ COMPLETE | `dc4996c` → `549dea0` (3 commits) | 250/250 (`npm run verify:phase 1`); typecheck/lint clean |
+| 2 — Variant finder + IPC + broadcast (TDD) | ✅ COMPLETE | `5f9a4c2` → `6d4475c` (3 commits) | 263/263 (`npm run verify:phase 2`); typecheck/lint clean |
+| 3 — Prompt + normalize update (TDD) | ✅ COMPLETE | `8541c46` | 269/269 (`npm run verify:phase 3`); typecheck/lint clean |
+| 4 — Registration UI (picker + success card) | ✅ COMPLETE | `5b77e59` → `4705be5` (5 commits) | 269/269 (`npm run verify:phase 4`); typecheck/lint clean |
+| 5 — Live highlight + toggle + styles | ✅ COMPLETE | `bac7c51` → `9d00ce3` (5 commits) | 275/275 (`npm run verify:phase 5`); typecheck/lint clean |
+| 6 — Regression + handoff + push | ✅ COMPLETE | `796b716` → `HEAD` (docs/final) | 275/275 (`npm run verify:phase 6`, `npm run verify`); build clean; `npm test` blocked pre-Vitest by Windows `EBUSY` |
+
+**Phase 1 verification (`npm run verify:phase 1`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 1
+
+
+🔍 autoMeetic verification — 2026-05-25 23:55
+
+  Plan: docs/superpowers/plans/2026-05-25-glossary-variants-and-highlights.md
+  Verifying Phase 1
+
+  Expected files (referenced in Phase 1 body):
+    ✅ src/main/memory/schema.ts
+    ✅ src/main/memory/types.ts
+    ✅ src/main/memory/repository.ts
+    ✅ src/test/glossary-repository-variants.test.ts
+
+Checks:
+  ✅ typecheck (0 errors, 1.0s)
+  ✅ lint (0 errors, 10.3s)
+  ✅ vitest (250 / 250 passed, 5.8s)
+
+Git context (last 5 commits):
+  549dea0 feat(glossary): persist variants + v5 migration + recent-segment scan
+  23106ce feat(glossary): add variants to GlossaryEntry + VariantCandidate type
+  dc4996c feat(glossary): add variants column to glossary_entries (schema v5)
+  6236ce7 docs(embeddings): complete embedding durability handoff
+  59a3b39 feat(embeddings): telemetry for backfill start + completion
+
+VERDICT: ✅ Phase 1 verified
+```
+
+**Phase 2 verification (`npm run verify:phase 2`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 2
+
+
+🔍 autoMeetic verification — 2026-05-26 00:00
+
+  Plan: docs/superpowers/plans/2026-05-25-glossary-variants-and-highlights.md
+  Verifying Phase 2
+
+  Expected files (referenced in Phase 2 body):
+    ✅ src/main/glossary/variantFinder.ts
+    ✅ src/test/glossary-variant-finder.test.ts
+    ✅ src/main/ipc-glossary-handlers.ts
+    ✅ src/preload/index.ts
+    ✅ src/preload/types.ts
+    ✅ src/test/glossary-ipc-handlers.test.ts
+    ✅ src/main/index.ts
+
+Checks:
+  ✅ typecheck (0 errors, 1.0s)
+  ✅ lint (0 errors, 10.3s)
+  ✅ vitest (263 / 263 passed, 5.8s)
+
+Git context (last 5 commits):
+  6d4475c feat(glossary): broadcast entries-updated event for renderer subscribers
+  62494e1 feat(glossary): glossary:find-variants IPC + preload bridge
+  5f9a4c2 feat(glossary): variant finder (normalize + Levenshtein + n-gram scan)
+  549dea0 feat(glossary): persist variants + v5 migration + recent-segment scan
+  23106ce feat(glossary): add variants to GlossaryEntry + VariantCandidate type
+
+VERDICT: ✅ Phase 2 verified
+```
+
+**Phase 3 verification (`npm run verify:phase 3`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 3
+
+
+🔍 autoMeetic verification — 2026-05-26 00:05
+
+  Plan: docs/superpowers/plans/2026-05-25-glossary-variants-and-highlights.md
+  Verifying Phase 3
+
+  Expected files (referenced in Phase 3 body):
+    ✅ src/main/glossary/promptInjection.ts
+    ✅ src/test/glossary-prompt-injection.test.ts
+
+Checks:
+  ✅ typecheck (0 errors, 1.0s)
+  ✅ lint (0 errors, 11.3s)
+  ✅ vitest (269 / 269 passed, 5.7s)
+
+Git context (last 5 commits):
+  8541c46 feat(glossary): prompt + normalize handle variants alongside canonical
+  6d4475c feat(glossary): broadcast entries-updated event for renderer subscribers
+  62494e1 feat(glossary): glossary:find-variants IPC + preload bridge
+  5f9a4c2 feat(glossary): variant finder (normalize + Levenshtein + n-gram scan)
+  549dea0 feat(glossary): persist variants + v5 migration + recent-segment scan
+
+VERDICT: ✅ Phase 3 verified
+```
+
+**Phase 4 verification (`npm run verify:phase 4`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 4
+
+
+🔍 autoMeetic verification — 2026-05-26 00:12
+
+  Plan: docs/superpowers/plans/2026-05-25-glossary-variants-and-highlights.md
+  Verifying Phase 4
+
+  Expected files (referenced in Phase 4 body):
+    ✅ src/renderer/glossary/useGlossaryStore.ts
+    ✅ src/renderer/glossary/types.ts
+    ✅ src/renderer/glossary/VariantCandidatePicker.tsx
+    ✅ src/renderer/glossary/GlossaryRowEditor.tsx
+    ✅ src/renderer/glossary/GlossarySaveSuccessCard.tsx
+    ✅ src/renderer/glossary/GlossaryPanel.tsx
+
+Checks:
+  ✅ typecheck (0 errors, 1.0s)
+  ✅ lint (0 errors, 10.2s)
+  ✅ vitest (269 / 269 passed, 7.1s)
+
+Git context (last 5 commits):
+  4705be5 feat(glossary): show variant chips on panel rows
+  039b7bd feat(glossary): post-save success card with past-match preview
+  7a631ba feat(glossary): row editor variants UI + scan button
+  d114541 feat(glossary): VariantCandidatePicker modal component
+  5b77e59 feat(glossary): store action findVariants + variants in upsert payload
+
+VERDICT: ✅ Phase 4 verified
+```
+
+**Phase 5 verification (`npm run verify:phase 5`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 5
+
+
+🔍 autoMeetic verification — 2026-05-26 00:19
+
+  Plan: docs/superpowers/plans/2026-05-25-glossary-variants-and-highlights.md
+  Verifying Phase 5
+
+  Expected files (referenced in Phase 5 body):
+    ✅ src/renderer/glossary/useActiveGlossary.ts
+    ✅ src/renderer/glossary/glossaryMatcher.ts
+    ✅ src/test/glossary-matcher.test.ts
+    ✅ src/renderer/glossary/GlossaryMark.tsx
+    ✅ src/renderer/glossary/HighlightedText.tsx
+    ✅ src/renderer/shell/TranscriptColumns.tsx
+    ✅ src/renderer/library/MeetingsTab.tsx
+    ✅ src/renderer/glossary/useHighlightToggle.ts
+    ✅ src/renderer/glossary/GlossaryPanel.tsx
+    ✅ src/renderer/App.css
+
+Checks:
+  ✅ typecheck (0 errors, 1.1s)
+  ✅ lint (0 errors, 11.2s)
+  ✅ vitest (275 / 275 passed, 6.4s)
+
+Git context (last 5 commits):
+  9d00ce3 feat(glossary): highlight toggle in panel header + all-component styles
+  248c39b feat(glossary): wire HighlightedText into live feed + meeting transcripts
+  9c00ae1 feat(glossary): HighlightedText + GlossaryMark renderer components
+  06e3f33 feat(glossary): renderer matcher (regex builder + interval merging)
+  bac7c51 feat(glossary): useActiveGlossary hook with entries-updated subscription
+
+VERDICT: ✅ Phase 5 verified
+```
+
+**Phase 6 verification (`npm run verify:phase 6`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 6
+
+
+🔍 autoMeetic verification — 2026-05-26 00:24
+
+  Plan: docs/superpowers/plans/2026-05-25-glossary-variants-and-highlights.md
+  Verifying Phase 6
+
+  ⚠️  Could not extract expected files for Phase 6 from plan. Continuing with general checks only.
+
+Checks:
+  ✅ typecheck (0 errors, 1.0s)
+  ✅ lint (0 errors, 10.9s)
+  ✅ vitest (275 / 275 passed, 6.1s)
+
+Git context (last 5 commits):
+  796b716 fix(glossary): pass undefined for active glossary default scope
+  cc986bd fix(glossary): expose recent segment scan through MemoryService
+  9d00ce3 feat(glossary): highlight toggle in panel header + all-component styles
+  248c39b feat(glossary): wire HighlightedText into live feed + meeting transcripts
+  9c00ae1 feat(glossary): HighlightedText + GlossaryMark renderer components
+
+VERDICT: ✅ Phase 6 verified
+```
+
+**General verification (`npm run verify`):**
+
+```text
+> automeetic@0.0.0 verify
+> node scripts/verify.mjs
+
+
+🔍 autoMeetic verification — 2026-05-26 00:22
+
+Checks:
+  ✅ typecheck (0 errors, 0.9s)
+  ✅ lint (0 errors, 10.4s)
+  ✅ vitest (275 / 275 passed, 5.8s)
+
+Git context (last 5 commits):
+  796b716 fix(glossary): pass undefined for active glossary default scope
+  cc986bd fix(glossary): expose recent segment scan through MemoryService
+  9d00ce3 feat(glossary): highlight toggle in panel header + all-component styles
+  248c39b feat(glossary): wire HighlightedText into live feed + meeting transcripts
+  9c00ae1 feat(glossary): HighlightedText + GlossaryMark renderer components
+
+VERDICT: ✅ Verified clean
+```
+
+**Final build (`npm run build`):**
+
+```text
+> automeetic@0.0.0 build
+> tsc -b && vite build
+
+vite v8.0.12 building client environment for production...
+✓ 1870 modules transformed.
+✓ built in 13.48s
+```
+
+Build completed cleanly. Vite emitted existing chunk-size/plugin-timing warnings only.
+
+**`npm test` note:**
+
+```text
+> automeetic@0.0.0 test
+> node scripts/prepare-native-deps.mjs node && vitest run
+
+prebuild-install warn install EBUSY: resource busy or locked, open 'C:\Users\taeji\OneDrive\바탕 화면\ai-projects\autoMeetic\node_modules\better-sqlite3\build\Release\better_sqlite3.node'
+```
+
+`npm test` did not reach Vitest because Windows held `better_sqlite3.node` locked. Verification used `npm run verify` / `npx vitest run`, which passed 275/275.
+
+**Manual smoke deferred to user:**
+
+- Register `RealtimeOrchestrator`, click "변형 찾기" → candidates appear with frequencies.
+- Save → success card shows past-match count and example.
+- Start a meeting → live feed shows dotted underline on glossary matches.
+- Open a saved meeting → same highlights appear in historical transcript.
+- Toggle highlights off → underlines disappear.
+- Register `AI` → save card warns about short-word exclusion.
+- Register a brand-new term → success card shows the forward-looking message.
+
+## ✅ Completed stream — Embedding Pipeline Durability + Startup Backfill
+
+> Implemented and pushed to `origin/master`. See:
 >
 > - **Spec:** `docs/superpowers/specs/2026-05-25-embedding-pipeline-durability-design.md`
 > - **Plan:** `docs/superpowers/plans/2026-05-25-embedding-pipeline-durability.md`
 >
-> Start at Phase 1 (Task 1.1). TDD pattern through Phases 1-3; Phase 4 is telemetry; Phase 5 is regression + handoff.
+> Automated regression passed. Manual Electron smoke deferred to user (confirm `segment_embeddings` populates from ~0 to ~975 after next app start; telemetry events should fire for worker-init success + backfill start/complete).
 
-## Active stream state — Embedding Pipeline Durability
+## Completed stream state — Embedding Pipeline Durability
 
 | Phase | Status | Commits | Tests passing |
 |---|---|---|---|
