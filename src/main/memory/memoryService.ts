@@ -2,6 +2,7 @@ import { Worker } from 'node:worker_threads'
 import path from 'node:path'
 import { EmbeddingQueue } from './embeddingQueue'
 import { EmbeddingService } from './embeddingService'
+import type { EmbeddingWorkerLike } from './embeddingService'
 import { attachTranscriptHook } from './transcriptHook'
 import { exportMeetingMarkdown, type ExportLanguageMode } from './markdownExporter'
 import { MeetingLifecycle } from './meetingLifecycle'
@@ -23,6 +24,8 @@ interface MemoryServiceOptions {
   workerPath: string
   modelEnvCacheDir?: string
   summarize?: SummarizeCall
+  /** Test-only hook: inject a fake worker instead of spawning from workerPath. */
+  __workerFactory?: () => EmbeddingWorkerLike
 }
 
 type Listener = (evt: MeetingUpdatedEvent) => void
@@ -58,12 +61,14 @@ export class MemoryService {
 
   static async initialize(opts: MemoryServiceOptions): Promise<MemoryService> {
     const repo = new MemoryRepository(opts.dbPath)
-    const worker = new Worker(opts.workerPath, {
-      env: {
-        ...process.env,
-        ...(opts.modelEnvCacheDir ? { MEMORY_EMBEDDING_CACHE_DIR: opts.modelEnvCacheDir } : {}),
-      },
-    })
+    const worker: EmbeddingWorkerLike = opts.__workerFactory
+      ? opts.__workerFactory()
+      : (new Worker(opts.workerPath, {
+          env: {
+            ...process.env,
+            ...(opts.modelEnvCacheDir ? { MEMORY_EMBEDDING_CACHE_DIR: opts.modelEnvCacheDir } : {}),
+          },
+        }) as unknown as EmbeddingWorkerLike)
     const embeddingService = new EmbeddingService(worker)
     const embeddingQueue = new EmbeddingQueue(embeddingService, repo, {
       modelId: embeddingService.modelId,
