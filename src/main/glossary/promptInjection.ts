@@ -18,32 +18,43 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+function formatVerbatim(entry: GlossaryEntry): string {
+  const canonicalText = entry.sourceTerm.trim().toLowerCase()
+  const variants = (entry.variants ?? [])
+    .filter((v) => v.trim().toLowerCase() !== canonicalText)
+    .slice(0, 10)
+  const base = quote(entry.sourceTerm)
+  if (variants.length === 0) return base
+  const more = entry.variants.length > 10 ? ' (etc)' : ''
+  return `${base} (also accept: ${variants.map(quote).join(', ')}${more})`
+}
+
 export function formatGlossaryPromptSection(
   entries: GlossaryEntry[],
   targetLang: string | null
 ): string {
   if (entries.length === 0) return ''
-  const verbatim: string[] = []
-  const mapped: Array<[string, string]> = []
+  const verbatim: GlossaryEntry[] = []
+  const mapped: Array<[GlossaryEntry, string]> = []
 
   for (const e of entries) {
     if (targetLang && e.translations[targetLang]) {
-      mapped.push([e.sourceTerm, e.translations[targetLang]])
+      mapped.push([e, e.translations[targetLang]])
       continue
     }
-    if (e.preserve) verbatim.push(e.sourceTerm)
+    if (e.preserve) verbatim.push(e)
   }
 
   if (verbatim.length === 0 && mapped.length === 0) return ''
 
   const lines: string[] = ['GLOSSARY (apply strictly, do not paraphrase):']
   if (verbatim.length) {
-    lines.push(`- Keep verbatim in all output: ${verbatim.map(quote).join(', ')}`)
+    lines.push(`- Keep verbatim in all output: ${verbatim.map(formatVerbatim).join(', ')}`)
   }
   if (mapped.length) {
     const langName = LANGUAGE_NAME_BY_CODE[targetLang!] ?? targetLang
     lines.push(`- When producing ${langName}, render:`)
-    for (const [src, dst] of mapped) lines.push(`  · ${quote(src)} → ${quote(dst)}`)
+    for (const [entry, dst] of mapped) lines.push(`  - ${formatVerbatim(entry)} -> ${quote(dst)}`)
   }
   return lines.join('\n')
 }
@@ -56,8 +67,15 @@ export function normalizePreserveTerms(
   let result = output
   for (const e of entries) {
     if (!e.preserve) continue
-    const re = new RegExp(`\\b${escapeRegex(e.sourceTerm)}\\b`, 'gi')
-    result = result.replace(re, e.sourceTerm)
+    const canonicalText = e.sourceTerm.trim().toLowerCase()
+    const allForms = [
+      e.sourceTerm,
+      ...(e.variants ?? []).filter((v) => v.trim().toLowerCase() !== canonicalText),
+    ]
+    for (const form of allForms) {
+      const re = new RegExp(`\\b${escapeRegex(form)}\\b`, 'gi')
+      result = result.replace(re, e.sourceTerm)
+    }
   }
   return result
 }
@@ -67,5 +85,5 @@ export function buildLabelLanguageBlock(langCode: string): string {
   return `LABEL LANGUAGE:
 - Output ALL shape labels, text titles, and arrow labels in ${name}.
 - Translate concepts from the transcript into ${name} for the diagram, even if the speaker used a different language.
-- Glossary terms marked verbatim must NEVER be translated — copy them as-is.`
+- Glossary terms marked verbatim must NEVER be translated - copy them as-is.`
 }

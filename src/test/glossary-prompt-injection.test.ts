@@ -15,6 +15,7 @@ function entry(over: Partial<GlossaryEntry>): GlossaryEntry {
     translations: {},
     preserve: false,
     note: null,
+    variants: [],
     createdAt: 0,
     updatedAt: 0,
     ...over,
@@ -97,6 +98,80 @@ describe('normalizePreserveTerms', () => {
 
   it('returns input unchanged when entries is empty', () => {
     expect(normalizePreserveTerms('anything goes', [])).toBe('anything goes')
+  })
+})
+
+describe('formatGlossaryPromptSection — variants', () => {
+  it('mentions variants alongside the canonical for verbatim terms', () => {
+    const section = formatGlossaryPromptSection(
+      [
+        {
+          id: 'e1', scope: 'global', meetingId: null,
+          sourceTerm: 'RealtimeOrchestrator',
+          translations: {}, preserve: true, note: null,
+          variants: ['real time orchestrator', 'realtime orchestrator'],
+          createdAt: 0, updatedAt: 0,
+        },
+      ],
+      null
+    )
+    expect(section).toContain('RealtimeOrchestrator')
+    expect(section).toContain('real time orchestrator')
+    expect(section).toContain('realtime orchestrator')
+  })
+
+  it('caps variants per entry in the prompt at 10 with an etc note', () => {
+    const variants = Array.from({ length: 15 }, (_, i) => `variant${i}`)
+    const section = formatGlossaryPromptSection(
+      [
+        {
+          id: 'e1', scope: 'global', meetingId: null,
+          sourceTerm: 'Foo', translations: {},
+          preserve: true, note: null, variants,
+          createdAt: 0, updatedAt: 0,
+        },
+      ],
+      null
+    )
+    expect(section).toContain('variant0')
+    expect(section).toContain('variant9')
+    expect(section).not.toContain('variant10')
+    expect(section.toLowerCase()).toMatch(/etc|more/)
+  })
+})
+
+describe('normalizePreserveTerms — variants', () => {
+  const entry = {
+    id: 'e1', scope: 'global' as const, meetingId: null,
+    sourceTerm: 'RealtimeOrchestrator',
+    translations: {}, preserve: true, note: null,
+    variants: ['real time orchestrator', 'realtime orchestrator'],
+    createdAt: 0, updatedAt: 0,
+  }
+
+  it('rewrites variants to the canonical form', () => {
+    expect(
+      normalizePreserveTerms('the real time orchestrator runs', [entry])
+    ).toBe('the RealtimeOrchestrator runs')
+  })
+
+  it('is case-insensitive across variants', () => {
+    expect(
+      normalizePreserveTerms('REAL TIME ORCHESTRATOR', [entry])
+    ).toBe('RealtimeOrchestrator')
+  })
+
+  it('leaves unrelated text alone', () => {
+    expect(
+      normalizePreserveTerms('the architect went home', [entry])
+    ).toBe('the architect went home')
+  })
+
+  it('dedupes variants identical to the canonical (no-op)', () => {
+    const dup = { ...entry, variants: ['RealtimeOrchestrator'] }
+    expect(
+      normalizePreserveTerms('the RealtimeOrchestrator runs', [dup])
+    ).toBe('the RealtimeOrchestrator runs')
   })
 })
 
