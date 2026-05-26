@@ -98,6 +98,15 @@ export function GlossaryPanel({ open, meetingId, onClose }: Props) {
             ))
           )}
         </div>
+        {entry.variants.length > 0 && (
+          <div className="glossary-row-variants">
+            {entry.variants.map((v) => (
+              <span key={v} className="glossary-row-variant-chip">
+                {v}
+              </span>
+            ))}
+          </div>
+        )}
         <div className="glossary-row-preserve">
           {entry.preserve && <span className="glossary-preserve-chip">Preserve</span>}
         </div>
