@@ -14,10 +14,15 @@ function fakeEmbedder() {
 
 function fakeRepo() {
   const saved: { segmentId: string; vector: Float32Array; model: string }[] = []
+  const failures: { segmentId: string; attempts: number; error: string }[] = []
   return {
     saved,
+    failures,
     saveEmbeddings: (rows: typeof saved) => {
       saved.push(...rows)
+    },
+    recordEmbeddingFailure: (segmentId: string, attempts: number, error: string) => {
+      failures.push({ segmentId, attempts, error })
     },
   }
 }
