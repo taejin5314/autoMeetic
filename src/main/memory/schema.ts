@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 3
+export const SCHEMA_VERSION = 4
 
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY);
@@ -85,4 +85,13 @@ CREATE TABLE IF NOT EXISTS glossary_dismissed_terms (
   source_term     TEXT PRIMARY KEY COLLATE NOCASE,
   dismissed_at    INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS embedding_failures (
+  segment_id TEXT PRIMARY KEY REFERENCES segments(id) ON DELETE CASCADE,
+  attempts   INTEGER NOT NULL,
+  last_error TEXT NOT NULL,
+  failed_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_embedding_failures_failed_at
+  ON embedding_failures(failed_at DESC);
 `
