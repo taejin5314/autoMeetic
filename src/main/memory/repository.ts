@@ -19,6 +19,15 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+function parseVariants(json: string): string[] {
+  try {
+    const parsed = JSON.parse(json) as unknown
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : []
+  } catch {
+    return []
+  }
+}
+
 export class MemoryRepository {
   private db: Database.Database
 
@@ -32,6 +41,7 @@ export class MemoryRepository {
 
   private initialize(): void {
     this.db.exec(SCHEMA_SQL)
+    this.migrateToV5IfNeeded()
     const row = this.db.prepare('SELECT version FROM schema_version LIMIT 1').get() as
       | { version: number }
       | undefined
@@ -40,6 +50,12 @@ export class MemoryRepository {
     } else if (row.version < SCHEMA_VERSION) {
       this.db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION)
     }
+  }
+
+  private migrateToV5IfNeeded(): void {
+    const cols = this.db.pragma('table_info(glossary_entries)') as Array<{ name: string }>
+    if (cols.some((c) => c.name === 'variants')) return
+    this.db.exec(`ALTER TABLE glossary_entries ADD COLUMN variants TEXT NOT NULL DEFAULT '[]'`)
   }
 
   getSchemaVersion(): number {
@@ -328,6 +344,17 @@ export class MemoryRepository {
       .run(...segmentIds)
   }
 
+  listRecentSegmentsForScan(limit: number): { id: string; sourceText: string }[] {
+    return this.db
+      .prepare(
+        `SELECT id, source_text AS sourceText
+         FROM segments
+         ORDER BY created_at DESC, seq DESC
+         LIMIT ?`
+      )
+      .all(limit) as { id: string; sourceText: string }[]
+  }
+
   searchByText(query: string, limit: number): { segmentId: string; score: number }[] {
     const trimmed = query.trim()
     if (!trimmed) return []
@@ -513,6 +540,7 @@ export class MemoryRepository {
     }
 
     const now = Date.now()
+    const variantsJson = JSON.stringify(input.variants ?? [])
 
     if (input.id) {
       const existing = this.db
@@ -523,7 +551,7 @@ export class MemoryRepository {
         .prepare(
           `UPDATE glossary_entries
            SET scope = ?, meeting_id = ?, source_term = ?,
-               translations = ?, preserve = ?, note = ?, updated_at = ?
+               translations = ?, preserve = ?, note = ?, variants = ?, updated_at = ?
            WHERE id = ?`
         )
         .run(
@@ -533,6 +561,7 @@ export class MemoryRepository {
           JSON.stringify(input.translations),
           input.preserve ? 1 : 0,
           input.note,
+          variantsJson,
           now,
           input.id
       )
@@ -557,8 +586,8 @@ export class MemoryRepository {
     this.db
       .prepare(
         `INSERT INTO glossary_entries
-         (id, scope, meeting_id, source_term, translations, preserve, note, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (id, scope, meeting_id, source_term, translations, preserve, note, variants, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
@@ -568,6 +597,7 @@ export class MemoryRepository {
         JSON.stringify(input.translations),
         input.preserve ? 1 : 0,
         input.note,
+        variantsJson,
         now,
         now
       )
@@ -579,16 +609,17 @@ export class MemoryRepository {
 
   listGlossary(scope: 'global' | 'meeting', meetingId?: string): GlossaryEntry[] {
     let rows: Array<
-      Omit<GlossaryEntry, 'translations' | 'preserve'> & {
+      Omit<GlossaryEntry, 'translations' | 'preserve' | 'variants'> & {
         translations: string
         preserve: number
+        variantsJson: string
       }
     >
     if (scope === 'global') {
       rows = this.db
         .prepare(
           `SELECT id, scope, meeting_id AS meetingId, source_term AS sourceTerm,
-                  translations, preserve, note,
+                  translations, preserve, note, variants AS variantsJson,
                   created_at AS createdAt, updated_at AS updatedAt
            FROM glossary_entries
            WHERE scope = 'global'
@@ -600,7 +631,7 @@ export class MemoryRepository {
       rows = this.db
         .prepare(
           `SELECT id, scope, meeting_id AS meetingId, source_term AS sourceTerm,
-                  translations, preserve, note,
+                  translations, preserve, note, variants AS variantsJson,
                   created_at AS createdAt, updated_at AS updatedAt
            FROM glossary_entries
            WHERE scope = 'meeting' AND meeting_id = ?
@@ -612,6 +643,7 @@ export class MemoryRepository {
       ...r,
       translations: JSON.parse(r.translations) as Record<string, string>,
       preserve: r.preserve === 1,
+      variants: parseVariants(r.variantsJson),
     }))
   }
 
@@ -621,16 +653,17 @@ export class MemoryRepository {
 
   activeGlossary(meetingId: string | null): GlossaryEntry[] {
     let rows: Array<
-      Omit<GlossaryEntry, 'translations' | 'preserve'> & {
+      Omit<GlossaryEntry, 'translations' | 'preserve' | 'variants'> & {
         translations: string
         preserve: number
+        variantsJson: string
       }
     >
     if (meetingId) {
       rows = this.db
         .prepare(
           `SELECT id, scope, meeting_id AS meetingId, source_term AS sourceTerm,
-                  translations, preserve, note,
+                  translations, preserve, note, variants AS variantsJson,
                   created_at AS createdAt, updated_at AS updatedAt
            FROM glossary_entries
            WHERE scope = 'global'
@@ -642,7 +675,7 @@ export class MemoryRepository {
       rows = this.db
         .prepare(
           `SELECT id, scope, meeting_id AS meetingId, source_term AS sourceTerm,
-                  translations, preserve, note,
+                  translations, preserve, note, variants AS variantsJson,
                   created_at AS createdAt, updated_at AS updatedAt
            FROM glossary_entries
            WHERE scope = 'global'
@@ -654,6 +687,7 @@ export class MemoryRepository {
       ...r,
       translations: JSON.parse(r.translations) as Record<string, string>,
       preserve: r.preserve === 1,
+      variants: parseVariants(r.variantsJson),
     }))
     // 'global' < 'meeting' alphabetically, so meeting rows come last and overwrite globals.
     const byKey = new Map<string, GlossaryEntry>()
@@ -665,14 +699,15 @@ export class MemoryRepository {
     const row = this.db
       .prepare(
         `SELECT id, scope, meeting_id AS meetingId, source_term AS sourceTerm,
-                translations, preserve, note,
+                translations, preserve, note, variants AS variantsJson,
                 created_at AS createdAt, updated_at AS updatedAt
          FROM glossary_entries WHERE id = ?`
       )
       .get(id) as
-      | (Omit<GlossaryEntry, 'translations' | 'preserve'> & {
+      | (Omit<GlossaryEntry, 'translations' | 'preserve' | 'variants'> & {
           translations: string
           preserve: number
+          variantsJson: string
         })
       | undefined
     if (!row) return null
@@ -680,6 +715,7 @@ export class MemoryRepository {
       ...row,
       translations: JSON.parse(row.translations) as Record<string, string>,
       preserve: row.preserve === 1,
+      variants: parseVariants(row.variantsJson),
     }
   }
 
@@ -816,6 +852,7 @@ export class MemoryRepository {
         translations: sugg.translations,
         preserve: sugg.preserve,
         note: null,
+        variants: sugg.variants,
       })
       this.backfillSegments(sugg.meetingId, entry, sugg.variants)
       this.db.prepare('DELETE FROM glossary_suggestions WHERE id = ?').run(suggestionId)
