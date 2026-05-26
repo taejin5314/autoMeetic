@@ -78,6 +78,18 @@ export interface SegmentEmbedding {
   model: string
 }
 
+export interface EmbeddingFailure {
+  segmentId: string
+  attempts: number
+  lastError: string
+  failedAt: number
+}
+
+export interface PendingEmbedding {
+  segmentId: string
+  sourceText: string
+}
+
 export type MeetingUpdatedKind =
   | 'began'
   | 'segment-added'
