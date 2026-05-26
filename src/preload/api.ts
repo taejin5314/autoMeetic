@@ -35,6 +35,7 @@ export function buildPreloadApi(ipcRenderer: IpcRendererLike): ElectronAPI {
       upsert: (entry) => ipcRenderer.invoke('glossary:upsert', { entry }),
       delete: (id) => ipcRenderer.invoke('glossary:delete', { id }),
       active: (meetingId) => ipcRenderer.invoke('glossary:active', { meetingId }),
+      findVariants: (canonical) => ipcRenderer.invoke('glossary:find-variants', { canonical }),
       onChanged: listen('glossary:changed') as ElectronAPI['glossary']['onChanged'],
       suggestions: {
         list: (meetingId) => ipcRenderer.invoke('glossary:suggestions:list', { meetingId }),

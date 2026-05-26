@@ -1,5 +1,6 @@
 import { BrowserWindow } from 'electron'
 import { bumpGlossaryEpoch } from './glossary/cache'
+import { findVariantCandidates } from './glossary/variantFinder'
 import type { MemoryRepository } from './memory/repository'
 import type { GlossaryEntryInput } from './memory/types'
 import { log } from './telemetry/logger'
@@ -15,6 +16,7 @@ export type GlossaryRepoApi = Pick<
   | 'countPendingSuggestions'
   | 'acceptSuggestion'
   | 'dismissSuggestion'
+  | 'listRecentSegmentsForScan'
 >
 
 type GetRepo = () => Promise<GlossaryRepoApi>
@@ -69,6 +71,11 @@ export function buildGlossaryHandlers(getRepo: GetRepo, getCurrentMeetingId: Get
       const repo = await getReady(getRepo, 'Glossary repo')
       const id = args.meetingId ?? getCurrentMeetingId()
       return repo.activeGlossary(id)
+    },
+    'glossary:find-variants': async (args: { canonical: string }) => {
+      const repo = await getReady(getRepo, 'Glossary repo')
+      const segments = repo.listRecentSegmentsForScan(5000)
+      return findVariantCandidates(args.canonical, segments)
     },
     'glossary:suggestions:list': async (args: { meetingId?: string } = {}) => {
       const repo = await getReady(getRepo, 'Glossary repo')

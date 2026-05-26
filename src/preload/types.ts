@@ -8,6 +8,7 @@ import type {
   MeetingSummary,
   MeetingUpdatedEvent,
   SearchHit,
+  VariantCandidate,
 } from '../main/memory/types'
 import type { ExportLanguageMode } from '../main/memory/markdownExporter'
 import type { AskMindMapPayload, AskMindMapResult } from '../main/whiteboard/askMindMap'
@@ -40,6 +41,7 @@ export interface GlossaryAPI {
   upsert(entry: GlossaryEntryInput): Promise<GlossaryEntry>
   delete(id: string): Promise<void>
   active(meetingId?: string): Promise<GlossaryEntry[]>
+  findVariants(canonical: string): Promise<VariantCandidate[]>
   onChanged(handler: () => void): () => void
   suggestions: {
     list(meetingId?: string): Promise<GlossarySuggestion[]>

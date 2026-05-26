@@ -101,4 +101,44 @@ describe('buildGlossaryHandlers', () => {
       'Glossary repo failed to initialize: db locked'
     )
   })
+
+  describe('glossary:find-variants', () => {
+    it('returns variant candidates from recent segments', async () => {
+      const repo = {
+        listGlossary: vi.fn(),
+        upsertGlossary: vi.fn(),
+        deleteGlossary: vi.fn(),
+        activeGlossary: vi.fn(),
+        listRecentSegmentsForScan: vi.fn().mockReturnValue([
+          { id: 's1', sourceText: 'the realtime orchestrator handles agents' },
+          { id: 's2', sourceText: 'real time orchestrator again' },
+        ]),
+      }
+      const handlers = buildGlossaryHandlers(async () => repo, () => null)
+      const out = await handlers['glossary:find-variants']({
+        canonical: 'RealtimeOrchestrator',
+      })
+      const names = out.map((c) => c.candidate.toLowerCase())
+      expect(names).toContain('realtime orchestrator')
+      expect(names).toContain('real time orchestrator')
+      expect(repo.listRecentSegmentsForScan).toHaveBeenCalledWith(5000)
+    })
+
+    it('returns empty array when no segments match', async () => {
+      const repo = {
+        listGlossary: vi.fn(),
+        upsertGlossary: vi.fn(),
+        deleteGlossary: vi.fn(),
+        activeGlossary: vi.fn(),
+        listRecentSegmentsForScan: vi.fn().mockReturnValue([
+          { id: 's1', sourceText: 'completely unrelated content' },
+        ]),
+      }
+      const handlers = buildGlossaryHandlers(async () => repo, () => null)
+      const out = await handlers['glossary:find-variants']({
+        canonical: 'RealtimeOrchestrator',
+      })
+      expect(out).toEqual([])
+    })
+  })
 })
