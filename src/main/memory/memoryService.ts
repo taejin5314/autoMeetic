@@ -90,6 +90,7 @@ export class MemoryService {
       summaryService,
       searchService
     )
+    svc.enqueueAllMissingEmbeddings()
     attachTranscriptHook(repo, embeddingQueue, () => lifecycle.getCurrentMeetingId())
     return svc
   }
@@ -105,18 +106,15 @@ export class MemoryService {
     return meetingId
   }
 
-  async endMeeting(timeoutMs = 3000): Promise<string | null> {
+  async endMeeting(): Promise<string | null> {
     const meetingId = this.lifecycle.endMeeting()
     if (!meetingId) return null
     this.emit({ meetingId, kind: 'ended' })
+    // Enqueue this meeting's not-yet-embedded segments. Background processing
+    // continues asynchronously; we no longer block on drain.
     const missing = this.repo.getMissingEmbeddings(meetingId)
     for (const row of missing)
       this.embeddingQueue.enqueue({ segmentId: row.segmentId, text: row.text })
-    if (missing.length > 0)
-      await this.embeddingQueue.drainPending(
-        missing.map((m) => m.segmentId),
-        timeoutMs
-      )
     void this.summaryService
       .generateIfAutoEnabled(meetingId)
       .then(() => this.emitSummaryStatus(meetingId))
@@ -129,6 +127,13 @@ export class MemoryService {
 
   recoverInterruptedMeetings(): number {
     return this.lifecycle.recoverInterruptedMeetings()
+  }
+
+  enqueueAllMissingEmbeddings(): void {
+    const pending = this.repo.getSegmentsNeedingEmbedding()
+    for (const row of pending) {
+      this.embeddingQueue.enqueue({ segmentId: row.segmentId, text: row.sourceText })
+    }
   }
 
   listMeetings(limit = 30, offset = 0): MeetingSummary[] {

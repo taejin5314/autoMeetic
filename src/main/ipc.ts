@@ -129,7 +129,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     const { stopTranscription } = await import('./sttService')
     await stopTranscription()
     await getMemoryService()
-      .then((memory) => memory.endMeeting(3000))
+      .then((memory) => memory.endMeeting())
       .catch((err) => {
         console.error('[memory] end meeting failed:', err)
       })
