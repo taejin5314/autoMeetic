@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 4
+export const SCHEMA_VERSION = 5
 
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY);
@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS glossary_entries (
   translations    TEXT NOT NULL DEFAULT '{}',
   preserve        INTEGER NOT NULL DEFAULT 0,
   note            TEXT,
+  variants        TEXT NOT NULL DEFAULT '[]',
   created_at      INTEGER NOT NULL,
   updated_at      INTEGER NOT NULL
 );
