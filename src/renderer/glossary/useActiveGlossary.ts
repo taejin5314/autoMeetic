@@ -12,7 +12,7 @@ export function useActiveGlossary(meetingId: string | null): GlossaryEntry[] {
         if (active) setEntries([])
         return
       }
-      const list = await api.active(meetingId)
+      const list = await api.active(meetingId ?? undefined)
       if (active) setEntries(list)
     }
     void load()
