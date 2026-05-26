@@ -99,12 +99,19 @@ export function AskTab({ meetingCount, onCitationClick, onSendToMindMap }: Props
               onSendToMindMap={onSendToMindMap ? handleSendToMindMap : undefined}
               mindMapPending={mindMapPendingId === message.id}
               mindMapError={mindMapErrorById[message.id] || null}
+              deepProgress={message.id === streamingMsgId ? store.deepProgress : null}
             />
           ))
         )}
       </div>
 
-      <AskInput isStreaming={store.isStreaming} onSubmit={store.submit} onStop={store.stop} />
+      <AskInput
+        isStreaming={store.isStreaming}
+        onSubmit={store.submit}
+        onStop={store.stop}
+        deepEnabled={store.deepEnabled}
+        onDeepEnabledChange={store.setDeepEnabled}
+      />
     </div>
   )
 }

@@ -1,12 +1,21 @@
 import { useState } from 'react'
+import { DeepAskToggle } from './DeepAskToggle'
 
 interface Props {
   isStreaming: boolean
   onSubmit: (question: string) => void
   onStop: () => void
+  deepEnabled: boolean
+  onDeepEnabledChange: (next: boolean) => void
 }
 
-export function AskInput({ isStreaming, onSubmit, onStop }: Props) {
+export function AskInput({
+  isStreaming,
+  onSubmit,
+  onStop,
+  deepEnabled,
+  onDeepEnabledChange,
+}: Props) {
   const [value, setValue] = useState('')
 
   const submit = () => {
@@ -38,6 +47,11 @@ export function AskInput({ isStreaming, onSubmit, onStop }: Props) {
         disabled={isStreaming}
         rows={2}
         maxLength={2000}
+      />
+      <DeepAskToggle
+        enabled={deepEnabled}
+        onChange={onDeepEnabledChange}
+        disabled={isStreaming}
       />
       {isStreaming ? (
         <button type="button" className="ask-input-stop" onClick={onStop}>

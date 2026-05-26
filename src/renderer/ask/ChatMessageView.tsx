@@ -1,7 +1,9 @@
 import { parseAnswerWithCitations } from './parseAnswerWithCitations'
 import { SourcesList } from './SourcesList'
-import type { ChatMessage, ChatSource } from './types'
+import type { ChatMessage, ChatSource, DeepAskProgressState } from './types'
 import { canSendToMindMap } from './canSendToMindMap'
+import { DeepAskProgressCard } from './DeepAskProgressCard'
+import { AnswerFooter } from './AnswerFooter'
 
 function formatTime(ms: number): string {
   const date = new Date(ms)
@@ -15,6 +17,7 @@ interface Props {
   onSendToMindMap?: (message: ChatMessage) => void
   mindMapPending?: boolean
   mindMapError?: string | null
+  deepProgress?: DeepAskProgressState | null
 }
 
 export function ChatMessageView({
@@ -24,6 +27,7 @@ export function ChatMessageView({
   onSendToMindMap,
   mindMapPending = false,
   mindMapError = null,
+  deepProgress = null,
 }: Props) {
   if (message.role === 'user') {
     return (
@@ -44,6 +48,13 @@ export function ChatMessageView({
       ) : (
         <>
           <div className="ask-msg-content">
+            {message.deepResearch && isStreaming && message.content.length === 0 && deepProgress && (
+              <DeepAskProgressCard
+                plan={deepProgress.plan}
+                subagents={deepProgress.subagents}
+                synthesizing={deepProgress.synthesizing}
+              />
+            )}
             {parts.map((part, index) =>
               part.type === 'text' ? (
                 <span key={index}>{part.text}</span>
@@ -63,6 +74,17 @@ export function ChatMessageView({
           </div>
           {message.sources && message.sources.length > 0 && (
             <SourcesList sources={message.sources} onClickSource={onCitationClick} />
+          )}
+          {message.deepResearch && message.costBreakdown && (
+            <AnswerFooter
+              costBreakdown={message.costBreakdown}
+              subagentCount={message.costBreakdown.subagents.perAgent.length}
+              toolCalls={message.costBreakdown.subagents.perAgent.reduce(
+                (sum, item) => sum + item.toolCalls,
+                0
+              )}
+              durationMs={message.deepDurationMs ?? 0}
+            />
           )}
           {canSendToMindMap(message, isStreaming) && onSendToMindMap && (
             <div className="ask-msg-actions">
