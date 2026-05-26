@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { LANGUAGE_OPTIONS, type GlossaryEntry, type GlossaryEntryInput } from './types'
+import { LANGUAGE_OPTIONS, type GlossaryEntry, type GlossaryEntryInput, type VariantCandidate } from './types'
+import { VariantCandidatePicker } from './VariantCandidatePicker'
 
 interface Props {
   initial?: GlossaryEntry
@@ -7,6 +8,7 @@ interface Props {
   meetingId: string | null
   onSave: (input: GlossaryEntryInput) => Promise<void>
   onCancel: () => void
+  onVariantCandidatesChange?: (candidates: VariantCandidate[]) => void
 }
 
 export function GlossaryRowEditor({
@@ -15,6 +17,7 @@ export function GlossaryRowEditor({
   meetingId,
   onSave,
   onCancel,
+  onVariantCandidatesChange,
 }: Props) {
   const [sourceTerm, setSourceTerm] = useState(initial?.sourceTerm ?? '')
   const [preserve, setPreserve] = useState(initial?.preserve ?? false)
@@ -24,6 +27,10 @@ export function GlossaryRowEditor({
   )
   const [newLang, setNewLang] = useState<string>('ko')
   const [newValue, setNewValue] = useState<string>('')
+  const [variants, setVariants] = useState<string[]>(initial?.variants ?? [])
+  const [newVariant, setNewVariant] = useState('')
+  const [candidates, setCandidates] = useState<VariantCandidate[] | null>(null)
+  const [scanning, setScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -42,6 +49,34 @@ export function GlossaryRowEditor({
     })
   }
 
+  const handleFind = async () => {
+    if (!sourceTerm.trim()) return
+    setScanning(true)
+    try {
+      const found = (await window.electronAPI?.glossary?.findVariants(sourceTerm.trim())) ?? []
+      setCandidates(found)
+      onVariantCandidatesChange?.(found)
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  const handlePickerConfirm = (picked: string[]) => {
+    setVariants((prev) => Array.from(new Set([...prev, ...picked])))
+    setCandidates(null)
+  }
+
+  const handleAddManual = () => {
+    const v = newVariant.trim()
+    if (!v) return
+    setVariants((prev) => (prev.includes(v) ? prev : [...prev, v]))
+    setNewVariant('')
+  }
+
+  const handleRemoveVariant = (v: string) => {
+    setVariants((prev) => prev.filter((x) => x !== v))
+  }
+
   const save = async () => {
     setError(null)
     setSaving(true)
@@ -54,6 +89,7 @@ export function GlossaryRowEditor({
         translations,
         preserve,
         note: note.trim() || null,
+        variants,
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -136,6 +172,42 @@ export function GlossaryRowEditor({
           maxLength={500}
         />
       </label>
+
+      <div className="glossary-editor-variants">
+        <label>변형 (STT 오인 / 띄어쓰기 차이)</label>
+        <div className="glossary-editor-variants-chips">
+          {variants.map((v) => (
+            <span key={v} className="glossary-editor-chip">
+              {v}
+              <button type="button" onClick={() => handleRemoveVariant(v)} aria-label="제거">
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+        <div className="glossary-editor-variants-add">
+          <input
+            type="text"
+            value={newVariant}
+            onChange={(e) => setNewVariant(e.target.value)}
+            placeholder="변형 직접 입력"
+          />
+          <button type="button" onClick={handleAddManual}>
+            + 추가
+          </button>
+          <button type="button" onClick={handleFind} disabled={scanning || !sourceTerm.trim()}>
+            {scanning ? '검색 중...' : '변형 찾기'}
+          </button>
+        </div>
+      </div>
+
+      {candidates !== null && (
+        <VariantCandidatePicker
+          candidates={candidates}
+          onConfirm={handlePickerConfirm}
+          onCancel={() => setCandidates(null)}
+        />
+      )}
 
       {error && <div className="glossary-error">{error}</div>}
 
