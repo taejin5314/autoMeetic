@@ -1,12 +1,14 @@
 import Database from 'better-sqlite3'
 import { SCHEMA_SQL, SCHEMA_VERSION } from './schema'
 import type {
+  EmbeddingFailure,
   GlossaryEntry,
   GlossaryEntryInput,
   GlossarySuggestion,
   GlossarySuggestionInput,
   Meeting,
   MeetingStatus,
+  PendingEmbedding,
   SearchHit,
   Segment,
   SegmentEmbedding,
@@ -35,6 +37,8 @@ export class MemoryRepository {
       | undefined
     if (!row) {
       this.db.prepare('INSERT INTO schema_version(version) VALUES (?)').run(SCHEMA_VERSION)
+    } else if (row.version < SCHEMA_VERSION) {
+      this.db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION)
     }
   }
 
@@ -260,6 +264,68 @@ export class MemoryRepository {
        ORDER BY s.created_at ASC, s.seq ASC`
     )
     return (meetingId ? stmt.all(meetingId) : stmt.all()) as { segmentId: string; text: string }[]
+  }
+
+  getSegmentsNeedingEmbedding(): PendingEmbedding[] {
+    return this.db
+      .prepare(
+        `SELECT s.id AS segmentId, s.source_text AS sourceText
+         FROM segments s
+         LEFT JOIN segment_embeddings e ON e.segment_id = s.id
+         LEFT JOIN embedding_failures f ON f.segment_id = s.id
+         WHERE e.segment_id IS NULL AND f.segment_id IS NULL
+         ORDER BY s.created_at ASC, s.seq ASC`
+      )
+      .all() as PendingEmbedding[]
+  }
+
+  countSegmentsNeedingEmbedding(): number {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS n
+         FROM segments s
+         LEFT JOIN segment_embeddings e ON e.segment_id = s.id
+         LEFT JOIN embedding_failures f ON f.segment_id = s.id
+         WHERE e.segment_id IS NULL AND f.segment_id IS NULL`
+      )
+      .get() as { n: number }
+    return row.n
+  }
+
+  recordEmbeddingFailure(segmentId: string, attempts: number, errorMessage: string): void {
+    this.db
+      .prepare(
+        `INSERT INTO embedding_failures(segment_id, attempts, last_error, failed_at)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(segment_id) DO UPDATE SET
+           attempts   = excluded.attempts,
+           last_error = excluded.last_error,
+           failed_at  = excluded.failed_at`
+      )
+      .run(segmentId, attempts, errorMessage, Date.now())
+  }
+
+  listEmbeddingFailures(limit: number): EmbeddingFailure[] {
+    return this.db
+      .prepare(
+        `SELECT segment_id AS segmentId, attempts, last_error AS lastError, failed_at AS failedAt
+         FROM embedding_failures
+         ORDER BY failed_at DESC
+         LIMIT ?`
+      )
+      .all(limit) as EmbeddingFailure[]
+  }
+
+  clearEmbeddingFailures(segmentIds?: string[]): void {
+    if (!segmentIds) {
+      this.db.prepare(`DELETE FROM embedding_failures`).run()
+      return
+    }
+    if (segmentIds.length === 0) return
+    const placeholders = segmentIds.map(() => '?').join(',')
+    this.db
+      .prepare(`DELETE FROM embedding_failures WHERE segment_id IN (${placeholders})`)
+      .run(...segmentIds)
   }
 
   searchByText(query: string, limit: number): { segmentId: string; score: number }[] {
