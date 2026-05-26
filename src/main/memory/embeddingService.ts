@@ -1,3 +1,5 @@
+import { log } from '../telemetry/logger'
+
 export interface EmbeddingWorkerLike {
   postMessage(msg: { id: number; texts: string[] }): void
   on(event: 'message', handler: (msg: { id: number; vectors?: Float32Array[]; error?: string }) => void): void
@@ -11,6 +13,7 @@ const QUERY_PREFIX = 'query: '
 export class EmbeddingService {
   private nextId = 0
   private worker: EmbeddingWorkerLike
+  private firstSuccessLogged = false
   private pending = new Map<
     number,
     { resolve: (vectors: Float32Array[]) => void; reject: (err: Error) => void }
@@ -24,10 +27,21 @@ export class EmbeddingService {
       if (!pending) return
       this.pending.delete(msg.id)
       if (msg.error) pending.reject(new Error(msg.error))
-      else if (msg.vectors) pending.resolve(msg.vectors)
+      else if (msg.vectors) {
+        if (!this.firstSuccessLogged) {
+          this.firstSuccessLogged = true
+          log('info', 'memory-embedding', 'memory.embedding.worker-init.success', {
+            modelId: this.modelId,
+          })
+        }
+        pending.resolve(msg.vectors)
+      }
       else pending.reject(new Error('Embedding worker returned empty response'))
     })
     this.worker.on('error', (err: Error) => {
+      log('error', 'memory-embedding', 'memory.embedding.worker-init.failure', {
+        error: err.message,
+      })
       for (const p of this.pending.values()) p.reject(err)
       this.pending.clear()
     })
