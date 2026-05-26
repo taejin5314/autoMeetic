@@ -13,6 +13,8 @@ interface QueueOptions {
   maxAttempts?: number
 }
 
+type RepoSurface = Pick<MemoryRepository, 'saveEmbeddings' | 'recordEmbeddingFailure'>
+
 export class EmbeddingQueue {
   private items: QueueItem[] = []
   private processing: Promise<void> | null = null
@@ -22,12 +24,12 @@ export class EmbeddingQueue {
   private readonly completed = new Set<string>()
   private waiters: { segmentIds: Set<string>; resolve: () => void }[] = []
   private embedder: Pick<EmbeddingService, 'embedPassages'>
-  private repo: Pick<MemoryRepository, 'saveEmbeddings'>
+  private repo: RepoSurface
   private opts: QueueOptions
 
   constructor(
     embedder: Pick<EmbeddingService, 'embedPassages'>,
-    repo: Pick<MemoryRepository, 'saveEmbeddings'>,
+    repo: RepoSurface,
     opts: QueueOptions
   ) {
     this.embedder = embedder
@@ -102,10 +104,17 @@ export class EmbeddingQueue {
         for (const item of batch) this.completed.add(item.segmentId)
         this.notifyWaiters()
       } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
         console.warn('[memory] embedding batch failed:', err)
-        const retryable = batch
-          .map((item) => ({ ...item, attempts: (item.attempts ?? 0) + 1 }))
-          .filter((item) => item.attempts < this.maxAttempts)
+        const retryable: QueueItem[] = []
+        for (const item of batch) {
+          const nextAttempts = (item.attempts ?? 0) + 1
+          if (nextAttempts < this.maxAttempts) {
+            retryable.push({ ...item, attempts: nextAttempts })
+          } else {
+            this.repo.recordEmbeddingFailure(item.segmentId, nextAttempts, message)
+          }
+        }
         if (retryable.length > 0) this.items.unshift(...retryable)
       }
     }
