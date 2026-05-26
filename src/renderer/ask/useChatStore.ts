@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ChatMessage, ChatSource } from './types'
+import type { ChatMessage, ChatSource, DeepAskEvent, DeepAskProgressState } from './types'
 
 const STORAGE_KEY = 'automeetic.askHistory'
 const MAX_MESSAGES = 50
@@ -76,6 +76,9 @@ export interface ChatStore {
   messages: ChatMessage[]
   isStreaming: boolean
   meetingCount: number
+  deepEnabled: boolean
+  deepProgress: DeepAskProgressState | null
+  setDeepEnabled(v: boolean): void
   submit(question: string): void
   stop(): void
   newChat(): void
@@ -85,6 +88,8 @@ export function useChatStore(): ChatStore {
   const [messages, setMessages] = useState<ChatMessage[]>(loadHistory)
   const [isStreaming, setIsStreaming] = useState(false)
   const [meetingCount, setMeetingCount] = useState(0)
+  const [deepEnabled, setDeepEnabled] = useState(false)
+  const [deepProgress, setDeepProgress] = useState<DeepAskProgressState | null>(null)
   const streamingMsgIdRef = useRef<string | null>(null)
   const messagesRef = useRef<ChatMessage[]>(messages)
 
@@ -118,11 +123,102 @@ export function useChatStore(): ChatStore {
     })
   }, [])
 
+  useEffect(() => {
+    const api = window.electronAPI?.memory
+    if (!api?.onDeepAskEvent) return
+    return api.onDeepAskEvent((event: DeepAskEvent) => {
+      const msgId = streamingMsgIdRef.current
+      if (!msgId) return
+
+      if (event.type === 'plan-created') {
+        setDeepProgress({ plan: event.plan, subagents: [], synthesizing: false })
+      } else if (event.type === 'subagent-started') {
+        setDeepProgress((prev) => ({
+          plan: prev?.plan,
+          synthesizing: prev?.synthesizing ?? false,
+          subagents: [
+            ...(prev?.subagents.filter((s) => s.brief.idx !== event.idx) ?? []),
+            { brief: event.brief, status: 'running', toolCalls: 0 },
+          ].sort((a, b) => a.brief.idx - b.brief.idx),
+        }))
+      } else if (event.type === 'subagent-tool-call') {
+        setDeepProgress((prev) =>
+          prev
+            ? {
+                ...prev,
+                subagents: prev.subagents.map((s) =>
+                  s.brief.idx === event.idx ? { ...s, toolCalls: s.toolCalls + 1 } : s
+                ),
+              }
+            : prev
+        )
+      } else if (event.type === 'subagent-result') {
+        setDeepProgress((prev) =>
+          prev
+            ? {
+                ...prev,
+                subagents: prev.subagents.map((s) =>
+                  s.brief.idx === event.idx
+                    ? {
+                        ...s,
+                        status: event.toolCallsUsed >= s.brief.boundaries.maxToolCalls ? 'capped' : 'done',
+                        toolCalls: event.toolCallsUsed,
+                      }
+                    : s
+                ),
+              }
+            : prev
+        )
+      } else if (event.type === 'subagent-failed') {
+        setDeepProgress((prev) =>
+          prev
+            ? {
+                ...prev,
+                subagents: prev.subagents.map((s) =>
+                  s.brief.idx === event.idx ? { ...s, status: 'failed' } : s
+                ),
+              }
+            : prev
+        )
+      } else if (event.type === 'synthesizing') {
+        setDeepProgress((prev) => ({ plan: prev?.plan, subagents: prev?.subagents ?? [], synthesizing: true }))
+      }
+
+      setMessages((prev) => {
+        const idx = prev.findIndex((m) => m.id === msgId)
+        if (idx === -1) return prev
+        const next = [...prev]
+        const cur = { ...next[idx], deepResearch: true }
+        if (event.type === 'delta') {
+          cur.content = `${cur.content}${event.content}`
+        } else if (event.type === 'done') {
+          cur.content = event.answer
+          cur.sources = event.sources
+          cur.costBreakdown = event.costBreakdown
+          cur.deepDurationMs = event.durationMs
+        } else if (event.type === 'error') {
+          cur.error = event.message
+        } else if (event.type === 'gate-denied') {
+          cur.error = event.reason
+        }
+        next[idx] = cur
+        return next
+      })
+
+      if (event.type === 'done' || event.type === 'error' || event.type === 'gate-denied') {
+        setIsStreaming(false)
+        setDeepProgress(null)
+        streamingMsgIdRef.current = null
+      }
+    })
+  }, [])
+
   const submit = useCallback((question: string) => {
     const trimmed = question.trim()
     if (!trimmed) return
     const api = window.electronAPI?.memory
     if (!api?.chat) return
+    if (deepEnabled && !api.deepAsk) return
 
     const userMsg: ChatMessage = {
       id: newId(),
@@ -135,19 +231,26 @@ export function useChatStore(): ChatStore {
       role: 'assistant',
       content: '',
       createdAt: Date.now(),
+      deepResearch: deepEnabled || undefined,
     }
     streamingMsgIdRef.current = assistantMsg.id
     const history = messagesRef.current
     setMessages((prev) => [...prev, userMsg, assistantMsg])
     setIsStreaming(true)
+    setDeepProgress(deepEnabled ? { subagents: [], synthesizing: false } : null)
 
-    void api.chat({ question: trimmed, history })
-  }, [])
+    if (deepEnabled) {
+      void api.deepAsk({ question: trimmed, history })
+    } else {
+      void api.chat({ question: trimmed, history })
+    }
+  }, [deepEnabled])
 
   const stop = useCallback(() => {
     const msgId = streamingMsgIdRef.current
     streamingMsgIdRef.current = null
     setIsStreaming(false)
+    setDeepProgress(null)
     if (msgId) {
       setMessages((prev) => prev.filter((m) => m.id !== msgId || m.content.length > 0))
     }
@@ -160,5 +263,15 @@ export function useChatStore(): ChatStore {
     setMessages([])
   }, [stop])
 
-  return { messages, isStreaming, meetingCount, submit, stop, newChat }
+  return {
+    messages,
+    isStreaming,
+    meetingCount,
+    deepEnabled,
+    deepProgress,
+    setDeepEnabled,
+    submit,
+    stop,
+    newChat,
+  }
 }

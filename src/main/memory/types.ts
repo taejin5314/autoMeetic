@@ -179,6 +179,9 @@ export interface ChatMessage {
   sources?: ChatSource[]
   createdAt: number
   error?: string
+  deepResearch?: boolean
+  costBreakdown?: import('./agents/types').CostBreakdown
+  deepDurationMs?: number
 }
 
 export interface ChatHistoryStored {
