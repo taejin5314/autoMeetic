@@ -112,6 +112,7 @@ export interface GlossaryEntry {
   translations: Record<string, string>
   preserve: boolean
   note: string | null
+  variants: string[]
   createdAt: number
   updatedAt: number
 }
@@ -124,6 +125,14 @@ export interface GlossaryEntryInput {
   translations: Record<string, string>
   preserve: boolean
   note: string | null
+  variants?: string[]
+}
+
+export interface VariantCandidate {
+  candidate: string
+  frequency: number
+  exampleSegmentId: string
+  exampleText: string
 }
 
 export interface GlossarySuggestion {
