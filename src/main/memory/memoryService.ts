@@ -9,6 +9,7 @@ import { MeetingLifecycle } from './meetingLifecycle'
 import { MemoryRepository } from './repository'
 import { SearchService } from './searchService'
 import { SummaryService, type SummarizeCall } from './summaryService'
+import { log } from '../telemetry/logger'
 import type {
   GlossaryEntry,
   GlossaryEntryInput,
@@ -131,9 +132,30 @@ export class MemoryService {
 
   enqueueAllMissingEmbeddings(): void {
     const pending = this.repo.getSegmentsNeedingEmbedding()
+    if (pending.length === 0) return
+    log('info', 'memory-embedding', 'memory.embedding.backfill.started', {
+      pendingCount: pending.length,
+    })
+    const startedAt = Date.now()
     for (const row of pending) {
       this.embeddingQueue.enqueue({ segmentId: row.segmentId, text: row.sourceText })
     }
+    void this.embeddingQueue
+      .drain()
+      .then(() => {
+        const remaining = this.repo.countSegmentsNeedingEmbedding()
+        const failed = this.repo.listEmbeddingFailures(1_000_000).length
+        log('info', 'memory-embedding', 'memory.embedding.backfill.completed', {
+          processed: pending.length - remaining,
+          failed,
+          durationMs: Date.now() - startedAt,
+        })
+      })
+      .catch((err) => {
+        log('warn', 'memory-embedding', 'memory.embedding.backfill.error', {
+          error: err instanceof Error ? err.message : String(err),
+        })
+      })
   }
 
   listMeetings(limit = 30, offset = 0): MeetingSummary[] {
