@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { GlossaryRowEditor } from './GlossaryRowEditor'
+import { GlossarySaveSuccessCard } from './GlossarySaveSuccessCard'
 import { SuggestionRow } from './SuggestionRow'
-import type { GlossaryEntry, GlossaryEntryInput } from './types'
+import type { GlossaryEntry, GlossaryEntryInput, VariantCandidate } from './types'
 import { useGlossaryStore } from './useGlossaryStore'
 
 interface Props {
@@ -17,6 +18,11 @@ export function GlossaryPanel({ open, meetingId, onClose }: Props) {
   const [query, setQuery] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const [lastVariantCandidates, setLastVariantCandidates] = useState<VariantCandidate[]>([])
+  const [saveCard, setSaveCard] = useState<{
+    entry: GlossaryEntry
+    candidates: VariantCandidate[]
+  } | null>(null)
 
   const scope: 'global' | 'meeting' = tab === 'meeting' ? 'meeting' : 'global'
   const store = useGlossaryStore(scope, meetingId)
@@ -44,10 +50,16 @@ export function GlossaryPanel({ open, meetingId, onClose }: Props) {
     [store.suggestions]
   )
 
+  const dismissSaveCard = useCallback(() => setSaveCard(null), [])
+
   if (!open) return null
 
   const handleSave = async (input: GlossaryEntryInput) => {
-    await store.upsert(input)
+    const entry = await store.upsert(input)
+    if (entry) {
+      setSaveCard({ entry, candidates: lastVariantCandidates })
+    }
+    setLastVariantCandidates([])
     setEditingId(null)
     setCreating(false)
   }
@@ -66,6 +78,7 @@ export function GlossaryPanel({ open, meetingId, onClose }: Props) {
           meetingId={meetingId}
           onSave={handleSave}
           onCancel={() => setEditingId(null)}
+          onVariantCandidatesChange={setLastVariantCandidates}
         />
       )
     }
@@ -89,7 +102,13 @@ export function GlossaryPanel({ open, meetingId, onClose }: Props) {
           {entry.preserve && <span className="glossary-preserve-chip">Preserve</span>}
         </div>
         <div className="glossary-row-actions">
-          <button type="button" onClick={() => setEditingId(entry.id)}>
+          <button
+            type="button"
+            onClick={() => {
+              setLastVariantCandidates([])
+              setEditingId(entry.id)
+            }}
+          >
             Edit
           </button>
           <button
@@ -169,7 +188,10 @@ export function GlossaryPanel({ open, meetingId, onClose }: Props) {
           <button
             type="button"
             className="glossary-add"
-            onClick={() => setCreating(true)}
+            onClick={() => {
+              setLastVariantCandidates([])
+              setCreating(true)
+            }}
             disabled={tab === 'suggestions' || creating || editingId !== null}
           >
             + Add term
@@ -213,6 +235,7 @@ export function GlossaryPanel({ open, meetingId, onClose }: Props) {
                   meetingId={meetingId}
                   onSave={handleSave}
                   onCancel={() => setCreating(false)}
+                  onVariantCandidatesChange={setLastVariantCandidates}
                 />
               )}
               {filtered.length === 0 && !creating && (
@@ -233,6 +256,13 @@ export function GlossaryPanel({ open, meetingId, onClose }: Props) {
             {tab === 'suggestions' ? 'Review queue' : `${tab === 'global' ? 'Global' : 'Meeting'} scope`}
           </span>
         </footer>
+        {saveCard && (
+          <GlossarySaveSuccessCard
+            entry={saveCard.entry}
+            candidates={saveCard.candidates}
+            onDismiss={dismissSaveCard}
+          />
+        )}
       </div>
     </div>
   )
