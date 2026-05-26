@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { GlossaryEntry, GlossaryEntryInput, GlossarySuggestion } from './types'
+import type {
+  GlossaryEntry,
+  GlossaryEntryInput,
+  GlossarySuggestion,
+  VariantCandidate,
+} from './types'
 
 interface GlossaryState {
   entries: GlossaryEntry[]
@@ -37,8 +42,15 @@ export function useGlossaryStore(scope: 'global' | 'meeting', meetingId: string 
   }, [scope, meetingId])
 
   const upsert = useCallback(async (input: GlossaryEntryInput) => {
-    if (!window.electronAPI?.glossary) return
-    await window.electronAPI.glossary.upsert(input)
+    if (!window.electronAPI?.glossary) return null
+    const entry = await window.electronAPI.glossary.upsert(input)
+    await load()
+    return entry
+  }, [load])
+
+  const findVariants = useCallback(async (canonical: string): Promise<VariantCandidate[]> => {
+    if (!window.electronAPI?.glossary) return []
+    return window.electronAPI.glossary.findVariants(canonical)
   }, [])
 
   const remove = useCallback(async (id: string) => {
@@ -113,6 +125,7 @@ export function useGlossaryStore(scope: 'global' | 'meeting', meetingId: string 
     errorMessage: state.errorMessage,
     refresh: load,
     upsert,
+    findVariants,
     remove,
     suggestions,
     pendingCount,

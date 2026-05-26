@@ -2,6 +2,7 @@ export type {
   GlossaryEntry,
   GlossaryEntryInput,
   GlossarySuggestion,
+  VariantCandidate,
 } from '../../main/memory/types'
 
 export const LANGUAGE_OPTIONS = [
