@@ -1,4 +1,5 @@
 export type { ChatMessage, ChatSource } from '../../main/memory/types'
+import type { Plan, SubagentBrief } from '../../main/memory/agents/types'
 export type {
   CostBreakdown,
   DeepAskEvent,

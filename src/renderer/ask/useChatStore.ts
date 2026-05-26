@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ChatMessage, ChatSource, DeepAskEvent, DeepAskProgressState } from './types'
+import type {
+  ChatMessage,
+  ChatSource,
+  DeepAskEvent,
+  DeepAskProgressState,
+  DeepAskSubagentProgress,
+} from './types'
 
 const STORAGE_KEY = 'automeetic.askHistory'
 const MAX_MESSAGES = 50
@@ -136,10 +142,10 @@ export function useChatStore(): ChatStore {
         setDeepProgress((prev) => ({
           plan: prev?.plan,
           synthesizing: prev?.synthesizing ?? false,
-          subagents: [
+          subagents: ([
             ...(prev?.subagents.filter((s) => s.brief.idx !== event.idx) ?? []),
             { brief: event.brief, status: 'running', toolCalls: 0 },
-          ].sort((a, b) => a.brief.idx - b.brief.idx),
+          ] satisfies DeepAskSubagentProgress[]).sort((a, b) => a.brief.idx - b.brief.idx),
         }))
       } else if (event.type === 'subagent-tool-call') {
         setDeepProgress((prev) =>
