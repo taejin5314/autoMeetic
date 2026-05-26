@@ -4,14 +4,265 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 
 ## 🚀 Next active stream
 
-> **Glossary Variants & Inline Highlights.** UX value-surfacing + minor backend extension. 6 phases. Makes glossary value visible: variants as first-class field on `glossary_entries`, "변형 찾기" scan at registration with "aha" preview, live inline dotted-underline highlights in transcript columns + saved meetings, with hover tooltip. Fixes the user-reported "glossary 등록의 장점이 안 보임" + "STT가 잘못 들으면 매칭 0건이 되는" 문제. See:
+> **Deep Ask — Multi-Agent Research Mode.** Net-new feature on top of existing Memory Ask. 6 phases. Adds a `[⚡ Deep]` toggle to the Ask tab; when on, a lead agent (gpt-4o) decomposes the question into 2–4 subagent briefs, subagents (gpt-4o-mini) explore in parallel via `SearchService` + `getMeetingDetail`, a synthesizer (gpt-4o) combines results into a cited streamed answer. Implements the Hub-and-Spoke pattern Anthropic measured at +90.2% on research tasks. Pure OpenAI throughout. Gate is a placeholder (always-allow) — real BYOK/license/subscription is a separate Stream 2. See:
+>
+> - **Spec:** `docs/superpowers/specs/2026-05-26-deep-ask-multi-agent-design.md`
+> - **Plan:** `docs/superpowers/plans/2026-05-26-deep-ask-multi-agent.md`
+>
+> Start at Phase 1 (Task 1.1). TDD pattern through Phases 1–4; Phase 5 is renderer UI; Phase 6 is wrap-up.
+
+## Active stream state — Deep Ask Multi-Agent
+
+| Phase | Status | Commits | Tests passing |
+|---|---|---|---|
+| 1 — Types + lead agent (TDD) | ✅ COMPLETE | `2c9f518` → `e2772ba` (3 commits) | 284/284 (`npm run verify:phase 1`); typecheck/lint clean |
+| 2 — Subagent runtime + tools (TDD) | ✅ COMPLETE | `9ff4cd6` → `d6a631c` (3 commits) | 288/288 (`npm run verify:phase 2`); typecheck/lint clean |
+| 3 — Citation merger + synthesizer + pricing (TDD) | ✅ COMPLETE | `c4fd9e7` → `b6d7acf` (3 commits) | 297/297 (`npm run verify:phase 3`); typecheck/lint clean |
+| 4 — Gate + Orchestrator + IPC + preload (TDD) | ✅ COMPLETE | `19149ec` → `731b56f` (3 commits) | 307/307 (`npm run verify:phase 4`); typecheck/lint clean |
+| 5 — Renderer UI (toggle + progress card + footer) | ✅ COMPLETE | `3595a10` → `8f4145f` (5 commits) | 307/307 (`npm run verify:phase 5`); typecheck/lint clean |
+| 6 — Regression + handoff + push | ✅ COMPLETE | `HEAD` (docs/final) | 307/307 (`npm run verify:phase 6`, `npm run verify`, `npm test`); build clean |
+
+**Phase 1 verification (`npm run verify:phase 1`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 1
+
+
+🔍 autoMeetic verification — 2026-05-26 16:08
+
+  Plan: docs/superpowers/plans/2026-05-26-deep-ask-multi-agent.md
+  Verifying Phase 1
+
+  Expected files (referenced in Phase 1 body):
+    ✅ src/main/memory/agents/types.ts
+    ✅ src/main/memory/agents/prompts/lead.v1.ts
+    ✅ src/test/deep-ask-lead.test.ts
+    ✅ src/main/memory/agents/leadAgent.ts
+
+Checks:
+  ✅ typecheck (0 errors, 1.0s)
+  ✅ lint (0 errors, 10.5s)
+  ✅ vitest (284 / 284 passed, 6.6s)
+
+Git context (last 5 commits):
+  e2772ba feat(deep-ask): lead agent OpenAI wrapper
+  b298073 feat(deep-ask): lead prompt + JSON schema + parser
+  2c9f518 feat(deep-ask): add agents types module
+  361fd4c docs(glossary): complete variants highlights handoff
+  796b716 fix(glossary): pass undefined for active glossary default scope
+
+VERDICT: ✅ Phase 1 verified
+```
+
+**Phase 2 verification (`npm run verify:phase 2`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 2
+
+
+🔍 autoMeetic verification — 2026-05-26 16:12
+
+  Plan: docs/superpowers/plans/2026-05-26-deep-ask-multi-agent.md
+  Verifying Phase 2
+
+  Expected files (referenced in Phase 2 body):
+    ✅ src/main/memory/agents/tools.ts
+    ✅ src/main/memory/agents/prompts/subagent.v1.ts
+    ✅ src/main/memory/agents/subagent.ts
+    ✅ src/test/deep-ask-subagent.test.ts
+
+Checks:
+  ✅ typecheck (0 errors, 1.0s)
+  ✅ lint (0 errors, 10.3s)
+  ✅ vitest (288 / 288 passed, 6.2s)
+
+Git context (last 5 commits):
+  d6a631c feat(deep-ask): subagent ReAct loop with tool-call cap + finalize
+  72988f6 feat(deep-ask): subagent prompt builder
+  9ff4cd6 feat(deep-ask): tool schemas + dispatch (search, get_detail, finalize)
+  e2772ba feat(deep-ask): lead agent OpenAI wrapper
+  b298073 feat(deep-ask): lead prompt + JSON schema + parser
+
+VERDICT: ✅ Phase 2 verified
+```
+
+**Phase 3 verification (`npm run verify:phase 3`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 3
+
+
+🔍 autoMeetic verification — 2026-05-26 16:16
+
+  Plan: docs/superpowers/plans/2026-05-26-deep-ask-multi-agent.md
+  Verifying Phase 3
+
+  Expected files (referenced in Phase 3 body):
+    ✅ src/main/memory/agents/citationMerger.ts
+    ✅ src/test/deep-ask-citation-merger.test.ts
+    ✅ src/main/memory/agents/prompts/synthesizer.v1.ts
+    ✅ src/main/memory/agents/synthesizer.ts
+    ✅ src/test/deep-ask-synthesizer.test.ts
+    ✅ src/main/memory/agents/pricing.ts
+
+Checks:
+  ✅ typecheck (0 errors, 1.0s)
+  ✅ lint (0 errors, 10.6s)
+  ✅ vitest (297 / 297 passed, 6.1s)
+
+Git context (last 5 commits):
+  b6d7acf feat(deep-ask): pricing helper for cost estimates
+  3b8366b feat(deep-ask): synthesizer prompt + streaming with glossary post-pass
+  c4fd9e7 feat(deep-ask): citation merger (dedup + 1-based numbering)
+  d6a631c feat(deep-ask): subagent ReAct loop with tool-call cap + finalize
+  72988f6 feat(deep-ask): subagent prompt builder
+
+VERDICT: ✅ Phase 3 verified
+```
+
+**Phase 4 verification (`npm run verify:phase 4`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 4
+
+
+🔍 autoMeetic verification — 2026-05-26 16:22
+
+  Plan: docs/superpowers/plans/2026-05-26-deep-ask-multi-agent.md
+  Verifying Phase 4
+
+  Expected files (referenced in Phase 4 body):
+    ✅ src/main/memory/agents/gate.ts
+    ✅ src/main/memory/deepAskService.ts
+    ✅ src/test/deep-ask-orchestrator.test.ts
+    ✅ src/main/ipc-memory-handlers.ts
+    ✅ src/preload/index.ts
+    ✅ src/preload/types.ts
+    ✅ src/test/deep-ask-ipc.test.ts
+
+Checks:
+  ✅ typecheck (0 errors, 0.9s)
+  ✅ lint (0 errors, 10.4s)
+  ✅ vitest (307 / 307 passed, 6.3s)
+
+Git context (last 5 commits):
+  731b56f feat(deep-ask): IPC channel memory:deep-ask + preload bridge
+  9b62d70 feat(deep-ask): orchestrator (gate → lead → parallel subagents → synth)
+  19149ec feat(deep-ask): gate placeholder (Stream 1: always allow)
+  b6d7acf feat(deep-ask): pricing helper for cost estimates
+  3b8366b feat(deep-ask): synthesizer prompt + streaming with glossary post-pass
+
+VERDICT: ✅ Phase 4 verified
+```
+
+**Phase 5 verification (`npm run verify:phase 5`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 5
+
+
+🔍 autoMeetic verification — 2026-05-26 16:32
+
+  Plan: docs/superpowers/plans/2026-05-26-deep-ask-multi-agent.md
+  Verifying Phase 5
+
+  Expected files (referenced in Phase 5 body):
+    ✅ src/renderer/ask/DeepAskToggle.tsx
+    ✅ src/renderer/ask/useChatStore.ts
+    ✅ src/renderer/ask/types.ts
+    ✅ src/renderer/ask/AskInput.tsx
+    ✅ src/renderer/ask/DeepAskProgressCard.tsx
+    ✅ src/renderer/ask/AnswerFooter.tsx
+    ✅ src/renderer/ask/ChatMessageView.tsx
+    ✅ src/renderer/App.css
+
+Checks:
+  ✅ typecheck (0 errors, 0.9s)
+  ✅ lint (0 errors, 10.3s)
+  ✅ vitest (307 / 307 passed, 6.4s)
+
+Git context (last 5 commits):
+  8f4145f fix(deep-ask): satisfy build type references
+  b0c9150 feat(deep-ask): styles for toggle + progress + footer
+  25a2553 feat(deep-ask): UI — toggle in AskInput + progress card + answer footer
+  7606255 feat(deep-ask): chat store deep mode branch + event handling
+  3595a10 feat(deep-ask): DeepAskToggle pill component
+
+VERDICT: ✅ Phase 5 verified
+```
+
+**Phase 6 verification (`npm run verify:phase 6`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 6
+
+
+🔍 autoMeetic verification — 2026-05-26 16:33
+
+  Plan: docs/superpowers/plans/2026-05-26-deep-ask-multi-agent.md
+  Verifying Phase 6
+
+  ⚠️  Could not extract expected files for Phase 6 from plan. Continuing with general checks only.
+
+Checks:
+  ✅ typecheck (0 errors, 0.9s)
+  ✅ lint (0 errors, 10.6s)
+  ✅ vitest (307 / 307 passed, 6.0s)
+
+Git context (last 5 commits):
+  8f4145f fix(deep-ask): satisfy build type references
+  b0c9150 feat(deep-ask): styles for toggle + progress + footer
+  25a2553 feat(deep-ask): UI — toggle in AskInput + progress card + answer footer
+  7606255 feat(deep-ask): chat store deep mode branch + event handling
+  3595a10 feat(deep-ask): DeepAskToggle pill component
+
+VERDICT: ✅ Phase 6 verified
+```
+
+**Phase 6 additional checks:**
+
+```text
+npm run verify
+VERDICT: ✅ Verified clean
+typecheck: 0 errors
+lint: 0 errors
+vitest: 307 / 307 passed
+
+npm run build
+✓ built in 13.01s
+
+npm test
+Test Files 49 passed (49)
+Tests 307 passed (307)
+Windows better_sqlite3.node EBUSY did not reproduce in this run.
+```
+
+**Phase 6 manual smoke (deferred to user):**
+
+- Deep toggle visible in AskInput.
+- Sending with Deep ON shows progress card.
+- Streamed answer with citations.
+- Citation click jumps to meeting through the existing flow.
+- Footer shows estimated USD and elapsed seconds.
+- Toggle OFF uses standard Ask unchanged.
+- Trivial question with Deep ON behaves reasonably.
+
+## ✅ Completed stream — Glossary Variants & Inline Highlights
+
+> Implemented and pushed to `origin/master`. See:
 >
 > - **Spec:** `docs/superpowers/specs/2026-05-25-glossary-variants-and-highlights-design.md`
 > - **Plan:** `docs/superpowers/plans/2026-05-25-glossary-variants-and-highlights.md`
 >
-> Start at Phase 1 (Task 1.1). TDD pattern through Phases 1-3 + 5; Phase 4 is registration UI; Phase 6 is wrap-up.
+> Automated regression passed. Manual smoke deferred to user. Existing user DB at v1 — will auto-migrate to v5 (and add `embedding_failures` table from the prior stream) on next app launch.
 
-## Active stream state — Glossary Variants & Inline Highlights
+## Completed stream state — Glossary Variants & Inline Highlights
 
 | Phase | Status | Commits | Tests passing |
 |---|---|---|---|
