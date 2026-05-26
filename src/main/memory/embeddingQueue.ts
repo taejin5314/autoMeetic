@@ -1,5 +1,6 @@
 import type { EmbeddingService } from './embeddingService'
 import type { MemoryRepository } from './repository'
+import { log } from '../telemetry/logger'
 
 interface QueueItem {
   segmentId: string
@@ -92,6 +93,7 @@ export class EmbeddingQueue {
   private async process(): Promise<void> {
     while (this.items.length > 0) {
       const batch = this.items.splice(0, this.batchSize)
+      const batchStart = Date.now()
       try {
         const vectors = await this.embedder.embedPassages(batch.map((item) => item.text))
         this.repo.saveEmbeddings(
@@ -102,10 +104,19 @@ export class EmbeddingQueue {
           }))
         )
         for (const item of batch) this.completed.add(item.segmentId)
+        log('info', 'memory-embedding', 'memory.embedding.batch.success', {
+          batchSize: batch.length,
+          durationMs: Date.now() - batchStart,
+        })
         this.notifyWaiters()
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         console.warn('[memory] embedding batch failed:', err)
+        log('warn', 'memory-embedding', 'memory.embedding.batch.failure', {
+          batchSize: batch.length,
+          attempt: (batch[0]?.attempts ?? 0) + 1,
+          error: message,
+        })
         const retryable: QueueItem[] = []
         for (const item of batch) {
           const nextAttempts = (item.attempts ?? 0) + 1
