@@ -10,6 +10,7 @@ import type {
   SearchHit,
   VariantCandidate,
 } from '../main/memory/types'
+import type { DeepAskEvent } from '../main/memory/agents/types'
 import type { ExportLanguageMode } from '../main/memory/markdownExporter'
 import type { AskMindMapPayload, AskMindMapResult } from '../main/whiteboard/askMindMap'
 
@@ -32,8 +33,10 @@ export interface MemoryAPI {
   exportMeeting(id: string, format?: 'markdown', language?: ExportLanguageMode): Promise<string>
   regenerateSummary(id: string): Promise<void>
   chat(args: { question: string; history: ChatMessage[] }): Promise<void>
+  deepAsk(args: { question: string; history: ChatMessage[] }): Promise<void>
   onMeetingUpdated(callback: (event: MeetingUpdatedEvent) => void): () => void
   onChatEvent(handler: (event: unknown) => void): () => void
+  onDeepAskEvent(handler: (event: DeepAskEvent) => void): () => void
 }
 
 export interface GlossaryAPI {

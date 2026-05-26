@@ -27,8 +27,12 @@ export function buildPreloadApi(ipcRenderer: IpcRendererLike): ElectronAPI {
         ipcRenderer.invoke('memory:export-meeting', { id, format, language }),
       regenerateSummary: (id) => ipcRenderer.invoke('memory:regenerate-summary', { id }),
       chat: (args) => ipcRenderer.invoke('memory:chat', args),
+      deepAsk: (args) => ipcRenderer.invoke('memory:deep-ask', args),
       onMeetingUpdated: listen('memory:meeting-updated') as ElectronAPI['memory']['onMeetingUpdated'],
       onChatEvent: listen('memory:chat:event') as ElectronAPI['memory']['onChatEvent'],
+      onDeepAskEvent: listen(
+        'memory:deep-ask:event'
+      ) as ElectronAPI['memory']['onDeepAskEvent'],
     },
     glossary: {
       list: (scope, meetingId) => ipcRenderer.invoke('glossary:list', { scope, meetingId }),

@@ -1,6 +1,6 @@
 import type { BrowserWindow } from 'electron'
 import { buildGlossaryHandlers } from './ipc-glossary-handlers'
-import { buildMemoryHandlers } from './ipc-memory-handlers'
+import { buildMemoryDeepAskHandler, buildMemoryHandlers } from './ipc-memory-handlers'
 import { resolveMeetingLanguages, type TranscriptLanguageState } from './memory/meetingLanguages'
 import type { MemoryService } from './memory/memoryService'
 import type { ChatMessage, GlossaryEntry, SearchHit } from './memory/types'
@@ -212,6 +212,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   for (const [channel, handler] of Object.entries(memHandlers)) {
     ipcMain.handle(channel, async (_event, args) => handler(args as never))
   }
+
+  const deepAskHandler = buildMemoryDeepAskHandler(getMemoryService, (channel, payload) => {
+    mainWindowRef?.webContents.send(channel, payload)
+  })
+  ipcMain.handle('memory:deep-ask', async (_event, args) => deepAskHandler(args as never))
 
   const glossaryHandlers = buildGlossaryHandlers(getMemoryService, () =>
     memoryServiceRef?.getCurrentMeetingId() ?? null
