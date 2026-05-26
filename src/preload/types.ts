@@ -43,6 +43,7 @@ export interface GlossaryAPI {
   active(meetingId?: string): Promise<GlossaryEntry[]>
   findVariants(canonical: string): Promise<VariantCandidate[]>
   onChanged(handler: () => void): () => void
+  onEntriesUpdated(handler: () => void): () => void
   suggestions: {
     list(meetingId?: string): Promise<GlossarySuggestion[]>
     accept(id: string): Promise<GlossaryEntry>

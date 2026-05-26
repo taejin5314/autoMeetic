@@ -29,6 +29,12 @@ function broadcastChanged(): void {
   }
 }
 
+function broadcastEntriesUpdated(): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('glossary:entries-updated')
+  }
+}
+
 function broadcastSuggestionsUpdated(): void {
   for (const win of BrowserWindow.getAllWindows()) {
     win.webContents.send('glossary:suggestions-updated')
@@ -60,12 +66,14 @@ export function buildGlossaryHandlers(getRepo: GetRepo, getCurrentMeetingId: Get
       const repo = await getReady(getRepo, 'Glossary repo')
       const result = repo.upsertGlossary(args.entry)
       broadcastChanged()
+      broadcastEntriesUpdated()
       return result
     },
     'glossary:delete': async (args: { id: string }) => {
       const repo = await getReady(getRepo, 'Glossary repo')
       repo.deleteGlossary(args.id)
       broadcastChanged()
+      broadcastEntriesUpdated()
     },
     'glossary:active': async (args: { meetingId?: string } = {}) => {
       const repo = await getReady(getRepo, 'Glossary repo')
@@ -86,6 +94,7 @@ export function buildGlossaryHandlers(getRepo: GetRepo, getCurrentMeetingId: Get
       const repo = await getReady(getRepo, 'Glossary repo')
       const entry = repo.acceptSuggestion(args.id)
       broadcastChanged()
+      broadcastEntriesUpdated()
       broadcastSuggestionsUpdated()
       broadcastMeetingUpdated()
       log('info', 'glossary-suggestions', 'glossary.suggestion.accepted', {
