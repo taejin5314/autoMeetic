@@ -22,9 +22,32 @@ const STT_LIVE_SENTENCE_MAX_CHARS = Number(process.env.STT_LIVE_SENTENCE_MAX_CHA
 const STT_TRANSLATION_DEBOUNCE_MS = Number(process.env.STT_TRANSLATION_DEBOUNCE_MS ?? 650)
 const OPENAI_CHAT_COMPLETIONS_URL = 'https://api.openai.com/v1/chat/completions'
 const SENTENCE_END_RE = /[.!?。？！]\s*$/
+const ABBREVIATIONS = new Set([
+  'mr', 'mrs', 'ms', 'dr', 'prof', 'sr', 'jr', 'st', 'vs', 'etc',
+  'no', 'inc', 'ltd', 'co', 'corp', 'gen', 'sen', 'rep',
+  'a.m', 'p.m', 'i.e', 'e.g', 'u.s', 'u.k',
+])
 const NO_SPACE_BEFORE_RE = /^[.!?,;:。？！、，；：]+/
 const INCOMPLETE_ENGLISH_END_RE =
   /\b(a|an|and|are|as|at|because|but|for|from|if|in|is|of|or|so|that|the|then|to|uh|um|with|who|what|when|where|which|while|would|you|your)$/i
+
+export type SentenceEnd = 'hard' | 'soft' | 'none'
+
+export function classifySentenceEnd(text: string): SentenceEnd {
+  const t = text.replace(/\s+$/, '')
+  const last = t.at(-1)
+  if (!last || !/[.!?。？！]/.test(last)) return 'none'
+  if (last !== '.') return 'hard'
+  if (/\d\.$/.test(t)) return 'soft'
+  if (/\.\.+$/.test(t)) return 'soft'
+  const m = t.match(/([A-Za-z][A-Za-z.]*)\.$/)
+  if (m) {
+    const word = m[1].toLowerCase()
+    const bare = word.replace(/\./g, '')
+    if (ABBREVIATIONS.has(word) || bare.length === 1) return 'soft'
+  }
+  return 'hard'
+}
 
 interface LanguageHints {
   sourceLanguageHint: string
