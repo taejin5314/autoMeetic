@@ -179,7 +179,8 @@
     "exported": "Exported",
     "summary": "Summary",
     "summaryPending": "Summary pending",
-    "actionItems": "Action Items"
+    "actionItems": "Action Items",
+    "live": "Live"
   },
   "ask": {
     "tab": {
@@ -223,7 +224,7 @@
       "synthesizing": "Synthesizing..."
     },
     "footer": {
-      "format": "⚡ Deep · {{agents}} agents · {{toolCalls}} tool calls · ~${{usd}} · {{seconds}}s"
+      "format": "⚡ Deep · {{agents}} agents · {{toolCalls}} tool calls · ~{{usd}} · {{seconds}}s"
     }
   },
   "answerAssist": {
@@ -332,6 +333,32 @@
     "mark": {
       "myGlossary": "My glossary",
       "preserve": "Preserve"
+    }
+  },
+  "whiteboard": {
+    "modal": {
+      "aria": "Whiteboard",
+      "title": "Whiteboard",
+      "agentThinking": "Agent thinking",
+      "agentError": "Agent error",
+      "closeAria": "Close whiteboard",
+      "closeTitle": "Close (ESC)"
+    },
+    "labelLang": {
+      "title": "Diagram label language",
+      "prefix": "LABELS",
+      "aria": "Diagram label language",
+      "auto": "Auto",
+      "ko": "KO",
+      "en": "EN",
+      "ja": "JA",
+      "zh": "ZH",
+      "es": "ES",
+      "fr": "FR",
+      "de": "DE"
+    },
+    "canvas": {
+      "expand": "Expand whiteboard"
     }
   }
 }

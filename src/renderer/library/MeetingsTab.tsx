@@ -4,6 +4,7 @@ import type { MeetingDetail, MeetingSummary, SearchHit } from '../../main/memory
 import { HighlightedText } from '../glossary/HighlightedText'
 import { useActiveGlossary } from '../glossary/useActiveGlossary'
 import { useHighlightToggle } from '../glossary/useHighlightToggle'
+import { formatDate, formatNumber } from '../i18n/format'
 
 interface MeetingsTabProps {
   selectedMeetingId?: string | null
@@ -20,7 +21,7 @@ type DetailState =
 type ExportLanguageMode = 'source' | 'translation' | 'both'
 
 function formatMeetingTime(ms: number): string {
-  return new Date(ms).toLocaleString([], {
+  return formatDate(ms, {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -28,11 +29,11 @@ function formatMeetingTime(ms: number): string {
   })
 }
 
-function formatDuration(ms: number | null): string {
-  if (!ms || ms < 0) return 'Live'
+function formatDuration(ms: number | null, liveLabel: string): string {
+  if (!ms || ms < 0) return liveLabel
   const minutes = Math.floor(ms / 60000)
   const seconds = Math.floor((ms % 60000) / 1000)
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`
+  return `${formatNumber(minutes)}:${seconds.toString().padStart(2, '0')}`
 }
 
 function getMemoryApi() {
@@ -347,7 +348,10 @@ export function MeetingsTab({
                     const previousMeetingId = index > 0 ? hits[index - 1].meetingId : null
                     const showMeetingHeader =
                       hit.kind !== 'title' && hit.meetingId !== previousMeetingId
-                    const pct = `${Math.round(hit.score * 100)}%`
+                    const pct = formatNumber(hit.score, {
+                      style: 'percent',
+                      maximumFractionDigits: 0,
+                    })
                     const meta =
                       hit.kind === 'title'
                         ? t('meetings.hitTitle', { pct })
@@ -386,7 +390,8 @@ export function MeetingsTab({
                     >
                       <span>{item.meeting.title}</span>
                       <small>
-                        {formatMeetingTime(item.meeting.startedAt)} · {item.meeting.segmentCount}{' '}
+                        {formatMeetingTime(item.meeting.startedAt)} ·{' '}
+                        {formatNumber(item.meeting.segmentCount)}{' '}
                         {t('meetings.turns')}
                       </small>
                       {item.shortSummary && <em>{item.shortSummary}</em>}
@@ -430,8 +435,8 @@ export function MeetingsTab({
                       )}
                       <p>
                         {formatMeetingTime(selectedMeeting.meeting.startedAt)} ·{' '}
-                        {formatDuration(selectedMeeting.meeting.durationMs)} ·{' '}
-                        {selectedMeeting.meeting.segmentCount} turns
+                        {formatDuration(selectedMeeting.meeting.durationMs, t('meetings.live'))} ·{' '}
+                        {formatNumber(selectedMeeting.meeting.segmentCount)} {t('meetings.turns')}
                       </p>
                     </div>
                     <div className="memory-actions">

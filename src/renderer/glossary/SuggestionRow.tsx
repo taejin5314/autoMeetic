@@ -1,16 +1,12 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { formatNumber, formatTime } from '../i18n/format'
 import type { GlossarySuggestion } from './types'
 
 interface Props {
   suggestion: GlossarySuggestion
   onAccept: (id: string) => Promise<void>
   onDismiss: (id: string) => Promise<void>
-}
-
-function formatMetaTime(ms: number): string {
-  const d = new Date(ms)
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
 export function SuggestionRow({ suggestion, onAccept, onDismiss }: Props) {
@@ -53,7 +49,10 @@ export function SuggestionRow({ suggestion, onAccept, onDismiss }: Props) {
     )
   })()
 
-  const confidencePct = Math.round(suggestion.confidence * 100)
+  const confidencePct = formatNumber(suggestion.confidence, {
+    style: 'percent',
+    maximumFractionDigits: 0,
+  })
 
   return (
     <div className={`glossary-suggestion-row${busy ? ' is-busy' : ''}`}>
@@ -81,8 +80,8 @@ export function SuggestionRow({ suggestion, onAccept, onDismiss }: Props) {
       </div>
       <div className="glossary-suggestion-meta">
         {suggestion.reason && <span>{suggestion.reason}</span>}
-        <span>{confidencePct}%</span>
-        <span>{t('glossary.suggestions.meetingTime', { time: formatMetaTime(suggestion.createdAt) })}</span>
+        <span>{confidencePct}</span>
+        <span>{t('glossary.suggestions.meetingTime', { time: formatTime(suggestion.createdAt) })}</span>
       </div>
       {error && <div className="glossary-suggestion-error">{error}</div>}
     </div>

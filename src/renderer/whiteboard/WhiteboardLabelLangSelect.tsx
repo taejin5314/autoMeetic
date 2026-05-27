@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 const STORAGE_KEY = 'automeetic.diagramLabelLanguage'
 
 const OPTIONS = [
-  { value: '', label: 'Auto' },
-  { value: 'ko', label: 'KO' },
-  { value: 'en', label: 'EN' },
-  { value: 'ja', label: 'JA' },
-  { value: 'zh', label: 'ZH' },
-  { value: 'es', label: 'ES' },
-  { value: 'fr', label: 'FR' },
-  { value: 'de', label: 'DE' },
+  { value: '', labelKey: 'whiteboard.labelLang.auto' },
+  { value: 'ko', labelKey: 'whiteboard.labelLang.ko' },
+  { value: 'en', labelKey: 'whiteboard.labelLang.en' },
+  { value: 'ja', labelKey: 'whiteboard.labelLang.ja' },
+  { value: 'zh', labelKey: 'whiteboard.labelLang.zh' },
+  { value: 'es', labelKey: 'whiteboard.labelLang.es' },
+  { value: 'fr', labelKey: 'whiteboard.labelLang.fr' },
+  { value: 'de', labelKey: 'whiteboard.labelLang.de' },
 ]
 
 function readInitial(): string {
@@ -28,6 +29,7 @@ interface Props {
 }
 
 export function WhiteboardLabelLangSelect({ onChange }: Props) {
+  const { t } = useTranslation()
   const [value, setValue] = useState<string>(readInitial)
 
   useEffect(() => {
@@ -36,8 +38,10 @@ export function WhiteboardLabelLangSelect({ onChange }: Props) {
   }, [value])
 
   return (
-    <label className="v4p-wb-labellang" title="Diagram label language">
-      <span className="amw-mono v4p-wb-labellang-prefix">LABELS</span>
+    <label className="v4p-wb-labellang" title={t('whiteboard.labelLang.title')}>
+      <span className="amw-mono v4p-wb-labellang-prefix">
+        {t('whiteboard.labelLang.prefix')}
+      </span>
       <select
         className="v4p-wb-labellang-select amw-mono"
         value={value}
@@ -45,15 +49,14 @@ export function WhiteboardLabelLangSelect({ onChange }: Props) {
           setValue(e.target.value)
           onChange?.(e.target.value)
         }}
-        aria-label="Diagram label language"
+        aria-label={t('whiteboard.labelLang.aria')}
       >
         {OPTIONS.map((o) => (
           <option key={o.value} value={o.value}>
-            {o.label}
+            {t(o.labelKey)}
           </option>
         ))}
       </select>
     </label>
   )
 }
-

@@ -13,6 +13,7 @@ import {
   MainMenu,
 } from '@excalidraw/excalidraw'
 import React, { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { ViewportCommand, WhiteboardElement } from '../../main/whiteboard/types'
 import { repairWhiteboardLayout } from '../../main/whiteboard/elements'
 import { useThemeStore, type Theme } from '../theme/useThemeStore'
@@ -323,6 +324,7 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({
   compact = false,
   onMaximize,
 }) => {
+  const { t } = useTranslation()
   const { theme } = useThemeStore()
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null)
   // `null` is the "not yet seeded" sentinel. The first onChange that
@@ -685,8 +687,8 @@ export const ExcalidrawCanvas: React.FC<ExcalidrawCanvasProps> = ({
           type="button"
           className="excal-compact-click"
           onClick={onMaximize}
-          aria-label="Expand whiteboard"
-          title="Expand whiteboard"
+          aria-label={t('whiteboard.canvas.expand')}
+          title={t('whiteboard.canvas.expand')}
         />
       )}
     </div>

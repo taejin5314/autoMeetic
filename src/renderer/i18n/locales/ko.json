@@ -179,7 +179,8 @@
     "exported": "내보냈습니다",
     "summary": "요약",
     "summaryPending": "요약 대기 중",
-    "actionItems": "액션 아이템"
+    "actionItems": "액션 아이템",
+    "live": "라이브"
   },
   "ask": {
     "tab": {
@@ -223,7 +224,7 @@
       "synthesizing": "종합 중..."
     },
     "footer": {
-      "format": "⚡ Deep · 에이전트 {{agents}}개 · 도구 호출 {{toolCalls}}회 · 약 ${{usd}} · {{seconds}}초"
+      "format": "⚡ Deep · 에이전트 {{agents}}개 · 도구 호출 {{toolCalls}}회 · 약 {{usd}} · {{seconds}}초"
     }
   },
   "answerAssist": {
@@ -332,6 +333,32 @@
     "mark": {
       "myGlossary": "내 glossary",
       "preserve": "보존"
+    }
+  },
+  "whiteboard": {
+    "modal": {
+      "aria": "화이트보드",
+      "title": "화이트보드",
+      "agentThinking": "에이전트 생각 중",
+      "agentError": "에이전트 오류",
+      "closeAria": "화이트보드 닫기",
+      "closeTitle": "닫기 (ESC)"
+    },
+    "labelLang": {
+      "title": "다이어그램 라벨 언어",
+      "prefix": "라벨",
+      "aria": "다이어그램 라벨 언어",
+      "auto": "자동",
+      "ko": "KO",
+      "en": "EN",
+      "ja": "JA",
+      "zh": "ZH",
+      "es": "ES",
+      "fr": "FR",
+      "de": "DE"
+    },
+    "canvas": {
+      "expand": "화이트보드 확대"
     }
   }
 }

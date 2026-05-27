@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { formatDate } from '../i18n/format'
 import type { ChatSource } from './types'
 
 interface Props {
@@ -11,13 +12,6 @@ function formatMmSs(ms: number): string {
   const minutes = Math.floor(total / 60)
   const seconds = total % 60
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-}
-
-function formatDate(ms: number): string {
-  const date = new Date(ms)
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
-    date.getDate()
-  ).padStart(2, '0')}`
 }
 
 export function SourcesList({ sources, onClickSource }: Props) {

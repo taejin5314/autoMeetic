@@ -1,4 +1,5 @@
 import { useEffect, type ReactElement } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { ViewportCommand, WhiteboardElement } from '../../main/whiteboard/types'
 import { ExcalidrawCanvas } from './ExcalidrawCanvas'
 
@@ -23,6 +24,8 @@ export function WhiteboardModal({
   onScreenshot,
   onClose,
 }: WhiteboardModalProps): ReactElement | null {
+  const { t } = useTranslation()
+
   useEffect(() => {
     if (!open) return
     const onKey = (event: KeyboardEvent): void => {
@@ -39,7 +42,7 @@ export function WhiteboardModal({
       className="v4p-wb-modal"
       role="dialog"
       aria-modal="true"
-      aria-label="Whiteboard"
+      aria-label={t('whiteboard.modal.aria')}
       onClick={onClose}
     >
       <div
@@ -48,14 +51,14 @@ export function WhiteboardModal({
       >
         <div className="v4p-wb-modal-header">
           <div className="v4p-wb-modal-title">
-            <em>Whiteboard</em>
+            <em>{t('whiteboard.modal.title')}</em>
             {agentStatus === 'thinking' && (
               <span className="v4p-wb-modal-status">
-                <span className="v4p-wb-spinner" /> Agent thinking
+                <span className="v4p-wb-spinner" /> {t('whiteboard.modal.agentThinking')}
               </span>
             )}
             {agentStatus === 'error' && (
-              <span className="v4p-wb-modal-status error">Agent error</span>
+              <span className="v4p-wb-modal-status error">{t('whiteboard.modal.agentError')}</span>
             )}
           </div>
           <div className="v4p-wb-modal-actions">
@@ -64,8 +67,8 @@ export function WhiteboardModal({
               type="button"
               className="v4p-wb-modal-close"
               onClick={onClose}
-              aria-label="Close whiteboard"
-              title="Close (ESC)"
+              aria-label={t('whiteboard.modal.closeAria')}
+              title={t('whiteboard.modal.closeTitle')}
             >
               <svg
                 width="13"

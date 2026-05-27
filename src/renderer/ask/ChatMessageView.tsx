@@ -5,11 +5,7 @@ import type { ChatMessage, ChatSource, DeepAskProgressState } from './types'
 import { canSendToMindMap } from './canSendToMindMap'
 import { DeepAskProgressCard } from './DeepAskProgressCard'
 import { AnswerFooter } from './AnswerFooter'
-
-function formatTime(ms: number): string {
-  const date = new Date(ms)
-  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
-}
+import { formatTime } from '../i18n/format'
 
 interface Props {
   message: ChatMessage
