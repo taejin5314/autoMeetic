@@ -5,7 +5,7 @@ import {
   formatGlossaryPromptSection,
   normalizePreserveTerms,
 } from './glossary/promptInjection'
-import { notifyTranslation, notifyTurnFinalized } from './memory/transcriptHook'
+import { notifySourceTextUpdate, notifyTranslation, notifyTurnFinalized } from './memory/transcriptHook'
 import type { MemoryService } from './memory/memoryService'
 import type { GlossaryEntry } from './memory/types'
 import type { ProcessedTranscriptTurn } from './stt/types'
@@ -20,6 +20,7 @@ const STT_LIVE_SENTENCE_SHORT_FINALIZE_MS = Number(
 )
 const STT_LIVE_SENTENCE_MAX_CHARS = Number(process.env.STT_LIVE_SENTENCE_MAX_CHARS ?? 220)
 const STT_LIVE_SOFT_END_GRACE_MS = Number(process.env.STT_LIVE_SOFT_END_GRACE_MS ?? 700)
+const STT_PUNCT_MERGE_WINDOW_MS = Number(process.env.STT_PUNCT_MERGE_WINDOW_MS ?? 1500)
 const STT_TRANSLATION_DEBOUNCE_MS = Number(process.env.STT_TRANSLATION_DEBOUNCE_MS ?? 650)
 const OPENAI_CHAT_COMPLETIONS_URL = 'https://api.openai.com/v1/chat/completions'
 const SENTENCE_END_RE = /[.!?。？！]\s*$/
@@ -29,6 +30,7 @@ const ABBREVIATIONS = new Set([
   'a.m', 'p.m', 'i.e', 'e.g', 'u.s', 'u.k',
 ])
 const NO_SPACE_BEFORE_RE = /^[.!?,;:。？！、，；：]+/
+const PUNCT_ONLY_RE = /^[.!?。？！,;:、，；：…]+$/
 const INCOMPLETE_ENGLISH_END_RE =
   /\b(a|an|and|are|as|at|because|but|for|from|if|in|is|of|or|so|that|the|then|to|uh|um|with|who|what|when|where|which|while|would|you|your)$/i
 
@@ -93,6 +95,13 @@ const translationVersionsById = new Map<string, number>()
 let translationInFlight = false
 let warnedMissingApiKey = false
 let activeSourceTurn: ActiveSourceTurn | null = null
+let lastFinalizedTurn: {
+  id: string
+  text: string
+  hints: LanguageHints
+  createdAtMs: number
+  finalizedAtMs: number
+} | null = null
 
 export function init(
   mainWindow: BrowserWindow,
@@ -151,6 +160,7 @@ export function resetTranscriptPostProcessor(): void {
     coalesceTimer = null
   }
   clearActiveSourceTurn()
+  lastFinalizedTurn = null
   translationQueue.length = 0
   translationVersionsById.clear()
   translationInFlight = false
@@ -189,6 +199,20 @@ export function parseProcessedTranscriptResponse(
 function emitSourceFragment(text: string, hints: LanguageHints): void {
   const fragment = text.trim()
   if (!fragment) return
+
+  if (!activeSourceTurn && PUNCT_ONLY_RE.test(fragment)) {
+    if (
+      lastFinalizedTurn &&
+      Date.now() - lastFinalizedTurn.finalizedAtMs < STT_PUNCT_MERGE_WINDOW_MS
+    ) {
+      const merged = joinSourceFragments(lastFinalizedTurn.text, fragment)
+      lastFinalizedTurn.text = merged
+      emitSourcePatch(lastFinalizedTurn.id, merged)
+      notifySourceTextUpdate(lastFinalizedTurn.id, merged)
+      scheduleMergedTranslation(lastFinalizedTurn)
+    }
+    return
+  }
 
   if (
     activeSourceTurn &&
@@ -266,6 +290,13 @@ function finalizeActiveSourceTurn(options: { translateImmediately: boolean }): v
     speakerId: 'unknown',
     speakerLabel: 'Unknown',
   })
+  lastFinalizedTurn = {
+    id: active.id,
+    text: active.text,
+    hints: active.hints,
+    createdAtMs: active.createdAtMs,
+    finalizedAtMs: Date.now(),
+  }
   if (options.translateImmediately) scheduleTranslation(active, 0)
 }
 
@@ -310,6 +341,17 @@ function scheduleTranslation(active: ActiveSourceTurn, delayMs: number): void {
     translationQueue.push({ id: active.id, text: active.text, hints: active.hints, version })
     void drainTranslationQueue()
   }, delayMs)
+}
+
+function scheduleMergedTranslation(turn: { id: string; text: string; hints: LanguageHints }): void {
+  const wantsTranslation =
+    turn.hints.targetLanguage !== 'off' &&
+    turn.hints.targetLanguage !== turn.hints.sourceLanguageHint
+  if (!wantsTranslation) return
+  const version = (translationVersionsById.get(turn.id) ?? 0) + 1
+  translationVersionsById.set(turn.id, version)
+  translationQueue.push({ id: turn.id, text: turn.text, hints: turn.hints, version })
+  void drainTranslationQueue()
 }
 
 function sourceFinalizeDelayMs(text: string): number {
