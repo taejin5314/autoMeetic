@@ -2,5 +2,140 @@
   "_meta": {
     "language": "ko",
     "version": 1
+  },
+  "languagePicker": {
+    "aria": "UI 언어",
+    "title": "UI 언어",
+    "system": "시스템"
+  },
+  "shell": {
+    "status": {
+      "live": "라이브",
+      "starting": "시작 중",
+      "idle": "대기"
+    },
+    "theme": {
+      "aria": "테마",
+      "light": "라이트",
+      "lightTitle": "라이트 - Linear-grade pro",
+      "dark": "다크",
+      "darkTitle": "다크 - Linear-grade pro"
+    },
+    "pipeline": {
+      "aria": "파이프라인 상태",
+      "capture": "캡처",
+      "stt": "STT",
+      "translate": "번역",
+      "agent": "에이전트",
+      "ok": "정상",
+      "connected": "연결됨",
+      "degraded": "연결 중",
+      "disconnected": "끊김",
+      "generating": "생성 중",
+      "error": "오류",
+      "ready": "준비됨",
+      "idle": "대기",
+      "stageTitle": "{{name}}: {{status}}"
+    },
+    "health": {
+      "notConnected": "연결 안 됨",
+      "toLanguage": "{{language}}로",
+      "connecting": "연결 중...",
+      "realtimeReady": "OpenAI Realtime 준비됨 ({{language}})",
+      "requestingDisplayMedia": "화면 오디오 요청 중...",
+      "systemAudioActive": "시스템 오디오 활성",
+      "notStarted": "시작 안 됨",
+      "stopped": "중지됨",
+      "sessionReset": "세션 초기화됨"
+    },
+    "header": {
+      "session": "세션"
+    },
+    "language": {
+      "autoDetect": "자동 감지",
+      "korean": "한국어",
+      "english": "영어",
+      "japanese": "일본어",
+      "chinese": "중국어",
+      "spanish": "스페인어",
+      "french": "프랑스어",
+      "german": "독일어",
+      "inputAria": "입력 언어",
+      "translationTargetAria": "번역 대상",
+      "auto": "자동",
+      "off": "끄기"
+    },
+    "record": {
+      "start": "시작",
+      "stop": "중지",
+      "starting": "시작 중...",
+      "startTitle": "듣기 시작",
+      "stopTitle": "듣기 중지"
+    },
+    "panel": {
+      "show": "패널 열기",
+      "hide": "패널 숨기기",
+      "toggleAria": "오른쪽 패널 전환"
+    },
+    "library": {
+      "title": "미팅 라이브러리"
+    },
+    "glossary": {
+      "title": "용어집"
+    },
+    "fullscreen": {
+      "enter": "전체 화면",
+      "exit": "전체 화면 종료 (Esc)",
+      "toggleAria": "전체 화면 전환"
+    },
+    "answerAssist": {
+      "title": "답변 지원 (Ctrl+Shift+A)",
+      "aria": "답변 지원"
+    },
+    "errors": {
+      "mindMapDesktopOnly": "마인드맵 생성은 데스크톱 앱에서 사용할 수 있습니다."
+    }
+  },
+  "sourceBar": {
+    "system": "시스템",
+    "systemDetail": "탭 / 창 오디오",
+    "mic": "마이크",
+    "disabled": "비활성화",
+    "resetTitle": "세션 초기화",
+    "confirmReset": "초기화 확인",
+    "reset": "초기화",
+    "captions": "캡션",
+    "words": "단어"
+  },
+  "transcript": {
+    "original": "원문",
+    "detecting": "{{language}} 감지 중",
+    "idleLead": "대기 중.",
+    "idleInstruction": "",
+    "idleInstructionAfterStart": "을 누르고 오디오가 있는 탭을 공유하면 시작됩니다.",
+    "translation": "번역",
+    "translationEmpty": "번역이 여기에 표시됩니다."
+  },
+  "rightShelf": {
+    "whiteboard": "화이트보드",
+    "actions": "액션",
+    "closePanel": "패널 닫기",
+    "diagramEmptyLead": "다이어그램이 여기에 표시됩니다",
+    "diagramEmptyRest": "에이전트가 핵심 개념을 찾으면 나타납니다.",
+    "agentThinking": "에이전트 생각 중",
+    "diagramFailed": "다이어그램 실패"
+  },
+  "feed": {
+    "console": {
+      "nowSpeaking": "현재 발화",
+      "lastCaption": "마지막 캡션",
+      "systemAudio": "시스템 오디오",
+      "captions": "캡션",
+      "words": "단어",
+      "listening": "듣는 중...",
+      "startHint": "시작을 누르고 오디오가 있는 브라우저 탭이나 창을 공유하세요.",
+      "thinking": "생각 중...",
+      "ask": "질문"
+    }
   }
 }

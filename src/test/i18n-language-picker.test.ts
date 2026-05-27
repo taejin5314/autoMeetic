@@ -24,7 +24,7 @@ describe('LanguagePicker', () => {
       )
     )
 
-    expect(html).toContain('<option value="system" selected="">System</option>')
+    expect(html).toContain('<option value="system" selected="">languagePicker.system</option>')
     expect(html).toContain('<option value="en">English</option>')
     expect(html).toContain('<option value="ko">한국어</option>')
     expect(html).toContain('<option value="ja">日本語</option>')

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import type { ViewportCommand, WhiteboardElement } from '../../main/whiteboard/types'
 import { ActionItemsPanel } from '../actions/ActionItemsPanel'
 import type { ActionItem } from '../actions/types'
@@ -37,6 +38,7 @@ export function RightShelf({
   onDoneActionItem,
   onUpdateActionItem,
 }: RightShelfProps) {
+  const { t } = useTranslation()
   if (shelf === 'closed') return null
 
   return (
@@ -46,7 +48,7 @@ export function RightShelf({
           className={`v4p-shelf-tab ${shelf === 'whiteboard' ? 'on' : ''}`}
           onClick={() => onShelfChange('whiteboard')}
         >
-          Whiteboard
+          {t('rightShelf.whiteboard')}
           {whiteboardElements.length > 0 && (
             <span className="v4p-shelf-tab-badge amw-mono">
               {whiteboardElements.length}
@@ -57,7 +59,7 @@ export function RightShelf({
           className={`v4p-shelf-tab ${shelf === 'actions' ? 'on' : ''}`}
           onClick={() => onShelfChange('actions')}
         >
-          Actions
+          {t('rightShelf.actions')}
           {actionItemList.length > 0 && (
             <span className="v4p-shelf-tab-badge amw-mono">{actionItemList.length}</span>
           )}
@@ -66,8 +68,8 @@ export function RightShelf({
         <button
           className="v4p-shelf-x"
           onClick={() => onShelfChange('closed')}
-          title="Close panel"
-          aria-label="Close panel"
+          title={t('rightShelf.closePanel')}
+          aria-label={t('rightShelf.closePanel')}
         >
           <svg
             width="11"
@@ -97,16 +99,17 @@ export function RightShelf({
             />
             {whiteboardElements.length === 0 && (
               <div className="v4p-wb-empty">
-                <em>Diagram appears here</em> as the agent finds key concepts.
+                <em>{t('rightShelf.diagramEmptyLead')}</em>{' '}
+                {t('rightShelf.diagramEmptyRest')}
               </div>
             )}
             {agentStatus === 'thinking' && (
               <div className="v4p-wb-badge">
-                <span className="v4p-wb-spinner" /> Agent thinking
+                <span className="v4p-wb-spinner" /> {t('rightShelf.agentThinking')}
               </div>
             )}
             {agentStatus === 'error' && (
-              <div className="v4p-wb-badge error">Diagram failed</div>
+              <div className="v4p-wb-badge error">{t('rightShelf.diagramFailed')}</div>
             )}
           </div>
         </div>

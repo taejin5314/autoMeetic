@@ -1,4 +1,5 @@
 import type { RefObject } from 'react'
+import { useTranslation } from 'react-i18next'
 import { HighlightedText } from '../glossary/HighlightedText'
 import { useActiveGlossary } from '../glossary/useActiveGlossary'
 import { useHighlightToggle } from '../glossary/useHighlightToggle'
@@ -46,6 +47,7 @@ export function TranscriptColumns({
   formatDuration,
   languageLabelByCode,
 }: TranscriptColumnsProps) {
+  const { t } = useTranslation()
   const entries = useActiveGlossary(null)
   const [highlightEnabled] = useHighlightToggle()
 
@@ -55,12 +57,14 @@ export function TranscriptColumns({
         <div className="v4p-col-hd">
           <span className="v4p-col-mark">{langCode(sourceLang)}</span>
           <span className="v4p-col-name">
-            <em>Original</em>
+            <em>{t('transcript.original')}</em>
             {languageLock && <> · {languageLabelByCode.get(languageLock) ?? languageLock}</>}
             {!languageLock && detectedLanguage && (
               <>
                 {' '}
-                · detecting {languageLabelByCode.get(detectedLanguage) ?? detectedLanguage}
+                · {t('transcript.detecting', {
+                  language: languageLabelByCode.get(detectedLanguage) ?? detectedLanguage,
+                })}
               </>
             )}
           </span>
@@ -69,7 +73,8 @@ export function TranscriptColumns({
           <div className="v4p-col-pad">
             {!hasFeedContent && (
               <p className="v4p-empty">
-                <em>Idle.</em> Press <kbd>Start</kbd> and share a tab with audio to begin.
+                <em>{t('transcript.idleLead')}</em> {t('transcript.idleInstruction')}{' '}
+                <kbd>{t('shell.record.start')}</kbd> {t('transcript.idleInstructionAfterStart')}
               </p>
             )}
             {items.map((item) => (
@@ -104,14 +109,15 @@ export function TranscriptColumns({
           <div className="v4p-col-hd">
             <span className="v4p-col-mark v4p-col-mark-alt">{langCode(targetLang)}</span>
             <span className="v4p-col-name">
-              <em>Translation</em> · {languageLabelByCode.get(targetLang) ?? targetLang}
+              <em>{t('transcript.translation')}</em> ·{' '}
+              {languageLabelByCode.get(targetLang) ?? targetLang}
             </span>
           </div>
           <div className="v4p-col-body amw-scroll" ref={koColRef}>
             <div className="v4p-col-pad">
               {items.length === 0 && (
                 <p className="v4p-empty">
-                  <em>Translations appear here.</em>
+                  <em>{t('transcript.translationEmpty')}</em>
                 </p>
               )}
               {items.map((item) => {

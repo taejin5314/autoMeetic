@@ -14,6 +14,7 @@
  */
 import '@excalidraw/excalidraw/index.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { SystemAudioCaptureService } from '../main/audio/capture'
 import { PipelineHealthStore } from '../main/health/pipelineHealth'
 import { RealtimeSttClient } from '../main/stt/realtimeClient'
@@ -44,19 +45,16 @@ import { useThemeStore, type Theme } from './theme/useThemeStore'
 import { WhiteboardModal } from './whiteboard/WhiteboardModal'
 
 const LANGUAGE_OPTIONS = [
-  { code: 'auto', label: 'Auto detect' },
-  { code: 'ko', label: 'Korean' },
-  { code: 'en', label: 'English' },
-  { code: 'ja', label: 'Japanese' },
-  { code: 'zh', label: 'Chinese' },
-  { code: 'es', label: 'Spanish' },
-  { code: 'fr', label: 'French' },
-  { code: 'de', label: 'German' },
+  { code: 'auto', labelKey: 'shell.language.autoDetect' },
+  { code: 'ko', labelKey: 'shell.language.korean' },
+  { code: 'en', labelKey: 'shell.language.english' },
+  { code: 'ja', labelKey: 'shell.language.japanese' },
+  { code: 'zh', labelKey: 'shell.language.chinese' },
+  { code: 'es', labelKey: 'shell.language.spanish' },
+  { code: 'fr', labelKey: 'shell.language.french' },
+  { code: 'de', labelKey: 'shell.language.german' },
 ]
 
-const LANGUAGE_LABEL_BY_CODE = new Map(
-  LANGUAGE_OPTIONS.map((language) => [language.code, language.label])
-)
 const META_TRANSLATION_RE =
   /\b(this text appears|let me translate|translation|translate it|appears to be a mix)\b/i
 const HERO_CAPTION_MAX_WORDS = 16
@@ -118,14 +116,14 @@ function getInitialTranslationTarget(): string {
 
 const THEME_OPTIONS: ReadonlyArray<{
   value: Theme
-  label: string
-  title: string
+  labelKey: string
+  titleKey: string
   icon: React.ReactNode
 }> = [
   {
     value: 'light',
-    label: 'Light',
-    title: 'Light — Linear-grade pro',
+    labelKey: 'shell.theme.light',
+    titleKey: 'shell.theme.lightTitle',
     icon: (
       <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="7" cy="7" r="2.4" />
@@ -135,8 +133,8 @@ const THEME_OPTIONS: ReadonlyArray<{
   },
   {
     value: 'dark',
-    label: 'Dark',
-    title: 'Dark — Linear-grade pro',
+    labelKey: 'shell.theme.dark',
+    titleKey: 'shell.theme.darkTitle',
     icon: (
       <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 8.2A5 5 0 1 1 5.8 2 4 4 0 0 0 12 8.2z" />
@@ -152,17 +150,18 @@ function ThemeToggle({
   theme: Theme
   onSelect: (next: Theme) => void
 }) {
+  const { t } = useTranslation()
   return (
-    <div className="v4p-theme-toggle" role="group" aria-label="Theme">
+    <div className="v4p-theme-toggle" role="group" aria-label={t('shell.theme.aria')}>
       {THEME_OPTIONS.map((option) => (
         <button
           key={option.value}
           type="button"
           className={`v4p-theme-btn ${theme === option.value ? 'on' : ''}`}
           onClick={() => onSelect(option.value)}
-          title={option.title}
+          title={t(option.titleKey)}
           aria-pressed={theme === option.value}
-          aria-label={option.label}
+          aria-label={t(option.labelKey)}
         >
           <span className="v4p-theme-icon" aria-hidden="true">
             {option.icon}
@@ -207,15 +206,16 @@ function PipelineStage({
   status: PipelineStatus
   message?: string
 }) {
+  const { t } = useTranslation()
   const cls =
     status === 'connected'
       ? 'cc-pipeline-stage ok'
       : status === 'degraded'
         ? 'cc-pipeline-stage warn'
         : 'cc-pipeline-stage idle'
-  const note = message ?? (status === 'connected' ? 'ok' : status)
+  const note = message ?? (status === 'connected' ? t('shell.pipeline.ok') : t(`shell.pipeline.${status}`))
   return (
-    <span className={cls} title={`${name}: ${message ?? status}`}>
+    <span className={cls} title={t('shell.pipeline.stageTitle', { name, status: message ?? status })}>
       <span className="cc-pipeline-dot" />
       <span className="cc-pipeline-name">{name}</span>
       <span className="cc-pipeline-note">{note}</span>
@@ -224,6 +224,7 @@ function PipelineStage({
 }
 
 function App() {
+  const { t } = useTranslation()
   const shellRef = useRef<HTMLElement | null>(null)
   const resetTimeoutRef = useRef<number | null>(null)
   const [running, setRunning] = useState(false)
@@ -567,7 +568,10 @@ function App() {
     translation: {
       ...healthSnapshot.translation,
       status: translationTarget === 'off' ? 'disconnected' : 'connected',
-      message: translationTarget === 'off' ? 'not connected' : `to ${translationTarget}`,
+      message:
+        translationTarget === 'off'
+          ? t('shell.health.notConnected')
+          : t('shell.health.toLanguage', { language: translationTarget }),
     },
   } as const
   void healthTick
@@ -602,14 +606,14 @@ function App() {
 
     try {
       // 1. Connect to transcription proxy
-      updateHealth('stt', 'degraded', 'connecting...')
+      updateHealth('stt', 'degraded', t('shell.health.connecting'))
       await sttClient.connect(sttLanguage)
-      updateHealth('stt', 'connected', `OpenAI Realtime ready (${sttLanguage})`)
+      updateHealth('stt', 'connected', t('shell.health.realtimeReady', { language: sttLanguage }))
 
       // 2. Start system audio capture (prompts user to share tab/window)
-      updateHealth('capture', 'degraded', 'requesting display media...')
+      updateHealth('capture', 'degraded', t('shell.health.requestingDisplayMedia'))
       await capture.start()
-      updateHealth('capture', 'connected', 'system audio active')
+      updateHealth('capture', 'connected', t('shell.health.systemAudioActive'))
       if (sessionStartMs === null) setSessionStartMs(Date.now())
       setRunStartMs(Date.now())
 
@@ -621,11 +625,11 @@ function App() {
       const msg = err instanceof Error ? err.message : String(err)
       setError(msg)
       updateHealth('stt', 'disconnected', msg)
-      updateHealth('capture', 'disconnected', 'not started')
+      updateHealth('capture', 'disconnected', t('shell.health.notStarted'))
     } finally {
       setStarting(false)
     }
-  }, [capture, running, sessionStartMs, starting, sttClient, sttLanguage, updateHealth])
+  }, [capture, running, sessionStartMs, starting, sttClient, sttLanguage, t, updateHealth])
 
   /**
    * Stop listening — mirrors autopreso/public/app.js stopListening().
@@ -644,10 +648,10 @@ function App() {
     }
     setCaptionText('')
     setAnalyser(null)
-    updateHealth('capture', 'disconnected', 'stopped')
-    updateHealth('stt', 'disconnected', 'stopped')
+    updateHealth('capture', 'disconnected', t('shell.health.stopped'))
+    updateHealth('stt', 'disconnected', t('shell.health.stopped'))
     setRunning(false)
-  }, [capture, runStartMs, sttClient, updateHealth])
+  }, [capture, runStartMs, sttClient, t, updateHealth])
 
   const resetSession = useCallback(() => {
     if (!resetConfirming) {
@@ -696,15 +700,15 @@ function App() {
     setActiveAudioMs(0)
     setRunStartMs(null)
     setSessionStartMs(null)
-    updateHealth('capture', 'disconnected', 'session reset')
-    updateHealth('stt', 'disconnected', 'session reset')
+    updateHealth('capture', 'disconnected', t('shell.health.sessionReset'))
+    updateHealth('stt', 'disconnected', t('shell.health.sessionReset'))
     // translation health is config-driven; let the translationTarget effect manage it
 
     const ws = whiteboardWsRef.current
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'whiteboard:reset' }))
     }
-  }, [clear, onStop, resetActionItems, resetConfirming, running, updateHealth])
+  }, [clear, onStop, resetActionItems, resetConfirming, running, t, updateHealth])
 
   const triggerAnswerAssist = useCallback(() => {
     if (answerAssist.status === 'loading' || answerAssist.status === 'streaming') return
@@ -727,12 +731,12 @@ function App() {
   const handleSendAskToMindMap = useCallback(async (payload: AskMindMapPayload): Promise<void> => {
     const api = window.electronAPI?.whiteboard
     if (!api?.createMindMapFromAsk) {
-      throw new Error('Mind map creation is available in the desktop app.')
+      throw new Error(t('shell.errors.mindMapDesktopOnly'))
     }
     await api.createMindMapFromAsk(payload)
     setShelf('whiteboard')
     setWhiteboardMaximized(true)
-  }, [])
+  }, [t])
 
   // ── V4 Bilingual Editorial layout ────────────────────────────────────────
   const sourceLang =
@@ -744,6 +748,10 @@ function App() {
   const heroDurationLabel = sessionStartMs ? formatDuration(totalAudioMs) : '00:00'
   const langCode = (code: string) => (code === 'auto' || code === 'off' ? '—' : code.toUpperCase())
   const answerBusy = answerAssist.status === 'loading' || answerAssist.status === 'streaming'
+  const languageLabelByCode = useMemo(
+    () => new Map(LANGUAGE_OPTIONS.map((language) => [language.code, t(language.labelKey)])),
+    [t]
+  )
 
   const onLanguageChange = (next: string): void => {
     setSttLanguage(next)
@@ -792,28 +800,28 @@ function App() {
           <span className={`v4p-live ${running ? 'on' : 'off'}`}>
             <span className="v4p-live-dot" />
             <span className="v4p-live-text">
-              {running ? 'Live' : starting ? 'Starting' : 'Idle'}
+              {running ? t('shell.status.live') : starting ? t('shell.status.starting') : t('shell.status.idle')}
             </span>
             <span className="v4p-live-time amw-mono">{heroDurationLabel}</span>
           </span>
-          <div className="cc-pipeline" role="group" aria-label="Pipeline status">
+          <div className="cc-pipeline" role="group" aria-label={t('shell.pipeline.aria')}>
             <PipelineStage
-              name="Capture"
+              name={t('shell.pipeline.capture')}
               status={snapshot.capture.status}
               message={snapshot.capture.message}
             />
             <PipelineStage
-              name="STT"
+              name={t('shell.pipeline.stt')}
               status={snapshot.stt.status}
               message={snapshot.stt.message}
             />
             <PipelineStage
-              name="Translate"
+              name={t('shell.pipeline.translate')}
               status={snapshot.translation.status}
               message={snapshot.translation.message}
             />
             <PipelineStage
-              name="Agent"
+              name={t('shell.pipeline.agent')}
               status={
                 agentStatus === 'thinking'
                   ? 'connected'
@@ -825,19 +833,19 @@ function App() {
               }
               message={
                 agentStatus === 'thinking'
-                  ? 'generating'
+                  ? t('shell.pipeline.generating')
                   : agentStatus === 'error'
-                    ? 'error'
+                    ? t('shell.pipeline.error')
                     : whiteboardConnected
-                      ? 'ready'
-                      : 'idle'
+                      ? t('shell.pipeline.ready')
+                      : t('shell.pipeline.idle')
               }
             />
           </div>
         </div>
 
         <div className="v4p-head-mid">
-          <span className="v4p-eyebrowtxt">Session</span>
+          <span className="v4p-eyebrowtxt">{t('shell.header.session')}</span>
           <h1 className="v4p-title">AutoMeetic</h1>
         </div>
 
@@ -850,11 +858,11 @@ function App() {
               value={sttLanguage}
               onChange={(event) => onLanguageChange(event.target.value)}
               disabled={running || starting}
-              aria-label="Input language"
+              aria-label={t('shell.language.inputAria')}
             >
               {LANGUAGE_OPTIONS.map((language) => (
                 <option key={language.code} value={language.code}>
-                  {language.code === 'auto' ? 'Auto' : language.code.toUpperCase()}
+                  {language.code === 'auto' ? t('shell.language.auto') : language.code.toUpperCase()}
                 </option>
               ))}
             </select>
@@ -863,9 +871,9 @@ function App() {
               className="v4p-lang-select"
               value={translationTarget}
               onChange={(event) => onTranslationChange(event.target.value)}
-              aria-label="Translation target"
+              aria-label={t('shell.language.translationTargetAria')}
             >
-              <option value="off">Off</option>
+              <option value="off">{t('shell.language.off')}</option>
               {LANGUAGE_OPTIONS.filter((language) => language.code !== 'auto').map((language) => (
                 <option key={language.code} value={language.code}>
                   {language.code.toUpperCase()}
@@ -882,7 +890,7 @@ function App() {
               else void onStart()
             }}
             disabled={starting}
-            title={running ? 'Stop listening' : 'Start listening'}
+            title={running ? t('shell.record.stopTitle') : t('shell.record.startTitle')}
           >
             <span className="v4p-record-icon" aria-hidden="true">
               {running ? (
@@ -896,7 +904,7 @@ function App() {
               )}
             </span>
             <span className="v4p-record-text">
-              {running ? 'Stop' : starting ? 'Starting…' : 'Start'}
+              {running ? t('shell.record.stop') : starting ? t('shell.record.starting') : t('shell.record.start')}
             </span>
           </button>
 
@@ -904,8 +912,8 @@ function App() {
             className={`v4p-iconbtn ghost ${shelf !== 'closed' ? 'on' : ''}`}
             type="button"
             onClick={() => setShelf(shelf === 'closed' ? 'whiteboard' : 'closed')}
-            title={shelf === 'closed' ? 'Show panel' : 'Hide panel'}
-            aria-label="Toggle right panel"
+            title={shelf === 'closed' ? t('shell.panel.show') : t('shell.panel.hide')}
+            aria-label={t('shell.panel.toggleAria')}
             aria-pressed={shelf !== 'closed'}
           >
             <svg
@@ -926,8 +934,8 @@ function App() {
             className={`v4p-iconbtn ghost ${memoryLibraryOpen ? 'on' : ''}`}
             type="button"
             onClick={() => setMemoryLibraryOpen(true)}
-            title="Meeting library"
-            aria-label="Meeting library"
+            title={t('shell.library.title')}
+            aria-label={t('shell.library.title')}
             aria-pressed={memoryLibraryOpen}
           >
             <svg
@@ -949,8 +957,8 @@ function App() {
             className={`v4p-iconbtn ghost ${glossaryOpen ? 'on' : ''}`}
             type="button"
             onClick={() => setGlossaryOpen(true)}
-            title="Glossary"
-            aria-label="Glossary"
+            title={t('shell.glossary.title')}
+            aria-label={t('shell.glossary.title')}
             aria-pressed={glossaryOpen}
           >
             <svg
@@ -977,8 +985,8 @@ function App() {
             onClick={() => {
               void toggleFullscreen()
             }}
-            title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
-            aria-label="Toggle fullscreen"
+            title={isFullscreen ? t('shell.fullscreen.exit') : t('shell.fullscreen.enter')}
+            aria-label={t('shell.fullscreen.toggleAria')}
           >
             <svg
               width="13"
@@ -1002,8 +1010,8 @@ function App() {
             type="button"
             onClick={triggerAnswerAssist}
             disabled={!running || answerBusy}
-            title="Answer Assist (Ctrl+Shift+A)"
-            aria-label="Answer Assist"
+            title={t('shell.answerAssist.title')}
+            aria-label={t('shell.answerAssist.aria')}
           >
             <svg
               width="14"
@@ -1046,7 +1054,7 @@ function App() {
           koColRef={koColRef}
           langCode={langCode}
           formatDuration={formatDuration}
-          languageLabelByCode={LANGUAGE_LABEL_BY_CODE}
+          languageLabelByCode={languageLabelByCode}
         />
 
         {/* Right shelf */}
@@ -1072,20 +1080,20 @@ function App() {
           <div className="cc-console-line">
             {running && <span className="cc-console-pulse" aria-hidden="true" />}
             <span className="cc-console-label">
-              {running ? 'Now speaking' : 'Last caption'}
+              {running ? t('feed.console.nowSpeaking') : t('feed.console.lastCaption')}
             </span>
             <span className="cc-console-sep">·</span>
-            <span className="cc-console-source">System audio</span>
+            <span className="cc-console-source">{t('feed.console.systemAudio')}</span>
             <span className="cc-console-sep">·</span>
             <span className="amw-mono cc-console-time">{heroDurationLabel}</span>
           </div>
           <div className="cc-console-stats">
             <span>
-              <strong className="amw-mono">{transcriptCount}</strong> captions
+              <strong className="amw-mono">{transcriptCount}</strong> {t('feed.console.captions')}
             </span>
             <span className="cc-console-sep">·</span>
             <span>
-              <strong className="amw-mono">{sourceWordCount}</strong> words
+              <strong className="amw-mono">{sourceWordCount}</strong> {t('feed.console.words')}
             </span>
           </div>
         </div>
@@ -1095,8 +1103,8 @@ function App() {
             {heroSourceText || (
               <span className="cc-console-cap-placeholder">
                 {running
-                  ? 'Listening…'
-                  : 'Press Start to begin a session. Share any browser tab or window with audio.'}
+                  ? t('feed.console.listening')
+                  : t('feed.console.startHint')}
               </span>
             )}
           </div>
@@ -1112,7 +1120,7 @@ function App() {
             <svg width="13" height="13" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
               <path d="M7 1L8.5 5L13 5.5L9.5 8.5L10.5 13L7 10.5L3.5 13L4.5 8.5L1 5.5L5.5 5L7 1z" />
             </svg>
-            <span>{answerBusy ? 'Thinking…' : 'Ask'}</span>
+            <span>{answerBusy ? t('feed.console.thinking') : t('feed.console.ask')}</span>
             <kbd>⌃⇧A</kbd>
           </button>
         </div>

@@ -2,5 +2,140 @@
   "_meta": {
     "language": "en",
     "version": 1
+  },
+  "languagePicker": {
+    "aria": "UI language",
+    "title": "UI language",
+    "system": "System"
+  },
+  "shell": {
+    "status": {
+      "live": "Live",
+      "starting": "Starting",
+      "idle": "Idle"
+    },
+    "theme": {
+      "aria": "Theme",
+      "light": "Light",
+      "lightTitle": "Light - Linear-grade pro",
+      "dark": "Dark",
+      "darkTitle": "Dark - Linear-grade pro"
+    },
+    "pipeline": {
+      "aria": "Pipeline status",
+      "capture": "Capture",
+      "stt": "STT",
+      "translate": "Translate",
+      "agent": "Agent",
+      "ok": "ok",
+      "connected": "connected",
+      "degraded": "degraded",
+      "disconnected": "disconnected",
+      "generating": "generating",
+      "error": "error",
+      "ready": "ready",
+      "idle": "idle",
+      "stageTitle": "{{name}}: {{status}}"
+    },
+    "health": {
+      "notConnected": "not connected",
+      "toLanguage": "to {{language}}",
+      "connecting": "connecting...",
+      "realtimeReady": "OpenAI Realtime ready ({{language}})",
+      "requestingDisplayMedia": "requesting display media...",
+      "systemAudioActive": "system audio active",
+      "notStarted": "not started",
+      "stopped": "stopped",
+      "sessionReset": "session reset"
+    },
+    "header": {
+      "session": "Session"
+    },
+    "language": {
+      "autoDetect": "Auto detect",
+      "korean": "Korean",
+      "english": "English",
+      "japanese": "Japanese",
+      "chinese": "Chinese",
+      "spanish": "Spanish",
+      "french": "French",
+      "german": "German",
+      "inputAria": "Input language",
+      "translationTargetAria": "Translation target",
+      "auto": "Auto",
+      "off": "Off"
+    },
+    "record": {
+      "start": "Start",
+      "stop": "Stop",
+      "starting": "Starting...",
+      "startTitle": "Start listening",
+      "stopTitle": "Stop listening"
+    },
+    "panel": {
+      "show": "Show panel",
+      "hide": "Hide panel",
+      "toggleAria": "Toggle right panel"
+    },
+    "library": {
+      "title": "Meeting library"
+    },
+    "glossary": {
+      "title": "Glossary"
+    },
+    "fullscreen": {
+      "enter": "Fullscreen",
+      "exit": "Exit fullscreen (Esc)",
+      "toggleAria": "Toggle fullscreen"
+    },
+    "answerAssist": {
+      "title": "Answer Assist (Ctrl+Shift+A)",
+      "aria": "Answer Assist"
+    },
+    "errors": {
+      "mindMapDesktopOnly": "Mind map creation is available in the desktop app."
+    }
+  },
+  "sourceBar": {
+    "system": "System",
+    "systemDetail": "tab / window audio",
+    "mic": "Mic",
+    "disabled": "disabled",
+    "resetTitle": "Reset session",
+    "confirmReset": "Confirm reset",
+    "reset": "Reset",
+    "captions": "captions",
+    "words": "words"
+  },
+  "transcript": {
+    "original": "Original",
+    "detecting": "detecting {{language}}",
+    "idleLead": "Idle.",
+    "idleInstruction": "Press",
+    "idleInstructionAfterStart": "and share a tab with audio to begin.",
+    "translation": "Translation",
+    "translationEmpty": "Translations appear here."
+  },
+  "rightShelf": {
+    "whiteboard": "Whiteboard",
+    "actions": "Actions",
+    "closePanel": "Close panel",
+    "diagramEmptyLead": "Diagram appears here",
+    "diagramEmptyRest": "as the agent finds key concepts.",
+    "agentThinking": "Agent thinking",
+    "diagramFailed": "Diagram failed"
+  },
+  "feed": {
+    "console": {
+      "nowSpeaking": "Now speaking",
+      "lastCaption": "Last caption",
+      "systemAudio": "System audio",
+      "captions": "captions",
+      "words": "words",
+      "listening": "Listening...",
+      "startHint": "Press Start to begin a session. Share any browser tab or window with audio.",
+      "thinking": "Thinking...",
+      "ask": "Ask"
+    }
   }
 }
