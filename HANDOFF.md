@@ -4,14 +4,296 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 
 ## 🚀 Next active stream
 
-> **Deep Ask — Multi-Agent Research Mode.** Net-new feature on top of existing Memory Ask. 6 phases. Adds a `[⚡ Deep]` toggle to the Ask tab; when on, a lead agent (gpt-4o) decomposes the question into 2–4 subagent briefs, subagents (gpt-4o-mini) explore in parallel via `SearchService` + `getMeetingDetail`, a synthesizer (gpt-4o) combines results into a cited streamed answer. Implements the Hub-and-Spoke pattern Anthropic measured at +90.2% on research tasks. Pure OpenAI throughout. Gate is a placeholder (always-allow) — real BYOK/license/subscription is a separate Stream 2. See:
+> **App i18n — System Language Selection.** Cross-cutting renderer infrastructure. 6 phases. Adds `react-i18next` + JSON locale files (en/ko/ja/zh) + a header `[System ⌄]` picker. Auto-detects OS locale via Electron `app.getLocale()`, persists user override to `localStorage`. ~30 renderer files / ~300 strings to extract. ja/zh ship LLM-translated with explicit "native review pending v1.1" disclaimer. UI strings only — LLM-generated content (summaries, action items, Memory Chat answers, Deep Ask plan reasoning) is intentionally out of scope. See:
+>
+> - **Spec:** `docs/superpowers/specs/2026-05-27-i18n-system-language-design.md`
+> - **Plan:** `docs/superpowers/plans/2026-05-27-i18n-system-language.md`
+>
+> Start at Phase 1 (Task 1.1). TDD pattern in Phase 1 infrastructure; Phases 2–5 are string extraction by surface area; Phase 6 fills ja/zh + regression + push.
+
+## Active stream state — App i18n
+
+| Phase | Status | Commits | Tests passing |
+|---|---|---|---|
+| 1 — i18n infrastructure (lib + init + IPC + picker + test shim) | ✅ COMPLETE | `ac687e2` → `be9ecce` (6 commits) | 318/318 (`npm run verify:phase 1`); typecheck/lint clean |
+| 2 — Shell + capture/transcription/overlay/feed strings | ✅ COMPLETE | `093cec6` | 318/318 (`npm run verify:phase 2`); parity 3/3; typecheck/lint clean |
+| 3 — Library + Ask + Deep Ask + Answer Assist + Action Items | ✅ COMPLETE | `2f961cd` | 318/318 (`npm run verify:phase 3`); parity 3/3; typecheck/lint clean |
+| 4 — Glossary (panel + editor + suggestions + variants + success) | ✅ COMPLETE | `16164f0` | 318/318 (`npm run verify:phase 4`); parity 3/3; typecheck/lint clean |
+| 5 — Whiteboard + Intl formatter rollout | ✅ COMPLETE | `7069897` | 318/318 (`npm run verify:phase 5`); parity 3/3; typecheck/lint clean |
+| 6 — Fill ja/zh + regression + handoff + push | ✅ COMPLETE | `39f1186` | 318/318 (`npm run verify:phase 6`, `npm run verify`, `npx vitest run`); build passed; `npm test` blocked by Windows `better_sqlite3.node` EBUSY |
+
+**Phase 1 verification (`npm run verify:phase 1`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 1
+
+
+🔍 autoMeetic verification — 2026-05-27 00:44
+
+  Plan: docs/superpowers/plans/2026-05-27-i18n-system-language.md
+  Verifying Phase 1
+
+  Expected files (referenced in Phase 1 body):
+    ✅ src/renderer/i18n/types.ts
+    ✅ src/main/ipc.ts
+    ✅ src/preload/index.ts
+    ✅ src/preload/types.ts
+    ✅ src/renderer/i18n/index.ts
+    ✅ src/renderer/i18n/detectSystemLanguage.ts
+    ✅ src/renderer/i18n/useAppLanguage.ts
+    ✅ src/test/i18n-detect.test.ts
+    ✅ src/renderer/i18n/LanguagePicker.tsx
+    ✅ src/renderer/i18n/format.ts
+    ✅ src/renderer/main.tsx
+    ✅ src/renderer/App.css
+    ✅ src/test/i18n-language-picker.test.ts
+    ✅ src/test/__i18n-shim__.ts
+    ✅ src/test/i18n-locales-parity.test.ts
+    ✅ src/renderer/App.tsx
+
+Checks:
+  ✅ typecheck (0 errors, 1.0s)
+  ✅ lint (0 errors, 11.2s)
+  ✅ vitest (318 / 318 passed, 8.3s)
+
+Git context (last 5 commits):
+  75f8886 test(i18n): cimode shim + locale parity check
+  4ccda99 feat(i18n): LanguagePicker + Intl formatters + boot wiring
+  384dc70 feat(i18n): init, OS locale IPC, hook, detection + persistence
+  76bf84e feat(i18n): scaffold language types + locale file skeletons
+  ac687e2 chore(i18n): add i18next + react-i18next deps
+
+VERDICT: ✅ Phase 1 verified
+```
+
+**Phase 2 verification (`npm run verify:phase 2`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 2
+
+
+🔍 autoMeetic verification — 2026-05-27 00:50
+
+  Plan: docs/superpowers/plans/2026-05-27-i18n-system-language.md
+  Verifying Phase 2
+
+  Expected files (referenced in Phase 2 body):
+    ✅ src/renderer/App.tsx
+    ✅ src/renderer/shell/SourceBar.tsx
+    ✅ src/renderer/shell/TranscriptColumns.tsx
+    ✅ src/renderer/shell/RightShelf.tsx
+    ✅ src/renderer/i18n/LanguagePicker.tsx
+
+Checks:
+  ✅ typecheck (0 errors, 1.0s)
+  ✅ lint (0 errors, 10.9s)
+  ✅ vitest (318 / 318 passed, 8.5s)
+
+Git context (last 5 commits):
+  093cec6 feat(i18n): extract shell + transcript + overlay + feed strings (en/ko)
+  be9ecce feat(i18n): mount LanguagePicker in header
+  75f8886 test(i18n): cimode shim + locale parity check
+  4ccda99 feat(i18n): LanguagePicker + Intl formatters + boot wiring
+  384dc70 feat(i18n): init, OS locale IPC, hook, detection + persistence
+
+VERDICT: ✅ Phase 2 verified
+```
+
+**Phase 3 verification (`npm run verify:phase 3`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 3
+
+
+🔍 autoMeetic verification — 2026-05-27 00:58
+
+  Plan: docs/superpowers/plans/2026-05-27-i18n-system-language.md
+  Verifying Phase 3
+
+  Expected files (referenced in Phase 3 body):
+    ✅ src/renderer/library/MemoryLibraryPanel.tsx
+    ✅ src/renderer/library/MeetingsTab.tsx
+    ✅ src/renderer/ask/AskTab.tsx
+    ✅ src/renderer/ask/AskInput.tsx
+    ✅ src/renderer/ask/ChatMessageView.tsx
+    ✅ src/renderer/ask/SourcesList.tsx
+    ✅ src/renderer/ask/DeepAskToggle.tsx
+    ✅ src/renderer/ask/DeepAskProgressCard.tsx
+    ✅ src/renderer/ask/AnswerFooter.tsx
+    ✅ src/renderer/answer-assist/AnswerAssistCard.tsx
+    ✅ src/renderer/actions/ActionItemsPanel.tsx
+
+Checks:
+  ✅ typecheck (0 errors, 1.0s)
+  ✅ lint (0 errors, 11.5s)
+  ✅ vitest (318 / 318 passed, 8.5s)
+
+Git context (last 5 commits):
+  2f961cd feat(i18n): extract library + ask + deep-ask + answer-assist + actions strings
+  093cec6 feat(i18n): extract shell + transcript + overlay + feed strings (en/ko)
+  be9ecce feat(i18n): mount LanguagePicker in header
+  75f8886 test(i18n): cimode shim + locale parity check
+  4ccda99 feat(i18n): LanguagePicker + Intl formatters + boot wiring
+
+VERDICT: ✅ Phase 3 verified
+```
+
+**Phase 4 verification (`npm run verify:phase 4`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 4
+
+
+🔍 autoMeetic verification — 2026-05-27 01:05
+
+  Plan: docs/superpowers/plans/2026-05-27-i18n-system-language.md
+  Verifying Phase 4
+
+  Expected files (referenced in Phase 4 body):
+    ✅ src/renderer/glossary/GlossaryPanel.tsx
+    ✅ src/renderer/glossary/GlossaryRowEditor.tsx
+    ✅ src/renderer/glossary/SuggestionRow.tsx
+    ✅ src/renderer/glossary/VariantCandidatePicker.tsx
+    ✅ src/renderer/glossary/GlossarySaveSuccessCard.tsx
+    ✅ src/renderer/glossary/GlossaryMark.tsx
+
+Checks:
+  ✅ typecheck (0 errors, 1.0s)
+  ✅ lint (0 errors, 11.3s)
+  ✅ vitest (318 / 318 passed, 8.4s)
+
+Git context (last 5 commits):
+  16164f0 feat(i18n): extract glossary strings (panel + editor + suggestions + variants + success)
+  2f961cd feat(i18n): extract library + ask + deep-ask + answer-assist + actions strings
+  093cec6 feat(i18n): extract shell + transcript + overlay + feed strings (en/ko)
+  be9ecce feat(i18n): mount LanguagePicker in header
+  75f8886 test(i18n): cimode shim + locale parity check
+
+VERDICT: ✅ Phase 4 verified
+```
+
+**Phase 5 verification (`npm run verify:phase 5`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 5
+
+
+🔍 autoMeetic verification — 2026-05-27 01:10
+
+  Plan: docs/superpowers/plans/2026-05-27-i18n-system-language.md
+  Verifying Phase 5
+
+  Expected files (referenced in Phase 5 body):
+    ✅ src/renderer/whiteboard/WhiteboardModal.tsx
+    ✅ src/renderer/whiteboard/WhiteboardLabelLangSelect.tsx
+    ✅ src/renderer/whiteboard/ExcalidrawCanvas.tsx
+    ✅ src/renderer/ask/AnswerFooter.tsx
+    ✅ src/renderer/ask/ChatMessageView.tsx
+    ✅ src/renderer/ask/SourcesList.tsx
+    ✅ src/renderer/glossary/SuggestionRow.tsx
+    ✅ src/renderer/library/MeetingsTab.tsx
+    ✅ src/renderer/i18n/format.ts
+
+Checks:
+  ✅ typecheck (0 errors, 1.0s)
+  ✅ lint (0 errors, 11.2s)
+  ✅ vitest (318 / 318 passed, 8.5s)
+
+Git context (last 5 commits):
+  7069897 feat(i18n): extract whiteboard strings + roll out Intl formatters
+  16164f0 feat(i18n): extract glossary strings (panel + editor + suggestions + variants + success)
+  2f961cd feat(i18n): extract library + ask + deep-ask + answer-assist + actions strings
+  093cec6 feat(i18n): extract shell + transcript + overlay + feed strings (en/ko)
+  be9ecce feat(i18n): mount LanguagePicker in header
+
+VERDICT: ✅ Phase 5 verified
+```
+
+**Phase 6 verification (`npm run verify:phase 6`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 6
+
+
+🔍 autoMeetic verification — 2026-05-27 01:14
+
+  Plan: docs/superpowers/plans/2026-05-27-i18n-system-language.md
+  Verifying Phase 6
+
+  ⚠️  Could not extract expected files for Phase 6 from plan. Continuing with general checks only.
+
+Checks:
+  ✅ typecheck (0 errors, 1.0s)
+  ✅ lint (0 errors, 11.4s)
+  ✅ vitest (318 / 318 passed, 8.4s)
+
+Git context (last 5 commits):
+  39f1186 feat(i18n): fill Japanese + Chinese translations (LLM-assisted, native review pending v1.1)
+  7069897 feat(i18n): extract whiteboard strings + roll out Intl formatters
+  16164f0 feat(i18n): extract glossary strings (panel + editor + suggestions + variants + success)
+  2f961cd feat(i18n): extract library + ask + deep-ask + answer-assist + actions strings
+  093cec6 feat(i18n): extract shell + transcript + overlay + feed strings (en/ko)
+
+VERDICT: ✅ Phase 6 verified
+```
+
+**Final general verification (`npm run verify`):**
+
+```text
+> automeetic@0.0.0 verify
+> node scripts/verify.mjs
+
+
+🔍 autoMeetic verification — 2026-05-27 01:15
+
+Checks:
+  ✅ typecheck (0 errors, 1.0s)
+  ✅ lint (0 errors, 11.4s)
+  ✅ vitest (318 / 318 passed, 8.1s)
+
+Git context (last 5 commits):
+  39f1186 feat(i18n): fill Japanese + Chinese translations (LLM-assisted, native review pending v1.1)
+  7069897 feat(i18n): extract whiteboard strings + roll out Intl formatters
+  16164f0 feat(i18n): extract glossary strings (panel + editor + suggestions + variants + success)
+  2f961cd feat(i18n): extract library + ask + deep-ask + answer-assist + actions strings
+  093cec6 feat(i18n): extract shell + transcript + overlay + feed strings (en/ko)
+
+VERDICT: ✅ Verified clean
+```
+
+**Phase 6 additional checks:**
+
+```text
+npm run build
+✓ built in 4.55s
+
+npm test
+prebuild-install warn install EBUSY: resource busy or locked, open 'C:\Users\taeji\OneDrive\바탕 화면\ai-projects\autoMeetic\node_modules\better-sqlite3\build\Release\better_sqlite3.node'
+
+npx vitest run
+Test Files  52 passed (52)
+Tests       318 passed (318)
+Duration    6.10s
+```
+
+ja/zh translations are LLM-assisted and pending native review in v1.1.
+
+## ✅ Completed stream — Deep Ask Multi-Agent Research Mode
+
+> Implemented and pushed to `origin/master`. See:
 >
 > - **Spec:** `docs/superpowers/specs/2026-05-26-deep-ask-multi-agent-design.md`
 > - **Plan:** `docs/superpowers/plans/2026-05-26-deep-ask-multi-agent.md`
 >
-> Start at Phase 1 (Task 1.1). TDD pattern through Phases 1–4; Phase 5 is renderer UI; Phase 6 is wrap-up.
+> Automated regression passed. Single-shot Ask path unchanged. Manual smoke deferred to user (try Deep toggle on a multi-angle question against real meeting DB).
 
-## Active stream state — Deep Ask Multi-Agent
+## Completed stream state — Deep Ask Multi-Agent
 
 | Phase | Status | Commits | Tests passing |
 |---|---|---|---|
