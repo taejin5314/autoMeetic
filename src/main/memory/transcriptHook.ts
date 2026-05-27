@@ -11,7 +11,10 @@ export interface TurnPayload {
   speakerLabel: string
 }
 
-type Repo = Pick<MemoryRepository, 'insertSegment' | 'incrementSegmentCount' | 'nextSeq' | 'updateTranslation'>
+type Repo = Pick<
+  MemoryRepository,
+  'insertSegment' | 'incrementSegmentCount' | 'nextSeq' | 'updateTranslation' | 'updateSourceText'
+>
 type Queue = Pick<EmbeddingQueue, 'enqueue'>
 
 let repo: Repo | null = null
@@ -53,4 +56,9 @@ export function notifyTurnFinalized(turn: TurnPayload): void {
 export function notifyTranslation(turnId: string, translation: string): void {
   if (!repo) return
   repo.updateTranslation(turnId, translation)
+}
+
+export function notifySourceTextUpdate(id: string, text: string): void {
+  if (!repo) return
+  repo.updateSourceText(id, text)
 }

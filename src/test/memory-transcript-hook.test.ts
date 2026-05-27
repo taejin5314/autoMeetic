@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   attachTranscriptHook,
   detachTranscriptHook,
+  notifySourceTextUpdate,
   notifyTranslation,
   notifyTurnFinalized,
 } from '../main/memory/transcriptHook'
@@ -26,6 +27,10 @@ describe('transcriptHook (default state)', () => {
   it('notifyTranslation is a silent no-op when not attached', () => {
     expect(() => notifyTranslation('turn_1', 'translated')).not.toThrow()
   })
+
+  it('notifySourceTextUpdate is a silent no-op when not attached', () => {
+    expect(() => notifySourceTextUpdate('turn_1', 'what is this?')).not.toThrow()
+  })
 })
 
 describe('transcriptHook (attached)', () => {
@@ -37,6 +42,7 @@ describe('transcriptHook (attached)', () => {
       incrementSegmentCount: vi.fn(),
       nextSeq: vi.fn(() => 7),
       updateTranslation: vi.fn(),
+      updateSourceText: vi.fn(),
     }
     const queue = { enqueue: vi.fn() }
     attachTranscriptHook(repo as never, queue as never, () => 'mtg_x')
@@ -68,6 +74,7 @@ describe('transcriptHook (attached)', () => {
       incrementSegmentCount: vi.fn(),
       nextSeq: vi.fn(() => 0),
       updateTranslation: vi.fn(),
+      updateSourceText: vi.fn(),
     }
     const queue = { enqueue: vi.fn() }
     attachTranscriptHook(repo as never, queue as never, () => null)
@@ -90,11 +97,26 @@ describe('transcriptHook (attached)', () => {
       incrementSegmentCount: vi.fn(),
       nextSeq: vi.fn(() => 0),
       updateTranslation: vi.fn(),
+      updateSourceText: vi.fn(),
     }
     const queue = { enqueue: vi.fn() }
     attachTranscriptHook(repo as never, queue as never, () => 'mtg_x')
     notifyTranslation('turn_1', 'translated')
     expect(repo.updateTranslation).toHaveBeenCalledWith('turn_1', 'translated')
+  })
+
+  it('notifySourceTextUpdate routes to repo.updateSourceText', () => {
+    const repo = {
+      insertSegment: vi.fn(),
+      incrementSegmentCount: vi.fn(),
+      nextSeq: vi.fn(() => 0),
+      updateTranslation: vi.fn(),
+      updateSourceText: vi.fn(),
+    }
+    const queue = { enqueue: vi.fn() }
+    attachTranscriptHook(repo as never, queue as never, () => 'mtg_x')
+    notifySourceTextUpdate('turn_1', 'what is this?')
+    expect(repo.updateSourceText).toHaveBeenCalledWith('turn_1', 'what is this?')
   })
 
   it('after detach, notifies are no-ops again', () => {
@@ -103,6 +125,7 @@ describe('transcriptHook (attached)', () => {
       incrementSegmentCount: vi.fn(),
       nextSeq: vi.fn(() => 0),
       updateTranslation: vi.fn(),
+      updateSourceText: vi.fn(),
     }
     const queue = { enqueue: vi.fn() }
     attachTranscriptHook(repo as never, queue as never, () => 'mtg_x')
@@ -119,5 +142,6 @@ describe('transcriptHook (attached)', () => {
     notifyTranslation('turn_1', 'y')
     expect(repo.insertSegment).not.toHaveBeenCalled()
     expect(repo.updateTranslation).not.toHaveBeenCalled()
+    expect(repo.updateSourceText).not.toHaveBeenCalled()
   })
 })

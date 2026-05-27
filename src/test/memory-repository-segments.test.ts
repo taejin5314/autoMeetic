@@ -76,4 +76,22 @@ describe('MemoryRepository segments', () => {
     expect(() => repo.updateTranslation('does-not-exist', 'x')).not.toThrow()
     repo.close()
   })
+
+  it('updateSourceText updates a segment in place', () => {
+    const { repo } = makeRepoWithMeeting()
+    repo.insertSegment(
+      sampleSegment({
+        id: 'a',
+        sourceText: 'what is this',
+        translatedText: 'translated',
+      })
+    )
+
+    repo.updateSourceText('a', 'what is this?')
+
+    const [seg] = repo.getSegments('mtg_1')
+    expect(seg.sourceText).toBe('what is this?')
+    expect(seg.translatedText).toBe('translated')
+    repo.close()
+  })
 })

@@ -185,6 +185,10 @@ export class MemoryRepository {
     this.db.prepare('UPDATE segments SET translated_text = ? WHERE id = ?').run(translated, segmentId)
   }
 
+  updateSourceText(id: string, text: string): void {
+    this.db.prepare('UPDATE segments SET source_text = ? WHERE id = ?').run(text, id)
+  }
+
   upsertSummary(s: Summary): void {
     this.db
       .prepare(
