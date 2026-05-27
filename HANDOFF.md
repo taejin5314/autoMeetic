@@ -16,7 +16,7 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 | Phase | Status | Commits | Tests passing |
 |---|---|---|---|
 | 1 — Classifier + soft-grace finalization (TDD) | ✅ COMPLETE | `6ed30ad` → `d235e90` (2 commits) | 328/328 (`npm run verify:phase 1`); typecheck/lint clean |
-| 2 — Standalone-punctuation merge-back + repo updateSourceText (TDD) | ⏳ PENDING | — | — |
+| 2 — Standalone-punctuation merge-back + repo updateSourceText (TDD) | ✅ COMPLETE | `c2d9a12` → `7777c44` (2 commits) | 335/335 (`npm run verify:phase 2`); typecheck/lint clean |
 | 3 — Regression + handoff + push | ⏳ PENDING | — | — |
 
 **Phase 1 verification (`npm run verify:phase 1`):**
@@ -48,6 +48,40 @@ Git context (last 5 commits):
   7069897 feat(i18n): extract whiteboard strings + roll out Intl formatters
 
 VERDICT: ✅ Phase 1 verified
+```
+
+**Phase 2 verification (`npm run verify:phase 2`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 2
+
+
+🔍 autoMeetic verification — 2026-05-27 19:10
+
+  Plan: docs/superpowers/plans/2026-05-27-stt-sentence-boundary.md
+  Verifying Phase 2
+
+  Expected files (referenced in Phase 2 body):
+    ✅ src/main/memory/repository.ts
+    ✅ src/main/memory/transcriptHook.ts
+    ✅ src/test/memory-postprocessor-regression.test.ts
+    ✅ src/main/transcriptPostProcessor.ts
+    ✅ src/test/stt-sentence-boundary.test.ts
+
+Checks:
+  ✅ typecheck (0 errors, 1.0s)
+  ✅ lint (0 errors, 11.2s)
+  ✅ vitest (335 / 335 passed, 9.0s)
+
+Git context (last 5 commits):
+  7777c44 feat(stt): merge standalone trailing punctuation into previous turn
+  c2d9a12 feat(stt): add updateSourceText repo method + notifySourceTextUpdate hook
+  0ea5cc6 docs(stt): mark phase 1 verified
+  d235e90 feat(stt): soft endings wait a grace window before finalizing
+  6ed30ad feat(stt): add 3-state classifySentenceEnd (hard/soft/none)
+
+VERDICT: ✅ Phase 2 verified
 ```
 
 ## ✅ Completed stream — App i18n (System Language Selection)
