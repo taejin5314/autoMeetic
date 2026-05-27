@@ -378,6 +378,21 @@ body,
   color: #1a1d29;
 }
 
+.language-picker {
+  font-size: 12px;
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--p-border);
+  border-radius: 6px;
+  background: var(--p-bg-card);
+  color: var(--p-text);
+  cursor: pointer;
+}
+
+.language-picker:focus {
+  outline: 2px solid var(--p-primary);
+}
+
 [data-theme='dark'] .v4p-lang-select,
 [data-theme='dark'] .v4p-lang-select option {
   background-color: #1a1a1d;
