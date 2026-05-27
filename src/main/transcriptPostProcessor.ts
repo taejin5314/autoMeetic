@@ -19,6 +19,7 @@ const STT_LIVE_SENTENCE_SHORT_FINALIZE_MS = Number(
   process.env.STT_LIVE_SENTENCE_SHORT_FINALIZE_MS ?? 5200
 )
 const STT_LIVE_SENTENCE_MAX_CHARS = Number(process.env.STT_LIVE_SENTENCE_MAX_CHARS ?? 220)
+const STT_LIVE_SOFT_END_GRACE_MS = Number(process.env.STT_LIVE_SOFT_END_GRACE_MS ?? 700)
 const STT_TRANSLATION_DEBOUNCE_MS = Number(process.env.STT_TRANSLATION_DEBOUNCE_MS ?? 650)
 const OPENAI_CHAT_COMPLETIONS_URL = 'https://api.openai.com/v1/chat/completions'
 const SENTENCE_END_RE = /[.!?。？！]\s*$/
@@ -206,12 +207,13 @@ function emitSourceFragment(text: string, hints: LanguageHints): void {
   const active = activeSourceTurn
   if (!active) return
 
-  if (shouldFinalizeSourceTurn(active.text)) {
+  const ending = classifySentenceEnd(active.text)
+  if (active.text.length >= STT_LIVE_SENTENCE_MAX_CHARS || ending === 'hard') {
     finalizeActiveSourceTurn({ translateImmediately: true })
     return
   }
 
-  scheduleSourceFinalization(active)
+  scheduleSourceFinalization(active, ending === 'soft' ? STT_LIVE_SOFT_END_GRACE_MS : undefined)
   scheduleTranslation(active, STT_TRANSLATION_DEBOUNCE_MS)
 }
 
@@ -284,12 +286,13 @@ function clearActiveTimers(active: ActiveSourceTurn): void {
   }
 }
 
-function scheduleSourceFinalization(active: ActiveSourceTurn): void {
+function scheduleSourceFinalization(active: ActiveSourceTurn, overrideDelayMs?: number): void {
   if (active.finalizeTimer) clearTimeout(active.finalizeTimer)
+  const delay = overrideDelayMs ?? sourceFinalizeDelayMs(active.text)
   active.finalizeTimer = setTimeout(() => {
     if (activeSourceTurn?.id !== active.id) return
     finalizeActiveSourceTurn({ translateImmediately: true })
-  }, sourceFinalizeDelayMs(active.text))
+  }, delay)
 }
 
 function scheduleTranslation(active: ActiveSourceTurn, delayMs: number): void {
@@ -307,10 +310,6 @@ function scheduleTranslation(active: ActiveSourceTurn, delayMs: number): void {
     translationQueue.push({ id: active.id, text: active.text, hints: active.hints, version })
     void drainTranslationQueue()
   }, delayMs)
-}
-
-function shouldFinalizeSourceTurn(text: string): boolean {
-  return text.length >= STT_LIVE_SENTENCE_MAX_CHARS || SENTENCE_END_RE.test(text)
 }
 
 function sourceFinalizeDelayMs(text: string): number {
@@ -333,6 +332,7 @@ function joinSourceFragments(previous: string, next: string): string {
   const trimmedNext = next.trim()
   if (!trimmedPrevious) return trimmedNext
   if (!trimmedNext) return trimmedPrevious
+  if (/\d\.$/.test(trimmedPrevious) && /^\d/.test(trimmedNext)) return `${trimmedPrevious}${trimmedNext}`
   if (NO_SPACE_BEFORE_RE.test(trimmedNext)) return `${trimmedPrevious}${trimmedNext}`
   return `${trimmedPrevious} ${trimmedNext}`
 }

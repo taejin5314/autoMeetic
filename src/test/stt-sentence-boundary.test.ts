@@ -1,5 +1,48 @@
-import { describe, expect, it } from 'vitest'
-import { classifySentenceEnd } from '../main/transcriptPostProcessor'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  classifySentenceEnd,
+  enqueueRoughTranscript,
+  init,
+  resetTranscriptPostProcessor,
+} from '../main/transcriptPostProcessor'
+
+vi.mock('../main/actionItemService', () => ({
+  enqueueTranscript: vi.fn(),
+}))
+
+vi.mock('../main/whiteboardService', () => ({
+  enqueueTranscript: vi.fn(),
+}))
+
+type SentMessage = {
+  channel: string
+  payload: { turns?: Array<{ id: string; text: string }>; id?: string; text?: string }
+}
+
+function initCapture(): SentMessage[] {
+  const messages: SentMessage[] = []
+  init({
+    webContents: {
+      send: (channel: string, payload: SentMessage['payload']) => {
+        messages.push({ channel, payload })
+      },
+    },
+  } as never)
+  return messages
+}
+
+function processedTexts(messages: SentMessage[]): string[] {
+  return messages
+    .filter((message) => message.channel === 'stt:processed')
+    .flatMap((message) => message.payload.turns?.map((turn) => turn.text) ?? [])
+}
+
+function sourcePatchTexts(messages: SentMessage[]): string[] {
+  return messages
+    .filter((message) => message.channel === 'stt:source-patch')
+    .map((message) => message.payload.text)
+    .filter((text): text is string => typeof text === 'string')
+}
 
 describe('classifySentenceEnd', () => {
   it('returns none when no terminal punctuation', () => {
@@ -49,5 +92,42 @@ describe('classifySentenceEnd', () => {
   it('ignores trailing whitespace', () => {
     expect(classifySentenceEnd('Opus 4.   ')).toBe('soft')
     expect(classifySentenceEnd('done.  ')).toBe('hard')
+  })
+})
+
+describe('soft-grace finalization', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    resetTranscriptPostProcessor()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    resetTranscriptPostProcessor()
+  })
+
+  it('does not split a decimal: "Opus 4" + "." + "7" stays one turn', () => {
+    const messages = initCapture()
+    const hints = { sourceLanguageHint: 'en', targetLanguage: 'off' as const }
+
+    enqueueRoughTranscript('we use Opus 4', hints)
+    enqueueRoughTranscript('.', hints)
+    vi.advanceTimersByTime(300)
+    enqueueRoughTranscript('7 in production.', hints)
+    vi.advanceTimersByTime(700)
+
+    expect(processedTexts(messages)).toEqual(['we use Opus 4'])
+    expect(sourcePatchTexts(messages)).toContain('we use Opus 4.7 in production.')
+  })
+
+  it('finalizes a real numeric sentence after the grace window', () => {
+    const messages = initCapture()
+    const hints = { sourceLanguageHint: 'en', targetLanguage: 'off' as const }
+
+    enqueueRoughTranscript('I scored 95.', hints)
+
+    expect(sourcePatchTexts(messages)).toEqual([])
+    vi.advanceTimersByTime(750)
+    expect(sourcePatchTexts(messages)).toEqual(['I scored 95.'])
   })
 })
