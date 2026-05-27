@@ -29,6 +29,7 @@ import './App.css'
 import { ElectronSttClient } from './electronSttClient'
 import { useFeedTypewriter } from './feed/useFeedTypewriter'
 import { GlossaryPanel } from './glossary/GlossaryPanel'
+import { LanguagePicker } from './i18n/LanguagePicker'
 import { MemoryLibraryPanel } from './library/MemoryLibraryPanel'
 import { CaptionOverlay } from './overlay/CaptionOverlay'
 import { useCaptionStore } from './overlay/useCaptionStore'
@@ -841,6 +842,7 @@ function App() {
         </div>
 
         <div className="v4p-head-right">
+          <LanguagePicker />
           <ThemeToggle theme={theme} onSelect={setTheme} />
           <div className="v4p-lang">
             <select
