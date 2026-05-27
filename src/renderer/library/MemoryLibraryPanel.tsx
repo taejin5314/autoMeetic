@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { AskTab } from '../ask/AskTab'
 import type { ChatSource } from '../ask/types'
 import { MeetingsTab } from './MeetingsTab'
@@ -16,6 +17,7 @@ interface MemoryLibraryPanelProps {
 type Tab = 'meetings' | 'ask'
 
 export function MemoryLibraryPanel({ open, onClose, onSendAskToMindMap }: MemoryLibraryPanelProps) {
+  const { t } = useTranslation()
   const [tab, setTab] = useState<Tab>('meetings')
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null)
   const [highlightSegmentId, setHighlightSegmentId] = useState<string | null>(null)
@@ -46,7 +48,7 @@ export function MemoryLibraryPanel({ open, onClose, onSendAskToMindMap }: Memory
       className="memory-panel-backdrop"
       role="dialog"
       aria-modal="true"
-      aria-label="Meeting Library"
+      aria-label={t('library.panel.dialogAria')}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
@@ -54,15 +56,15 @@ export function MemoryLibraryPanel({ open, onClose, onSendAskToMindMap }: Memory
       <section className="memory-panel">
         <header className="memory-panel-head">
           <div>
-            <span className="memory-kicker">Library</span>
-            <h2>Meeting Memory</h2>
+            <span className="memory-kicker">{t('library.panel.kicker')}</span>
+            <h2>{t('library.panel.title')}</h2>
           </div>
           <button
             className="memory-icon-btn"
             type="button"
             onClick={onClose}
-            title="Close"
-            aria-label="Close"
+            title={t('library.panel.close')}
+            aria-label={t('library.panel.close')}
           >
             <svg
               width="14"
@@ -78,7 +80,7 @@ export function MemoryLibraryPanel({ open, onClose, onSendAskToMindMap }: Memory
           </button>
         </header>
 
-        <div className="memory-library-tabs" role="tablist" aria-label="Meeting memory sections">
+        <div className="memory-library-tabs" role="tablist" aria-label={t('library.panel.tabsAria')}>
           <button
             type="button"
             role="tab"
@@ -86,7 +88,8 @@ export function MemoryLibraryPanel({ open, onClose, onSendAskToMindMap }: Memory
             className={`memory-library-tab ${tab === 'meetings' ? 'on' : ''}`}
             onClick={() => setTab('meetings')}
           >
-            Meetings{meetingCount > 0 ? ` (${meetingCount})` : ''}
+            {t('library.panel.meetingsTab')}
+            {meetingCount > 0 ? ` (${meetingCount})` : ''}
           </button>
           <button
             type="button"
@@ -95,7 +98,7 @@ export function MemoryLibraryPanel({ open, onClose, onSendAskToMindMap }: Memory
             className={`memory-library-tab ${tab === 'ask' ? 'on' : ''}`}
             onClick={() => setTab('ask')}
           >
-            Ask
+            {t('library.panel.askTab')}
           </button>
         </div>
 

@@ -1,4 +1,5 @@
 import { parseAnswerWithCitations } from './parseAnswerWithCitations'
+import { useTranslation } from 'react-i18next'
 import { SourcesList } from './SourcesList'
 import type { ChatMessage, ChatSource, DeepAskProgressState } from './types'
 import { canSendToMindMap } from './canSendToMindMap'
@@ -29,10 +30,13 @@ export function ChatMessageView({
   mindMapError = null,
   deepProgress = null,
 }: Props) {
+  const { t } = useTranslation()
   if (message.role === 'user') {
     return (
       <div className="ask-msg ask-msg-user">
-        <div className="ask-msg-role amw-mono">You | {formatTime(message.createdAt)}</div>
+        <div className="ask-msg-role amw-mono">
+          {t('ask.message.you')} | {formatTime(message.createdAt)}
+        </div>
         <div className="ask-msg-content">{message.content}</div>
       </div>
     )
@@ -42,7 +46,9 @@ export function ChatMessageView({
 
   return (
     <div className="ask-msg ask-msg-assistant">
-      <div className="ask-msg-role amw-mono">Assistant | {formatTime(message.createdAt)}</div>
+      <div className="ask-msg-role amw-mono">
+        {t('ask.message.assistant')} | {formatTime(message.createdAt)}
+      </div>
       {message.error ? (
         <div className="ask-msg-error">{message.error}</div>
       ) : (
@@ -94,7 +100,7 @@ export function ChatMessageView({
                 onClick={() => onSendToMindMap(message)}
                 disabled={mindMapPending}
               >
-                {mindMapPending ? 'Creating mind map...' : 'Send to Mind Map'}
+                {mindMapPending ? t('ask.message.creatingMindMap') : t('ask.message.sendToMindMap')}
               </button>
               {mindMapError && <span className="ask-mindmap-error">{mindMapError}</span>}
             </div>

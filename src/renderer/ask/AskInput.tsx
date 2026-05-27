@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { DeepAskToggle } from './DeepAskToggle'
 
 interface Props {
@@ -16,6 +17,7 @@ export function AskInput({
   deepEnabled,
   onDeepEnabledChange,
 }: Props) {
+  const { t } = useTranslation()
   const [value, setValue] = useState('')
 
   const submit = () => {
@@ -43,7 +45,7 @@ export function AskInput({
             submit()
           }
         }}
-        placeholder={isStreaming ? 'Streaming...' : 'Ask anything about your past meetings...'}
+        placeholder={isStreaming ? t('ask.input.streaming') : t('ask.input.placeholder')}
         disabled={isStreaming}
         rows={2}
         maxLength={2000}
@@ -55,11 +57,11 @@ export function AskInput({
       />
       {isStreaming ? (
         <button type="button" className="ask-input-stop" onClick={onStop}>
-          Stop
+          {t('ask.input.stop')}
         </button>
       ) : (
         <button type="submit" className="ask-input-send" disabled={value.trim().length === 0}>
-          Send
+          {t('ask.input.send')}
         </button>
       )}
     </form>

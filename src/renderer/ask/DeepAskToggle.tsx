@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+
 interface Props {
   enabled: boolean
   onChange: (next: boolean) => void
@@ -5,15 +7,16 @@ interface Props {
 }
 
 export function DeepAskToggle({ enabled, onChange, disabled }: Props) {
+  const { t } = useTranslation()
   return (
     <button
       type="button"
       className={`deep-ask-toggle ${enabled ? 'deep-ask-toggle-on' : 'deep-ask-toggle-off'}`}
       onClick={() => onChange(!enabled)}
       disabled={disabled}
-      title="Deep research - slower but explores multiple angles (~10x tokens)"
+      title={t('deepAsk.toggle.title')}
     >
-      ⚡ Deep
+      {t('deepAsk.toggle.label')}
     </button>
   )
 }

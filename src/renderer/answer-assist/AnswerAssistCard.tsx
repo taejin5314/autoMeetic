@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { AnswerAssistStatus } from './types'
 
 interface AnswerAssistCardProps {
@@ -22,6 +23,7 @@ export function AnswerAssistCard({
   onDismiss,
   onCopy,
 }: AnswerAssistCardProps) {
+  const { t } = useTranslation()
   const cardRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(
     null
@@ -76,7 +78,7 @@ export function AnswerAssistCard({
   if (status === 'idle') return null
 
   const posStyle = pos ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' } : {}
-  const targetLabel = targetLang === 'off' ? 'Translation' : targetLang.toUpperCase()
+  const targetLabel = targetLang === 'off' ? t('answerAssist.translation') : targetLang.toUpperCase()
 
   return (
     <div
@@ -88,12 +90,12 @@ export function AnswerAssistCard({
       onPointerUp={onPointerUp}
     >
       <div className="answer-assist-header">
-        <span className="answer-assist-title">Answer Assist</span>
+        <span className="answer-assist-title">{t('answerAssist.title')}</span>
         <button
           type="button"
           className="answer-assist-close"
           onClick={onDismiss}
-          aria-label="Close"
+          aria-label={t('answerAssist.close')}
         >
           x
         </button>
@@ -101,7 +103,7 @@ export function AnswerAssistCard({
 
       <div className="answer-assist-body">
         {status === 'loading' && (
-          <div className="answer-assist-loading">Preparing answer...</div>
+          <div className="answer-assist-loading">{t('answerAssist.preparing')}</div>
         )}
 
         {status === 'searching' && searchQuery && (
@@ -109,7 +111,7 @@ export function AnswerAssistCard({
             <span className="answer-assist-search-icon" aria-hidden="true">
               *
             </span>
-            Searching "{searchQuery}"...
+            {t('answerAssist.searching', { query: searchQuery })}
           </div>
         )}
 
@@ -143,7 +145,7 @@ export function AnswerAssistCard({
             className="answer-assist-copy-btn"
             onClick={() => void handleCopy('source')}
           >
-            {copiedSection === 'source' ? 'Copied!' : 'Copy Source'}
+            {copiedSection === 'source' ? t('answerAssist.copied') : t('answerAssist.copySource')}
           </button>
           {answerKo && (
             <button
@@ -151,7 +153,9 @@ export function AnswerAssistCard({
               className="answer-assist-copy-btn primary"
               onClick={() => void handleCopy('ko')}
             >
-              {copiedSection === 'ko' ? 'Copied!' : `Copy ${targetLabel}`}
+              {copiedSection === 'ko'
+                ? t('answerAssist.copied')
+                : t('answerAssist.copyTarget', { target: targetLabel })}
             </button>
           )}
         </div>

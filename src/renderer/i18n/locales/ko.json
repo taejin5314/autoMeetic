@@ -137,5 +137,126 @@
       "thinking": "생각 중...",
       "ask": "질문"
     }
+  },
+  "library": {
+    "panel": {
+      "dialogAria": "미팅 라이브러리",
+      "kicker": "라이브러리",
+      "title": "미팅 메모리",
+      "close": "닫기",
+      "tabsAria": "미팅 메모리 섹션",
+      "meetingsTab": "미팅",
+      "askTab": "질문"
+    }
+  },
+  "meetings": {
+    "desktopOnly": "메모리는 데스크톱 앱에서 사용할 수 있습니다.",
+    "searchPlaceholder": "검색",
+    "searchFailed": "검색 실패: {{message}}",
+    "hitTitle": "제목 · {{pct}}",
+    "hitSummary": "요약 · {{pct}}",
+    "hitSegment": "#{{seq}} · {{pct}}",
+    "noMatches": "일치하는 결과 없음",
+    "turns": "턴",
+    "noMeetings": "아직 미팅이 없습니다",
+    "loading": "불러오는 중...",
+    "selectMeeting": "미팅을 선택하세요",
+    "rename": "이름 변경",
+    "renameAria": "미팅 이름 변경",
+    "regenerateSummary": "요약 다시 생성",
+    "summarize": "요약",
+    "confirmDeleteTitle": "다시 클릭하면 확인됩니다",
+    "deleteTitle": "미팅 삭제",
+    "confirmDelete": "삭제 확인",
+    "delete": "삭제",
+    "cancel": "취소",
+    "export": "내보내기",
+    "exportLanguageAria": "내보내기 언어",
+    "exportOriginal": "원문",
+    "exportTranslation": "번역",
+    "exportBoth": "둘 다",
+    "exportTitle": "미팅 메모리 내보내기",
+    "exported": "내보냈습니다",
+    "summary": "요약",
+    "summaryPending": "요약 대기 중",
+    "actionItems": "액션 아이템"
+  },
+  "ask": {
+    "tab": {
+      "title": "미팅에 질문하기",
+      "meetingCount": "{{count}}개 미팅",
+      "newChat": "새 채팅"
+    },
+    "empty": {
+      "title": "지난 미팅에 대해 무엇이든 물어보세요",
+      "noMeetings": "아직 미팅이 없습니다. 미팅을 시작해 검색 가능한 메모리를 쌓아보세요.",
+      "exampleOkr": "\"Q4 OKR 결론이 뭐였지?\"",
+      "examplePushback": "\"마이그레이션 일정에 누가 이견을 냈지?\"",
+      "examplePricing": "\"가격 정책 관련 결정을 모두 요약해줘\""
+    },
+    "input": {
+      "streaming": "스트리밍 중...",
+      "placeholder": "지난 미팅에 대해 무엇이든 물어보세요...",
+      "stop": "중지",
+      "send": "전송"
+    },
+    "message": {
+      "you": "나",
+      "assistant": "어시스턴트",
+      "creatingMindMap": "마인드맵 생성 중...",
+      "sendToMindMap": "마인드맵으로 보내기"
+    },
+    "sources": {
+      "title": "출처"
+    }
+  },
+  "deepAsk": {
+    "toggle": {
+      "title": "Deep research - 더 느리지만 여러 관점을 탐색합니다 (~10x 토큰)",
+      "label": "⚡ Deep"
+    },
+    "progress": {
+      "decomposing": "분해 중...",
+      "plan": "계획",
+      "subagent": "서브에이전트 {{index}}: {{objective}}",
+      "toolCalls": "({{count}}회 도구 호출)",
+      "synthesizing": "종합 중..."
+    },
+    "footer": {
+      "format": "⚡ Deep · 에이전트 {{agents}}개 · 도구 호출 {{toolCalls}}회 · 약 ${{usd}} · {{seconds}}초"
+    }
+  },
+  "answerAssist": {
+    "title": "답변 지원",
+    "translation": "번역",
+    "close": "닫기",
+    "preparing": "답변 준비 중...",
+    "searching": "\"{{query}}\" 검색 중...",
+    "copied": "복사됨!",
+    "copySource": "원문 복사",
+    "copyTarget": "{{target}} 복사"
+  },
+  "actions": {
+    "empty": {
+      "title": "아직 액션 아이템이 없습니다.",
+      "hint": "미팅 발화가 쌓이면 제안된 작업이 여기에 표시됩니다."
+    },
+    "sections": {
+      "suggested": "제안됨",
+      "suggestedEmpty": "현재 제안이 없습니다.",
+      "accepted": "수락됨",
+      "acceptedEmpty": "수락한 항목이 여기에 표시됩니다.",
+      "done": "완료",
+      "doneEmpty": "완료된 항목이 여기에 표시됩니다."
+    },
+    "card": {
+      "titleAria": "액션 아이템 제목",
+      "owner": "담당자",
+      "due": "기한",
+      "dueDate": "기한",
+      "accept": "수락",
+      "done": "완료",
+      "dismiss": "무시"
+    }
   }
 }

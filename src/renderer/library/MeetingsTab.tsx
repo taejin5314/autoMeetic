@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { MeetingDetail, MeetingSummary, SearchHit } from '../../main/memory/types'
 import { HighlightedText } from '../glossary/HighlightedText'
 import { useActiveGlossary } from '../glossary/useActiveGlossary'
@@ -78,6 +79,7 @@ export function MeetingsTab({
   highlightSegmentId,
   onMeetingCountChange,
 }: MeetingsTabProps) {
+  const { t } = useTranslation()
   const [meetings, setMeetings] = useState<MeetingSummary[]>([])
   const [localSelectedId, setLocalSelectedId] = useState<string | null>(null)
   const selectedId = selectedMeetingId === undefined ? localSelectedId : selectedMeetingId
@@ -206,14 +208,14 @@ export function MeetingsTab({
           const message = err instanceof Error ? err.message : String(err)
           console.error('[memory] search failed:', err)
           setHits([])
-          setError(`Search failed: ${message}`)
+          setError(t('meetings.searchFailed', { message }))
         })
     }, 250)
     return () => {
       cancelled = true
       window.clearTimeout(timeout)
     }
-  }, [api, query])
+  }, [api, query, t])
 
   const selectedMeeting = detail.meeting
   const titleDraft = selectedMeeting?.meeting.title ?? ''
@@ -305,7 +307,7 @@ export function MeetingsTab({
       anchor.click()
       anchor.remove()
       window.setTimeout(() => URL.revokeObjectURL(url), 0)
-      setExportMessage('Exported')
+      setExportMessage(t('meetings.exported'))
     } catch (err) {
       setExportMessage(err instanceof Error ? err.message : String(err))
     } finally {
@@ -316,7 +318,7 @@ export function MeetingsTab({
   return (
     <>
       {!api ? (
-        <div className="memory-empty">Memory is available in the desktop app.</div>
+        <div className="memory-empty">{t('meetings.desktopOnly')}</div>
       ) : (
         <div className="memory-panel-grid">
             <aside className="memory-list-pane">
@@ -335,7 +337,7 @@ export function MeetingsTab({
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search"
+                  placeholder={t('meetings.searchPlaceholder')}
                 />
               </label>
               {error && <div className="memory-error">{error}</div>}
@@ -348,10 +350,10 @@ export function MeetingsTab({
                     const pct = `${Math.round(hit.score * 100)}%`
                     const meta =
                       hit.kind === 'title'
-                        ? `TITLE · ${pct}`
+                        ? t('meetings.hitTitle', { pct })
                         : hit.kind === 'summary'
-                          ? `SUMMARY · ${pct}`
-                          : `#${hit.seq + 1} · ${pct}`
+                          ? t('meetings.hitSummary', { pct })
+                          : t('meetings.hitSegment', { seq: hit.seq + 1, pct })
                     return (
                       <button
                         key={`${hit.meetingId}-${hit.kind}-${hit.segmentId ?? 'summary'}`}
@@ -369,7 +371,9 @@ export function MeetingsTab({
                       </button>
                     )
                   })}
-                  {hits.length === 0 && <div className="memory-empty compact">No matches</div>}
+                  {hits.length === 0 && (
+                    <div className="memory-empty compact">{t('meetings.noMatches')}</div>
+                  )}
                 </div>
               ) : (
                 <div className="memory-meeting-list amw-scroll">
@@ -383,13 +387,13 @@ export function MeetingsTab({
                       <span>{item.meeting.title}</span>
                       <small>
                         {formatMeetingTime(item.meeting.startedAt)} · {item.meeting.segmentCount}{' '}
-                        turns
+                        {t('meetings.turns')}
                       </small>
                       {item.shortSummary && <em>{item.shortSummary}</em>}
                     </button>
                   ))}
                   {meetings.length === 0 && (
-                    <div className="memory-empty compact">No meetings yet</div>
+                    <div className="memory-empty compact">{t('meetings.noMeetings')}</div>
                   )}
                 </div>
               )}
@@ -398,7 +402,7 @@ export function MeetingsTab({
             <div className="memory-detail-pane">
               {!selectedMeeting ? (
                 <div className="memory-empty">
-                  {detail.status === 'loading' ? 'Loading...' : 'Select a meeting'}
+                  {detail.status === 'loading' ? t('meetings.loading') : t('meetings.selectMeeting')}
                 </div>
               ) : (
                 <>
@@ -435,27 +439,27 @@ export function MeetingsTab({
                         type="button"
                         onClick={startRename}
                         disabled={busy || renameDraft !== null}
-                        title="Rename"
-                        aria-label="Rename meeting"
+                        title={t('meetings.rename')}
+                        aria-label={t('meetings.renameAria')}
                       >
-                        Rename
+                        {t('meetings.rename')}
                       </button>
                       <button
                         type="button"
                         onClick={regenerateSummary}
                         disabled={busy}
-                        title="Regenerate summary"
+                        title={t('meetings.regenerateSummary')}
                       >
-                        Summarize
+                        {t('meetings.summarize')}
                       </button>
                       <button
                         type="button"
                         onClick={deleteSelected}
                         disabled={busy}
                         className="danger"
-                        title={confirmDelete ? 'Click again to confirm' : 'Delete meeting'}
+                        title={confirmDelete ? t('meetings.confirmDeleteTitle') : t('meetings.deleteTitle')}
                       >
-                        {confirmDelete ? 'Confirm delete' : 'Delete'}
+                        {confirmDelete ? t('meetings.confirmDelete') : t('meetings.delete')}
                       </button>
                       {confirmDelete && (
                         <button
@@ -463,11 +467,11 @@ export function MeetingsTab({
                           onClick={() => setConfirmDelete(false)}
                           disabled={busy}
                         >
-                          Cancel
+                          {t('meetings.cancel')}
                         </button>
                       )}
                       <label className="memory-export-mode">
-                        <span>Export</span>
+                        <span>{t('meetings.export')}</span>
                         <select
                           value={exportLanguage}
                           onChange={(event) => {
@@ -476,20 +480,20 @@ export function MeetingsTab({
                             setExportLanguage(nextLanguage)
                           }}
                           disabled={busy}
-                          aria-label="Export language"
+                          aria-label={t('meetings.exportLanguageAria')}
                         >
-                          <option value="source">Original</option>
-                          <option value="translation">Translation</option>
-                          <option value="both">Both</option>
+                          <option value="source">{t('meetings.exportOriginal')}</option>
+                          <option value="translation">{t('meetings.exportTranslation')}</option>
+                          <option value="both">{t('meetings.exportBoth')}</option>
                         </select>
                       </label>
                       <button
                         type="button"
                         onClick={() => void exportSelected()}
                         disabled={busy}
-                        title="Export meeting memory"
+                        title={t('meetings.exportTitle')}
                       >
-                        Export
+                        {t('meetings.export')}
                       </button>
                     </div>
                   </div>
@@ -501,11 +505,11 @@ export function MeetingsTab({
                     )}
 
                     <section className="memory-summary-band">
-                      <h4>Summary</h4>
+                      <h4>{t('meetings.summary')}</h4>
                       <p>
                         {summary?.shortSummary
                           ? highlightMatches(summary.shortSummary, query)
-                          : 'Summary pending'}
+                          : t('meetings.summaryPending')}
                       </p>
                       {summary?.detailedSummary && (
                         <p className="memory-detail-summary">
@@ -523,7 +527,7 @@ export function MeetingsTab({
 
                     {actionItems.length > 0 && (
                       <section className="memory-actions-band">
-                        <h4>Action Items</h4>
+                        <h4>{t('meetings.actionItems')}</h4>
                         {actionItems.map((item) => (
                           <div
                             className="memory-action-item"

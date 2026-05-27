@@ -21,9 +21,11 @@ describe('MemoryLibraryPanel scrolling layout', () => {
   test('offers original, translated, and combined export choices', () => {
     const meetingsTab = readProjectFile('src/renderer/library/MeetingsTab.tsx')
 
-    expect(meetingsTab).toContain('<option value="source">Original</option>')
-    expect(meetingsTab).toContain('<option value="translation">Translation</option>')
-    expect(meetingsTab).toContain('<option value="both">Both</option>')
+    expect(meetingsTab).toContain('<option value="source">{t(\'meetings.exportOriginal\')}</option>')
+    expect(meetingsTab).toContain(
+      '<option value="translation">{t(\'meetings.exportTranslation\')}</option>'
+    )
+    expect(meetingsTab).toContain('<option value="both">{t(\'meetings.exportBoth\')}</option>')
     expect(meetingsTab).toMatch(
       /api\.exportMeeting\(\s*selectedMeeting\.meeting\.id,\s*'markdown',\s*exportLanguageRef\.current\s*\)/
     )

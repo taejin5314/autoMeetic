@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import type { ChatSource } from './types'
 
 interface Props {
@@ -20,10 +21,11 @@ function formatDate(ms: number): string {
 }
 
 export function SourcesList({ sources, onClickSource }: Props) {
+  const { t } = useTranslation()
   if (sources.length === 0) return null
   return (
     <div className="ask-sources">
-      <div className="ask-sources-title">Sources</div>
+      <div className="ask-sources-title">{t('ask.sources.title')}</div>
       <ul className="ask-sources-list">
         {sources.map((source) => (
           <li key={source.marker}>

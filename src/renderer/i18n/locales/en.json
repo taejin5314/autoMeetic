@@ -137,5 +137,126 @@
       "thinking": "Thinking...",
       "ask": "Ask"
     }
+  },
+  "library": {
+    "panel": {
+      "dialogAria": "Meeting Library",
+      "kicker": "Library",
+      "title": "Meeting Memory",
+      "close": "Close",
+      "tabsAria": "Meeting memory sections",
+      "meetingsTab": "Meetings",
+      "askTab": "Ask"
+    }
+  },
+  "meetings": {
+    "desktopOnly": "Memory is available in the desktop app.",
+    "searchPlaceholder": "Search",
+    "searchFailed": "Search failed: {{message}}",
+    "hitTitle": "TITLE · {{pct}}",
+    "hitSummary": "SUMMARY · {{pct}}",
+    "hitSegment": "#{{seq}} · {{pct}}",
+    "noMatches": "No matches",
+    "turns": "turns",
+    "noMeetings": "No meetings yet",
+    "loading": "Loading...",
+    "selectMeeting": "Select a meeting",
+    "rename": "Rename",
+    "renameAria": "Rename meeting",
+    "regenerateSummary": "Regenerate summary",
+    "summarize": "Summarize",
+    "confirmDeleteTitle": "Click again to confirm",
+    "deleteTitle": "Delete meeting",
+    "confirmDelete": "Confirm delete",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "export": "Export",
+    "exportLanguageAria": "Export language",
+    "exportOriginal": "Original",
+    "exportTranslation": "Translation",
+    "exportBoth": "Both",
+    "exportTitle": "Export meeting memory",
+    "exported": "Exported",
+    "summary": "Summary",
+    "summaryPending": "Summary pending",
+    "actionItems": "Action Items"
+  },
+  "ask": {
+    "tab": {
+      "title": "Ask your meetings",
+      "meetingCount": "{{count}} meetings",
+      "newChat": "New chat"
+    },
+    "empty": {
+      "title": "Ask anything about your past meetings",
+      "noMeetings": "No meetings yet. Start a meeting to build your searchable memory.",
+      "exampleOkr": "\"What were our Q4 OKR conclusions?\"",
+      "examplePushback": "\"Who pushed back on the migration timeline?\"",
+      "examplePricing": "\"Summarize all decisions about pricing\""
+    },
+    "input": {
+      "streaming": "Streaming...",
+      "placeholder": "Ask anything about your past meetings...",
+      "stop": "Stop",
+      "send": "Send"
+    },
+    "message": {
+      "you": "You",
+      "assistant": "Assistant",
+      "creatingMindMap": "Creating mind map...",
+      "sendToMindMap": "Send to Mind Map"
+    },
+    "sources": {
+      "title": "Sources"
+    }
+  },
+  "deepAsk": {
+    "toggle": {
+      "title": "Deep research - slower but explores multiple angles (~10x tokens)",
+      "label": "⚡ Deep"
+    },
+    "progress": {
+      "decomposing": "Decomposing...",
+      "plan": "Plan",
+      "subagent": "Subagent {{index}}: {{objective}}",
+      "toolCalls": "({{count}} tool calls)",
+      "synthesizing": "Synthesizing..."
+    },
+    "footer": {
+      "format": "⚡ Deep · {{agents}} agents · {{toolCalls}} tool calls · ~${{usd}} · {{seconds}}s"
+    }
+  },
+  "answerAssist": {
+    "title": "Answer Assist",
+    "translation": "Translation",
+    "close": "Close",
+    "preparing": "Preparing answer...",
+    "searching": "Searching \"{{query}}\"...",
+    "copied": "Copied!",
+    "copySource": "Copy Source",
+    "copyTarget": "Copy {{target}}"
+  },
+  "actions": {
+    "empty": {
+      "title": "No action items yet.",
+      "hint": "Suggested tasks will appear here as the meeting transcript accumulates."
+    },
+    "sections": {
+      "suggested": "Suggested",
+      "suggestedEmpty": "No suggestions right now.",
+      "accepted": "Accepted",
+      "acceptedEmpty": "Accepted items appear here.",
+      "done": "Done",
+      "doneEmpty": "Completed items appear here."
+    },
+    "card": {
+      "titleAria": "Action item title",
+      "owner": "Owner",
+      "due": "Due",
+      "dueDate": "Due date",
+      "accept": "Accept",
+      "done": "Done",
+      "dismiss": "Dismiss"
+    }
   }
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { AskInput } from './AskInput'
 import { ChatMessageView } from './ChatMessageView'
 import type { ChatMessage, ChatSource } from './types'
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export function AskTab({ meetingCount, onCitationClick, onSendToMindMap }: Props) {
+  const { t } = useTranslation()
   const store = useChatStore()
   const listRef = useRef<HTMLDivElement>(null)
   const [mindMapPendingId, setMindMapPendingId] = useState<string | null>(null)
@@ -60,9 +62,12 @@ export function AskTab({ meetingCount, onCitationClick, onSendToMindMap }: Props
     <div className="ask-tab">
       <header className="ask-tab-header">
         <div className="ask-tab-title">
-          Ask your meetings
+          {t('ask.tab.title')}
           {meetingCount > 0 && (
-            <span className="ask-tab-count amw-mono"> | {meetingCount} meetings</span>
+            <span className="ask-tab-count amw-mono">
+              {' '}
+              | {t('ask.tab.meetingCount', { count: meetingCount })}
+            </span>
           )}
         </div>
         <button
@@ -71,21 +76,21 @@ export function AskTab({ meetingCount, onCitationClick, onSendToMindMap }: Props
           onClick={store.newChat}
           disabled={store.messages.length === 0 && !store.isStreaming}
         >
-          New chat
+          {t('ask.tab.newChat')}
         </button>
       </header>
 
       <div className="ask-tab-list amw-scroll" ref={listRef}>
         {store.messages.length === 0 ? (
           <div className="ask-empty">
-            <h3>Ask anything about your past meetings</h3>
+            <h3>{t('ask.empty.title')}</h3>
             {meetingCount === 0 ? (
-              <p>No meetings yet. Start a meeting to build your searchable memory.</p>
+              <p>{t('ask.empty.noMeetings')}</p>
             ) : (
               <ul className="ask-examples">
-                <li>"What were our Q4 OKR conclusions?"</li>
-                <li>"Who pushed back on the migration timeline?"</li>
-                <li>"Summarize all decisions about pricing"</li>
+                <li>{t('ask.empty.exampleOkr')}</li>
+                <li>{t('ask.empty.examplePushback')}</li>
+                <li>{t('ask.empty.examplePricing')}</li>
               </ul>
             )}
           </div>
