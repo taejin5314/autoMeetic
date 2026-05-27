@@ -4,14 +4,62 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 
 ## 🚀 Next active stream
 
-> **App i18n — System Language Selection.** Cross-cutting renderer infrastructure. 6 phases. Adds `react-i18next` + JSON locale files (en/ko/ja/zh) + a header `[System ⌄]` picker. Auto-detects OS locale via Electron `app.getLocale()`, persists user override to `localStorage`. ~30 renderer files / ~300 strings to extract. ja/zh ship LLM-translated with explicit "native review pending v1.1" disclaimer. UI strings only — LLM-generated content (summaries, action items, Memory Chat answers, Deep Ask plan reasoning) is intentionally out of scope. See:
+> **STT Sentence Boundary Fix.** Bug fix in a high-risk area (live feed sentence grouping). 3 phases. Fixes two user-reported defects in `transcriptPostProcessor.ts`: (1) "Opus 4.7" splitting at "Opus 4" because the decimal period is treated as a sentence end, and (2) a lone "?" occupying its own line. Replaces the single `SENTENCE_END_RE` check with a 3-state `classifySentenceEnd` (hard/soft/none): hard enders finalize immediately (unchanged), soft enders (digit-period, ellipsis, abbreviations) wait a ~700ms grace so trailing fragments join, and standalone-punctuation fragments merge back into the just-finalized turn. See:
+>
+> - **Spec:** `docs/superpowers/specs/2026-05-27-stt-sentence-boundary-design.md`
+> - **Plan:** `docs/superpowers/plans/2026-05-27-stt-sentence-boundary.md`
+>
+> Start at Phase 1 (Task 1.1). TDD throughout (high-risk area — `classifySentenceEnd` pure tests + fake-timer integration tests). Phase 1 classifier + soft grace; Phase 2 merge-back + repo `updateSourceText`; Phase 3 regression + push.
+
+## Active stream state — STT Sentence Boundary Fix
+
+| Phase | Status | Commits | Tests passing |
+|---|---|---|---|
+| 1 — Classifier + soft-grace finalization (TDD) | ✅ COMPLETE | `6ed30ad` → `d235e90` (2 commits) | 328/328 (`npm run verify:phase 1`); typecheck/lint clean |
+| 2 — Standalone-punctuation merge-back + repo updateSourceText (TDD) | ⏳ PENDING | — | — |
+| 3 — Regression + handoff + push | ⏳ PENDING | — | — |
+
+**Phase 1 verification (`npm run verify:phase 1`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 1
+
+
+🔍 autoMeetic verification — 2026-05-27 19:05
+
+  Plan: docs/superpowers/plans/2026-05-27-stt-sentence-boundary.md
+  Verifying Phase 1
+
+  Expected files (referenced in Phase 1 body):
+    ✅ src/main/transcriptPostProcessor.ts
+    ✅ src/test/stt-sentence-boundary.test.ts
+
+Checks:
+  ✅ typecheck (0 errors, 0.9s)
+  ✅ lint (0 errors, 11.4s)
+  ✅ vitest (328 / 328 passed, 8.8s)
+
+Git context (last 5 commits):
+  d235e90 feat(stt): soft endings wait a grace window before finalizing
+  6ed30ad feat(stt): add 3-state classifySentenceEnd (hard/soft/none)
+  e5f5922 docs(i18n): complete system language handoff
+  39f1186 feat(i18n): fill Japanese + Chinese translations (LLM-assisted, native review pending v1.1)
+  7069897 feat(i18n): extract whiteboard strings + roll out Intl formatters
+
+VERDICT: ✅ Phase 1 verified
+```
+
+## ✅ Completed stream — App i18n (System Language Selection)
+
+> Implemented and pushed to `origin/master`. See:
 >
 > - **Spec:** `docs/superpowers/specs/2026-05-27-i18n-system-language-design.md`
 > - **Plan:** `docs/superpowers/plans/2026-05-27-i18n-system-language.md`
 >
-> Start at Phase 1 (Task 1.1). TDD pattern in Phase 1 infrastructure; Phases 2–5 are string extraction by surface area; Phase 6 fills ja/zh + regression + push.
+> Automated regression passed (parity test keeps en/ko/ja/zh key sets in sync). ja/zh are LLM-translated; native review is a v1.1 follow-up. Manual smoke deferred to user (switch languages in header, confirm immediate rerender + CJK rendering + persistence).
 
-## Active stream state — App i18n
+## Completed stream state — App i18n
 
 | Phase | Status | Commits | Tests passing |
 |---|---|---|---|
