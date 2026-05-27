@@ -61,6 +61,9 @@ export interface GlossaryAPI {
 }
 
 export interface ElectronAPI {
+  system: {
+    getLocale(): Promise<string>
+  }
   memory: MemoryAPI
   glossary: GlossaryAPI
 

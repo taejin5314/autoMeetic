@@ -17,6 +17,9 @@ export function buildPreloadApi(ipcRenderer: IpcRendererLike): ElectronAPI {
   const listen = (channel: string) => createEventListener(ipcRenderer, channel)
 
   return {
+    system: {
+      getLocale: () => ipcRenderer.invoke('system:get-locale'),
+    },
     memory: {
       listMeetings: (args = {}) => ipcRenderer.invoke('memory:list-meetings', args),
       getMeeting: (id) => ipcRenderer.invoke('memory:get-meeting', { id }),

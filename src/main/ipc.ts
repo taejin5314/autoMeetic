@@ -10,7 +10,7 @@ import type { AskMindMapPayload } from './whiteboard/askMindMap'
 
 // Electron exposes its runtime APIs through CommonJS in main/preload.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { ipcMain } = require('electron') as typeof import('electron')
+const { app, ipcMain } = require('electron') as typeof import('electron')
 
 let mainWindowRef: BrowserWindow | null = null
 let memoryServiceRef: MemoryService | null = null
@@ -65,6 +65,8 @@ export function buildMemoryChatHandler(
 
 export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   mainWindowRef = mainWindow
+
+  ipcMain.handle('system:get-locale', () => app.getLocale())
 
   // Translation
   ipcMain.handle('translate', async (_event, args: { text: string; targetLang: string }) => {
