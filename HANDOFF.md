@@ -17,7 +17,7 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 |---|---|---|---|
 | 1 — Classifier + soft-grace finalization (TDD) | ✅ COMPLETE | `6ed30ad` → `d235e90` (2 commits) | 328/328 (`npm run verify:phase 1`); typecheck/lint clean |
 | 2 — Standalone-punctuation merge-back + repo updateSourceText (TDD) | ✅ COMPLETE | `c2d9a12` → `7777c44` (2 commits) | 335/335 (`npm run verify:phase 2`); typecheck/lint clean |
-| 3 — Regression + handoff + push | ⏳ PENDING | — | — |
+| 3 — Regression + handoff + push | ✅ COMPLETE | `HEAD` (docs/final) | 335/335 (`npm run verify:phase 3`, `npm run verify`, `npx vitest run`); build passed; `npm test` blocked by Windows `better_sqlite3.node` EBUSY |
 
 **Phase 1 verification (`npm run verify:phase 1`):**
 
@@ -83,6 +83,83 @@ Git context (last 5 commits):
 
 VERDICT: ✅ Phase 2 verified
 ```
+
+**Phase 3 verification (`npm run verify:phase 3`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 3
+
+
+🔍 autoMeetic verification — 2026-05-27 19:12
+
+  Plan: docs/superpowers/plans/2026-05-27-stt-sentence-boundary.md
+  Verifying Phase 3
+
+  ⚠️  Could not extract expected files for Phase 3 from plan. Continuing with general checks only.
+
+Checks:
+  ✅ typecheck (0 errors, 0.9s)
+  ✅ lint (0 errors, 11.3s)
+  ✅ vitest (335 / 335 passed, 8.5s)
+
+Git context (last 5 commits):
+  2c35ed4 docs(stt): mark phase 2 verified
+  7777c44 feat(stt): merge standalone trailing punctuation into previous turn
+  c2d9a12 feat(stt): add updateSourceText repo method + notifySourceTextUpdate hook
+  0ea5cc6 docs(stt): mark phase 1 verified
+  d235e90 feat(stt): soft endings wait a grace window before finalizing
+
+VERDICT: ✅ Phase 3 verified
+```
+
+**Final general verification (`npm run verify`):**
+
+```text
+> automeetic@0.0.0 verify
+> node scripts/verify.mjs
+
+
+🔍 autoMeetic verification — 2026-05-27 19:11
+
+Checks:
+  ✅ typecheck (0 errors, 1.0s)
+  ✅ lint (0 errors, 12.9s)
+  ✅ vitest (335 / 335 passed, 10.7s)
+
+Git context (last 5 commits):
+  2c35ed4 docs(stt): mark phase 2 verified
+  7777c44 feat(stt): merge standalone trailing punctuation into previous turn
+  c2d9a12 feat(stt): add updateSourceText repo method + notifySourceTextUpdate hook
+  0ea5cc6 docs(stt): mark phase 1 verified
+  d235e90 feat(stt): soft endings wait a grace window before finalizing
+
+VERDICT: ✅ Verified clean
+```
+
+**Phase 3 additional checks:**
+
+```text
+npm run build
+✓ built in 18.52s
+
+npm test
+prebuild-install warn install EBUSY: resource busy or locked, open 'C:\Users\taeji\OneDrive\바탕 화면\ai-projects\autoMeetic\node_modules\better-sqlite3\build\Release\better_sqlite3.node'
+
+npx vitest run
+Test Files  53 passed (53)
+Tests       335 passed (335)
+Duration    6.64s
+```
+
+**Manual smoke deferred to user:**
+
+- "Opus 4.7" stays intact.
+- Late "?" merges, no lone-`?` line.
+- "I scored 95." finalizes within ~1s as one sentence.
+- "Dr. Kim" / "U.S." don't split.
+- Normal sentences have no perceptible added latency.
+- Persisted transcript matches displayed merged text.
 
 ## ✅ Completed stream — App i18n (System Language Selection)
 
