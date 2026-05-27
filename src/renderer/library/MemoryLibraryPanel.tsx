@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AskTab } from '../ask/AskTab'
 import type { ChatSource } from '../ask/types'
 import { MeetingsTab } from './MeetingsTab'
@@ -21,6 +21,15 @@ export function MemoryLibraryPanel({ open, onClose, onSendAskToMindMap }: Memory
   const [highlightSegmentId, setHighlightSegmentId] = useState<string | null>(null)
   const [meetingCount, setMeetingCount] = useState(0)
 
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
   if (!open) return null
 
   const handleCitationClick = (source: ChatSource) => {
@@ -38,6 +47,9 @@ export function MemoryLibraryPanel({ open, onClose, onSendAskToMindMap }: Memory
       role="dialog"
       aria-modal="true"
       aria-label="Meeting Library"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
     >
       <section className="memory-panel">
         <header className="memory-panel-head">
