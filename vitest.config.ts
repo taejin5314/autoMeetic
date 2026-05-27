@@ -9,6 +9,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    setupFiles: ['./src/test/__i18n-shim__.ts'],
     include: ['src/**/*.test.ts'],
     coverage: {
       provider: 'v8',
