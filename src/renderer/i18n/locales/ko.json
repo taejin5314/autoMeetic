@@ -258,5 +258,80 @@
       "done": "완료",
       "dismiss": "무시"
     }
+  },
+  "glossary": {
+    "panel": {
+      "dialogAria": "용어집",
+      "title": "용어집",
+      "preserve": "보존",
+      "edit": "편집",
+      "delete": "삭제",
+      "deleteConfirm": "\"{{term}}\" 삭제할까요?",
+      "showHighlights": "하이라이트 표시",
+      "closeAria": "용어집 닫기",
+      "suggestionsTab": "제안",
+      "globalTab": "전역",
+      "thisMeeting": "이 미팅",
+      "noLiveMeeting": "진행 중인 미팅 없음",
+      "searchPlaceholder": "원문 또는 번역 검색",
+      "addTerm": "+ 용어 추가",
+      "acceptAll": "모두 수락 ({{count}})",
+      "noPendingSuggestions": "대기 중인 제안이 없습니다 - autoMeetic은 각 미팅 종료 후 새 용어를 제안합니다.",
+      "noSuggestionMatches": "검색과 일치하는 제안이 없습니다.",
+      "loadingTerms": "용어 불러오는 중...",
+      "noEntries": "용어집 항목 없음",
+      "suggestionCount": "{{count}}개 제안",
+      "entryCount": "{{count}}개 항목",
+      "reviewQueue": "검토 대기열",
+      "globalScope": "전역 범위",
+      "meetingScope": "미팅 범위"
+    },
+    "editor": {
+      "sourceTerm": "원문 용어",
+      "sourcePlaceholder": "예: autoMeetic",
+      "preserveVerbatim": "모든 출력에서 그대로 보존",
+      "translations": "번역",
+      "removeTranslation": "{{lang}} 번역 제거",
+      "translationLanguage": "번역 언어",
+      "renderedForm": "표시 형태",
+      "add": "+ 추가",
+      "noteOptional": "메모 (선택)",
+      "variantsLabel": "변형 (STT 오인 / 띄어쓰기 차이)",
+      "removeVariant": "변형 제거",
+      "variantPlaceholder": "변형 직접 입력",
+      "addVariant": "+ 추가",
+      "scanning": "검색 중...",
+      "findVariants": "변형 찾기",
+      "cancel": "취소",
+      "saving": "저장 중...",
+      "save": "저장"
+    },
+    "suggestions": {
+      "accept": "수락",
+      "dismiss": "무시",
+      "meetingTime": "미팅 {{time}}"
+    },
+    "variantPicker": {
+      "empty": "비슷한 표현을 찾지 못했어요.",
+      "close": "닫기",
+      "title": "비슷한 표현 발견 (STT 오인일 수 있음)",
+      "frequency": "({{count}}번)",
+      "cancel": "취소",
+      "addSelected": "선택한 {{count}}개 추가"
+    },
+    "success": {
+      "saved": "✓ {{term}} 저장됨",
+      "variants": "등록된 변형: {{variants}}",
+      "shortWarning": "짧은 단어라 라이브 하이라이트는 적용되지 않습니다 (보존 규칙은 작동).",
+      "pastMatches": "과거 미팅에서 총 {{count}}번 등장했습니다.",
+      "example": "예시: \"{{example}}\"",
+      "futurePrefix": "앞으로 ✨",
+      "futureSuffix": "로 보존됩니다.",
+      "newTerm": "과거 미팅에서 등장하지 않은 새 단어예요. 다음 미팅부터 자동으로 보존됩니다."
+    },
+    "mark": {
+      "myGlossary": "내 glossary",
+      "preserve": "보존"
+    }
   }
 }

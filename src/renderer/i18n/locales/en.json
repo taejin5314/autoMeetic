@@ -258,5 +258,80 @@
       "done": "Done",
       "dismiss": "Dismiss"
     }
+  },
+  "glossary": {
+    "panel": {
+      "dialogAria": "Glossary",
+      "title": "Glossary",
+      "preserve": "Preserve",
+      "edit": "Edit",
+      "delete": "Delete",
+      "deleteConfirm": "Delete \"{{term}}\"?",
+      "showHighlights": "Show highlights",
+      "closeAria": "Close glossary",
+      "suggestionsTab": "Suggestions",
+      "globalTab": "Global",
+      "thisMeeting": "This meeting",
+      "noLiveMeeting": "No live meeting",
+      "searchPlaceholder": "Search source or translation",
+      "addTerm": "+ Add term",
+      "acceptAll": "Accept all ({{count}})",
+      "noPendingSuggestions": "No pending suggestions - autoMeetic suggests new terms after each meeting ends.",
+      "noSuggestionMatches": "No suggestions match your search.",
+      "loadingTerms": "Loading terms...",
+      "noEntries": "No glossary entries",
+      "suggestionCount": "{{count}} suggestions",
+      "entryCount": "{{count}} entries",
+      "reviewQueue": "Review queue",
+      "globalScope": "Global scope",
+      "meetingScope": "Meeting scope"
+    },
+    "editor": {
+      "sourceTerm": "Source term",
+      "sourcePlaceholder": "e.g. autoMeetic",
+      "preserveVerbatim": "Preserve verbatim in all output",
+      "translations": "Translations",
+      "removeTranslation": "Remove {{lang}} translation",
+      "translationLanguage": "Translation language",
+      "renderedForm": "rendered form",
+      "add": "+ Add",
+      "noteOptional": "Note (optional)",
+      "variantsLabel": "Variants (STT mishearings / spacing differences)",
+      "removeVariant": "Remove variant",
+      "variantPlaceholder": "Enter variant manually",
+      "addVariant": "+ Add",
+      "scanning": "Searching...",
+      "findVariants": "Find variants",
+      "cancel": "Cancel",
+      "saving": "Saving...",
+      "save": "Save"
+    },
+    "suggestions": {
+      "accept": "Accept",
+      "dismiss": "Dismiss",
+      "meetingTime": "Meeting {{time}}"
+    },
+    "variantPicker": {
+      "empty": "No similar expressions found.",
+      "close": "Close",
+      "title": "Similar expressions found (may be STT mishearings)",
+      "frequency": "({{count}} times)",
+      "cancel": "Cancel",
+      "addSelected": "Add {{count}} selected"
+    },
+    "success": {
+      "saved": "✓ {{term}} saved",
+      "variants": "Registered variants: {{variants}}",
+      "shortWarning": "Live highlighting is not applied to very short words (preserve rules still work).",
+      "pastMatches": "Appeared {{count}} times in past meetings.",
+      "example": "Example: \"{{example}}\"",
+      "futurePrefix": "From now on it will be preserved as ✨",
+      "futureSuffix": ".",
+      "newTerm": "This is a new term that did not appear in past meetings. It will be preserved automatically from the next meeting."
+    },
+    "mark": {
+      "myGlossary": "My glossary",
+      "preserve": "Preserve"
+    }
   }
 }

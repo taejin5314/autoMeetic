@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { GlossarySuggestion } from './types'
 
 interface Props {
@@ -13,6 +14,7 @@ function formatMetaTime(ms: number): string {
 }
 
 export function SuggestionRow({ suggestion, onAccept, onDismiss }: Props) {
+  const { t } = useTranslation()
   const [busy, setBusy] = useState<'accept' | 'dismiss' | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -41,7 +43,7 @@ export function SuggestionRow({ suggestion, onAccept, onDismiss }: Props) {
   const translationPill = (() => {
     const entries = Object.entries(suggestion.translations)
     if (entries.length === 0) {
-      if (suggestion.preserve) return <span className="glossary-preserve-chip">Preserve</span>
+      if (suggestion.preserve) return <span className="glossary-preserve-chip">{t('glossary.panel.preserve')}</span>
       return <span className="glossary-row-empty">-</span>
     }
     return (
@@ -65,7 +67,7 @@ export function SuggestionRow({ suggestion, onAccept, onDismiss }: Props) {
             onClick={handleAccept}
             disabled={busy !== null}
           >
-            Accept
+            {t('glossary.suggestions.accept')}
           </button>
           <button
             type="button"
@@ -73,14 +75,14 @@ export function SuggestionRow({ suggestion, onAccept, onDismiss }: Props) {
             onClick={handleDismiss}
             disabled={busy !== null}
           >
-            Dismiss
+            {t('glossary.suggestions.dismiss')}
           </button>
         </div>
       </div>
       <div className="glossary-suggestion-meta">
         {suggestion.reason && <span>{suggestion.reason}</span>}
         <span>{confidencePct}%</span>
-        <span>Meeting {formatMetaTime(suggestion.createdAt)}</span>
+        <span>{t('glossary.suggestions.meetingTime', { time: formatMetaTime(suggestion.createdAt) })}</span>
       </div>
       {error && <div className="glossary-suggestion-error">{error}</div>}
     </div>

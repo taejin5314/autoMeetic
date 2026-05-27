@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { GlossaryRowEditor } from './GlossaryRowEditor'
 import { GlossarySaveSuccessCard } from './GlossarySaveSuccessCard'
 import { SuggestionRow } from './SuggestionRow'
@@ -15,6 +16,7 @@ interface Props {
 type Tab = 'suggestions' | 'global' | 'meeting'
 
 export function GlossaryPanel({ open, meetingId, onClose }: Props) {
+  const { t } = useTranslation()
   const [tab, setTab] = useState<Tab>('global')
   const [query, setQuery] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -110,7 +112,7 @@ export function GlossaryPanel({ open, meetingId, onClose }: Props) {
           </div>
         )}
         <div className="glossary-row-preserve">
-          {entry.preserve && <span className="glossary-preserve-chip">Preserve</span>}
+          {entry.preserve && <span className="glossary-preserve-chip">{t('glossary.panel.preserve')}</span>}
         </div>
         <div className="glossary-row-actions">
           <button
@@ -120,16 +122,16 @@ export function GlossaryPanel({ open, meetingId, onClose }: Props) {
               setEditingId(entry.id)
             }}
           >
-            Edit
+            {t('glossary.panel.edit')}
           </button>
           <button
             type="button"
             className="glossary-row-delete"
             onClick={() => {
-              if (window.confirm(`Delete "${entry.sourceTerm}"?`)) void store.remove(entry.id)
+              if (window.confirm(t('glossary.panel.deleteConfirm', { term: entry.sourceTerm }))) void store.remove(entry.id)
             }}
           >
-            Delete
+            {t('glossary.panel.delete')}
           </button>
         </div>
       </div>
@@ -137,11 +139,11 @@ export function GlossaryPanel({ open, meetingId, onClose }: Props) {
   }
 
   return (
-    <div className="glossary-overlay" role="dialog" aria-label="Glossary">
+    <div className="glossary-overlay" role="dialog" aria-label={t('glossary.panel.dialogAria')}>
       <div className="glossary-panel">
         <header className="glossary-head">
           <div className="glossary-head-title">
-            <h2>Glossary</h2>
+            <h2>{t('glossary.panel.title')}</h2>
             <span className="amw-mono glossary-head-count">
               {tab === 'suggestions'
                 ? `${filteredSuggestions.length} of ${store.pendingCount}`
@@ -155,13 +157,13 @@ export function GlossaryPanel({ open, meetingId, onClose }: Props) {
                 checked={highlightEnabled}
                 onChange={(e) => setHighlightEnabled(e.target.checked)}
               />
-              하이라이트 표시
+              {t('glossary.panel.showHighlights')}
             </label>
             <button
               type="button"
               className="glossary-close"
               onClick={onClose}
-              aria-label="Close glossary"
+              aria-label={t('glossary.panel.closeAria')}
             >
             ×
             </button>
@@ -178,30 +180,31 @@ export function GlossaryPanel({ open, meetingId, onClose }: Props) {
               setEditingId(null)
             }}
           >
-            Suggestions{store.pendingCount > 0 ? ` (${store.pendingCount})` : ''}
+            {t('glossary.panel.suggestionsTab')}
+            {store.pendingCount > 0 ? ` (${store.pendingCount})` : ''}
           </button>
           <button
             type="button"
             className={`glossary-tab ${tab === 'global' ? 'on' : ''}`}
             onClick={() => setTab('global')}
           >
-            Global
+            {t('glossary.panel.globalTab')}
           </button>
           <button
             type="button"
             className={`glossary-tab ${tab === 'meeting' ? 'on' : ''}`}
             onClick={() => setTab('meeting')}
             disabled={!meetingId}
-            title={meetingId ? 'This meeting' : 'No live meeting'}
+            title={meetingId ? t('glossary.panel.thisMeeting') : t('glossary.panel.noLiveMeeting')}
           >
-            This meeting
+            {t('glossary.panel.thisMeeting')}
           </button>
         </div>
 
         <div className="glossary-toolbar">
           <input
             type="text"
-            placeholder="Search source or translation"
+            placeholder={t('glossary.panel.searchPlaceholder')}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             className="glossary-search"
@@ -215,11 +218,11 @@ export function GlossaryPanel({ open, meetingId, onClose }: Props) {
             }}
             disabled={tab === 'suggestions' || creating || editingId !== null}
           >
-            + Add term
+            {t('glossary.panel.addTerm')}
           </button>
           {tab === 'suggestions' && eligibleSuggestions.length > 0 && (
             <button type="button" className="glossary-bulk-accept" onClick={handleBulkAccept}>
-              Accept all ({eligibleSuggestions.length})
+              {t('glossary.panel.acceptAll', { count: eligibleSuggestions.length })}
             </button>
           )}
         </div>
@@ -233,8 +236,8 @@ export function GlossaryPanel({ open, meetingId, onClose }: Props) {
                 <div className="glossary-empty">
                   <p>
                     {store.pendingCount === 0
-                      ? 'No pending suggestions - autoMeetic suggests new terms after each meeting ends.'
-                      : 'No suggestions match your search.'}
+                      ? t('glossary.panel.noPendingSuggestions')
+                      : t('glossary.panel.noSuggestionMatches')}
                   </p>
                 </div>
               ) : (
@@ -261,7 +264,7 @@ export function GlossaryPanel({ open, meetingId, onClose }: Props) {
               )}
               {filtered.length === 0 && !creating && (
                 <div className="glossary-empty">
-                  <p>{store.status === 'loading' ? 'Loading terms...' : 'No glossary entries'}</p>
+                  <p>{store.status === 'loading' ? t('glossary.panel.loadingTerms') : t('glossary.panel.noEntries')}</p>
                 </div>
               )}
               {filtered.map(renderRow)}
@@ -271,10 +274,14 @@ export function GlossaryPanel({ open, meetingId, onClose }: Props) {
 
         <footer className="glossary-foot">
           <span className="amw-mono">
-            {tab === 'suggestions' ? `${store.pendingCount} suggestions` : `${store.entries.length} entries`}
+            {tab === 'suggestions'
+              ? t('glossary.panel.suggestionCount', { count: store.pendingCount })
+              : t('glossary.panel.entryCount', { count: store.entries.length })}
           </span>
           <span className="glossary-foot-hint">
-            {tab === 'suggestions' ? 'Review queue' : `${tab === 'global' ? 'Global' : 'Meeting'} scope`}
+            {tab === 'suggestions'
+              ? t('glossary.panel.reviewQueue')
+              : t(tab === 'global' ? 'glossary.panel.globalScope' : 'glossary.panel.meetingScope')}
           </span>
         </footer>
         {saveCard && (

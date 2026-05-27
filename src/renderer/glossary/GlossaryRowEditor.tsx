@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { LANGUAGE_OPTIONS, type GlossaryEntry, type GlossaryEntryInput, type VariantCandidate } from './types'
 import { VariantCandidatePicker } from './VariantCandidatePicker'
 
@@ -19,6 +20,7 @@ export function GlossaryRowEditor({
   onCancel,
   onVariantCandidatesChange,
 }: Props) {
+  const { t } = useTranslation()
   const [sourceTerm, setSourceTerm] = useState(initial?.sourceTerm ?? '')
   const [preserve, setPreserve] = useState(initial?.preserve ?? false)
   const [note, setNote] = useState(initial?.note ?? '')
@@ -101,12 +103,12 @@ export function GlossaryRowEditor({
   return (
     <div className="glossary-row-editor">
       <label className="glossary-field">
-        <span>Source term</span>
+        <span>{t('glossary.editor.sourceTerm')}</span>
         <input
           type="text"
           value={sourceTerm}
           onChange={(e) => setSourceTerm(e.target.value)}
-          placeholder="e.g. autoMeetic"
+          placeholder={t('glossary.editor.sourcePlaceholder')}
           maxLength={100}
           autoFocus
         />
@@ -118,11 +120,11 @@ export function GlossaryRowEditor({
           checked={preserve}
           onChange={(e) => setPreserve(e.target.checked)}
         />
-        <span>Preserve verbatim in all output</span>
+        <span>{t('glossary.editor.preserveVerbatim')}</span>
       </label>
 
       <div className="glossary-field">
-        <span>Translations</span>
+        <span>{t('glossary.editor.translations')}</span>
         {Object.entries(translations).map(([lang, val]) => (
           <div key={lang} className="glossary-translation-row">
             <span className="glossary-lang-chip amw-mono">{lang.toUpperCase()}</span>
@@ -131,7 +133,7 @@ export function GlossaryRowEditor({
               type="button"
               className="glossary-translation-remove"
               onClick={() => removeTranslation(lang)}
-              aria-label={`Remove ${lang} translation`}
+              aria-label={t('glossary.editor.removeTranslation', { lang })}
             >
               ×
             </button>
@@ -142,7 +144,7 @@ export function GlossaryRowEditor({
             value={newLang}
             onChange={(e) => setNewLang(e.target.value)}
             className="glossary-lang-select"
-            aria-label="Translation language"
+            aria-label={t('glossary.editor.translationLanguage')}
           >
             {LANGUAGE_OPTIONS.map((l) => (
               <option key={l.code} value={l.code}>
@@ -154,17 +156,17 @@ export function GlossaryRowEditor({
             type="text"
             value={newValue}
             onChange={(e) => setNewValue(e.target.value)}
-            placeholder="rendered form"
+            placeholder={t('glossary.editor.renderedForm')}
             maxLength={100}
           />
           <button type="button" onClick={addTranslation}>
-            + Add
+            {t('glossary.editor.add')}
           </button>
         </div>
       </div>
 
       <label className="glossary-field">
-        <span>Note (optional)</span>
+        <span>{t('glossary.editor.noteOptional')}</span>
         <input
           type="text"
           value={note}
@@ -174,12 +176,12 @@ export function GlossaryRowEditor({
       </label>
 
       <div className="glossary-editor-variants">
-        <label>변형 (STT 오인 / 띄어쓰기 차이)</label>
+        <label>{t('glossary.editor.variantsLabel')}</label>
         <div className="glossary-editor-variants-chips">
           {variants.map((v) => (
             <span key={v} className="glossary-editor-chip">
               {v}
-              <button type="button" onClick={() => handleRemoveVariant(v)} aria-label="제거">
+              <button type="button" onClick={() => handleRemoveVariant(v)} aria-label={t('glossary.editor.removeVariant')}>
                 ×
               </button>
             </span>
@@ -190,13 +192,13 @@ export function GlossaryRowEditor({
             type="text"
             value={newVariant}
             onChange={(e) => setNewVariant(e.target.value)}
-            placeholder="변형 직접 입력"
+            placeholder={t('glossary.editor.variantPlaceholder')}
           />
           <button type="button" onClick={handleAddManual}>
-            + 추가
+            {t('glossary.editor.addVariant')}
           </button>
           <button type="button" onClick={handleFind} disabled={scanning || !sourceTerm.trim()}>
-            {scanning ? '검색 중...' : '변형 찾기'}
+            {scanning ? t('glossary.editor.scanning') : t('glossary.editor.findVariants')}
           </button>
         </div>
       </div>
@@ -213,7 +215,7 @@ export function GlossaryRowEditor({
 
       <div className="glossary-editor-actions">
         <button type="button" onClick={onCancel} disabled={saving}>
-          Cancel
+          {t('glossary.editor.cancel')}
         </button>
         <button
           type="button"
@@ -221,7 +223,7 @@ export function GlossaryRowEditor({
           onClick={() => void save()}
           disabled={saving || !sourceTerm.trim()}
         >
-          {saving ? 'Saving...' : 'Save'}
+          {saving ? t('glossary.editor.saving') : t('glossary.editor.save')}
         </button>
       </div>
     </div>

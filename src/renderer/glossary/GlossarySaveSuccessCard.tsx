@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { GlossaryEntry, VariantCandidate } from './types'
 
 interface Props {
@@ -15,6 +16,7 @@ function normalize(text: string): string {
 }
 
 export function GlossarySaveSuccessCard({ entry, candidates, onDismiss }: Props) {
+  const { t } = useTranslation()
   useEffect(() => {
     const t = setTimeout(onDismiss, 6000)
     return () => clearTimeout(t)
@@ -29,29 +31,39 @@ export function GlossarySaveSuccessCard({ entry, candidates, onDismiss }: Props)
 
   return (
     <div className="glossary-save-card" role="status" onClick={onDismiss}>
-      <div className="glossary-save-card-header">✓ {entry.sourceTerm} 저장됨</div>
-      {variantList && <div className="glossary-save-card-variants">등록된 변형: {variantList}</div>}
+      <div className="glossary-save-card-header">
+        {t('glossary.success.saved', { term: entry.sourceTerm })}
+      </div>
+      {variantList && (
+        <div className="glossary-save-card-variants">
+          {t('glossary.success.variants', { variants: variantList })}
+        </div>
+      )}
       {isShort ? (
         <div className="glossary-save-card-warning">
-          짧은 단어라 라이브 하이라이트는 적용되지 않습니다 (보존 규칙은 작동).
+          {t('glossary.success.shortWarning')}
         </div>
       ) : totalPastMatches > 0 ? (
         <>
           <div className="glossary-save-card-body">
-            과거 미팅에서 총 {totalPastMatches}번 등장했습니다.
+            {t('glossary.success.pastMatches', { count: totalPastMatches })}
           </div>
           {candidates[0] && (
             <div className="glossary-save-card-example">
-              예시: "{candidates[0].exampleText.slice(0, 120)}
-              {candidates[0].exampleText.length > 120 ? '...' : ''}"
+              {t('glossary.success.example', {
+                example: `${candidates[0].exampleText.slice(0, 120)}${
+                  candidates[0].exampleText.length > 120 ? '...' : ''
+                }`,
+              })}
               <br />
-              -&gt; 앞으로 ✨ <strong>{entry.sourceTerm}</strong>로 보존됩니다.
+              -&gt; {t('glossary.success.futurePrefix')}{' '}
+              <strong>{entry.sourceTerm}</strong>{t('glossary.success.futureSuffix')}
             </div>
           )}
         </>
       ) : (
         <div className="glossary-save-card-body">
-          과거 미팅에서 등장하지 않은 새 단어예요. 다음 미팅부터 자동으로 보존됩니다.
+          {t('glossary.success.newTerm')}
         </div>
       )}
     </div>
