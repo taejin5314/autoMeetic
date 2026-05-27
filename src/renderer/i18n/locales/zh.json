@@ -4,351 +4,351 @@
     "version": 1
   },
   "languagePicker": {
-    "aria": "UI language",
-    "title": "UI language",
-    "system": "System"
+    "aria": "界面语言",
+    "title": "界面语言",
+    "system": "系统"
   },
   "shell": {
     "status": {
-      "live": "Live",
-      "starting": "Starting",
-      "idle": "Idle"
+      "live": "实时",
+      "starting": "启动中",
+      "idle": "空闲"
     },
     "theme": {
-      "aria": "Theme",
-      "light": "Light",
-      "lightTitle": "Light - Linear-grade pro",
-      "dark": "Dark",
-      "darkTitle": "Dark - Linear-grade pro"
+      "aria": "主题",
+      "light": "浅色",
+      "lightTitle": "浅色 - Linear-grade pro",
+      "dark": "深色",
+      "darkTitle": "深色 - Linear-grade pro"
     },
     "pipeline": {
-      "aria": "Pipeline status",
-      "capture": "Capture",
+      "aria": "流水线状态",
+      "capture": "采集",
       "stt": "STT",
-      "translate": "Translate",
-      "agent": "Agent",
-      "ok": "ok",
-      "connected": "connected",
-      "degraded": "degraded",
-      "disconnected": "disconnected",
-      "generating": "generating",
-      "error": "error",
-      "ready": "ready",
-      "idle": "idle",
+      "translate": "翻译",
+      "agent": "代理",
+      "ok": "正常",
+      "connected": "已连接",
+      "degraded": "降级",
+      "disconnected": "已断开",
+      "generating": "生成中",
+      "error": "错误",
+      "ready": "就绪",
+      "idle": "空闲",
       "stageTitle": "{{name}}: {{status}}"
     },
     "health": {
-      "notConnected": "not connected",
-      "toLanguage": "to {{language}}",
-      "connecting": "connecting...",
-      "realtimeReady": "OpenAI Realtime ready ({{language}})",
-      "requestingDisplayMedia": "requesting display media...",
-      "systemAudioActive": "system audio active",
-      "notStarted": "not started",
-      "stopped": "stopped",
-      "sessionReset": "session reset"
+      "notConnected": "未连接",
+      "toLanguage": "到{{language}}",
+      "connecting": "连接中...",
+      "realtimeReady": "OpenAI Realtime 已就绪（{{language}}）",
+      "requestingDisplayMedia": "正在请求屏幕音频...",
+      "systemAudioActive": "系统音频已启用",
+      "notStarted": "未开始",
+      "stopped": "已停止",
+      "sessionReset": "会话已重置"
     },
     "header": {
-      "session": "Session"
+      "session": "会话"
     },
     "language": {
-      "autoDetect": "Auto detect",
-      "korean": "Korean",
-      "english": "English",
-      "japanese": "Japanese",
-      "chinese": "Chinese",
-      "spanish": "Spanish",
-      "french": "French",
-      "german": "German",
-      "inputAria": "Input language",
-      "translationTargetAria": "Translation target",
-      "auto": "Auto",
-      "off": "Off"
+      "autoDetect": "自动检测",
+      "korean": "韩语",
+      "english": "英语",
+      "japanese": "日语",
+      "chinese": "中文",
+      "spanish": "西班牙语",
+      "french": "法语",
+      "german": "德语",
+      "inputAria": "输入语言",
+      "translationTargetAria": "翻译目标",
+      "auto": "自动",
+      "off": "关闭"
     },
     "record": {
-      "start": "Start",
-      "stop": "Stop",
-      "starting": "Starting...",
-      "startTitle": "Start listening",
-      "stopTitle": "Stop listening"
+      "start": "开始",
+      "stop": "停止",
+      "starting": "启动中...",
+      "startTitle": "开始收听",
+      "stopTitle": "停止收听"
     },
     "panel": {
-      "show": "Show panel",
-      "hide": "Hide panel",
-      "toggleAria": "Toggle right panel"
+      "show": "显示面板",
+      "hide": "隐藏面板",
+      "toggleAria": "切换右侧面板"
     },
     "library": {
-      "title": "Meeting library"
+      "title": "会议库"
     },
     "glossary": {
-      "title": "Glossary"
+      "title": "术语表"
     },
     "fullscreen": {
-      "enter": "Fullscreen",
-      "exit": "Exit fullscreen (Esc)",
-      "toggleAria": "Toggle fullscreen"
+      "enter": "全屏",
+      "exit": "退出全屏 (Esc)",
+      "toggleAria": "切换全屏"
     },
     "answerAssist": {
-      "title": "Answer Assist (Ctrl+Shift+A)",
-      "aria": "Answer Assist"
+      "title": "回答辅助 (Ctrl+Shift+A)",
+      "aria": "回答辅助"
     },
     "errors": {
-      "mindMapDesktopOnly": "Mind map creation is available in the desktop app."
+      "mindMapDesktopOnly": "思维导图创建仅在桌面应用中可用。"
     }
   },
   "sourceBar": {
-    "system": "System",
-    "systemDetail": "tab / window audio",
-    "mic": "Mic",
-    "disabled": "disabled",
-    "resetTitle": "Reset session",
-    "confirmReset": "Confirm reset",
-    "reset": "Reset",
-    "captions": "captions",
-    "words": "words"
+    "system": "系统",
+    "systemDetail": "标签页 / 窗口音频",
+    "mic": "麦克风",
+    "disabled": "已禁用",
+    "resetTitle": "重置会话",
+    "confirmReset": "确认重置",
+    "reset": "重置",
+    "captions": "字幕",
+    "words": "词数"
   },
   "transcript": {
-    "original": "Original",
-    "detecting": "detecting {{language}}",
-    "idleLead": "Idle.",
-    "idleInstruction": "Press",
-    "idleInstructionAfterStart": "and share a tab with audio to begin.",
-    "translation": "Translation",
-    "translationEmpty": "Translations appear here."
+    "original": "原文",
+    "detecting": "正在检测{{language}}",
+    "idleLead": "空闲。",
+    "idleInstruction": "按下",
+    "idleInstructionAfterStart": "并共享带音频的标签页即可开始。",
+    "translation": "翻译",
+    "translationEmpty": "翻译会显示在这里。"
   },
   "rightShelf": {
-    "whiteboard": "Whiteboard",
-    "actions": "Actions",
-    "closePanel": "Close panel",
-    "diagramEmptyLead": "Diagram appears here",
-    "diagramEmptyRest": "as the agent finds key concepts.",
-    "agentThinking": "Agent thinking",
-    "diagramFailed": "Diagram failed"
+    "whiteboard": "白板",
+    "actions": "行动项",
+    "closePanel": "关闭面板",
+    "diagramEmptyLead": "图表会显示在这里",
+    "diagramEmptyRest": "代理找到关键概念后会出现。",
+    "agentThinking": "代理正在思考",
+    "diagramFailed": "图表生成失败"
   },
   "feed": {
     "console": {
-      "nowSpeaking": "Now speaking",
-      "lastCaption": "Last caption",
-      "systemAudio": "System audio",
-      "captions": "captions",
-      "words": "words",
-      "listening": "Listening...",
-      "startHint": "Press Start to begin a session. Share any browser tab or window with audio.",
-      "thinking": "Thinking...",
-      "ask": "Ask"
+      "nowSpeaking": "当前发言",
+      "lastCaption": "上一条字幕",
+      "systemAudio": "系统音频",
+      "captions": "字幕",
+      "words": "词数",
+      "listening": "正在收听...",
+      "startHint": "按开始，然后共享任意带音频的浏览器标签页或窗口。",
+      "thinking": "思考中...",
+      "ask": "提问"
     }
   },
   "library": {
     "panel": {
-      "dialogAria": "Meeting Library",
-      "kicker": "Library",
-      "title": "Meeting Memory",
-      "close": "Close",
-      "tabsAria": "Meeting memory sections",
-      "meetingsTab": "Meetings",
-      "askTab": "Ask"
+      "dialogAria": "会议库",
+      "kicker": "库",
+      "title": "会议记忆",
+      "close": "关闭",
+      "tabsAria": "会议记忆分区",
+      "meetingsTab": "会议",
+      "askTab": "提问"
     }
   },
   "meetings": {
-    "desktopOnly": "Memory is available in the desktop app.",
-    "searchPlaceholder": "Search",
-    "searchFailed": "Search failed: {{message}}",
-    "hitTitle": "TITLE · {{pct}}",
-    "hitSummary": "SUMMARY · {{pct}}",
+    "desktopOnly": "记忆功能仅在桌面应用中可用。",
+    "searchPlaceholder": "搜索",
+    "searchFailed": "搜索失败：{{message}}",
+    "hitTitle": "标题 · {{pct}}",
+    "hitSummary": "摘要 · {{pct}}",
     "hitSegment": "#{{seq}} · {{pct}}",
-    "noMatches": "No matches",
-    "turns": "turns",
-    "noMeetings": "No meetings yet",
-    "loading": "Loading...",
-    "selectMeeting": "Select a meeting",
-    "rename": "Rename",
-    "renameAria": "Rename meeting",
-    "regenerateSummary": "Regenerate summary",
-    "summarize": "Summarize",
-    "confirmDeleteTitle": "Click again to confirm",
-    "deleteTitle": "Delete meeting",
-    "confirmDelete": "Confirm delete",
-    "delete": "Delete",
-    "cancel": "Cancel",
-    "export": "Export",
-    "exportLanguageAria": "Export language",
-    "exportOriginal": "Original",
-    "exportTranslation": "Translation",
-    "exportBoth": "Both",
-    "exportTitle": "Export meeting memory",
-    "exported": "Exported",
-    "summary": "Summary",
-    "summaryPending": "Summary pending",
-    "actionItems": "Action Items",
-    "live": "Live"
+    "noMatches": "没有匹配结果",
+    "turns": "轮次",
+    "noMeetings": "还没有会议",
+    "loading": "加载中...",
+    "selectMeeting": "选择会议",
+    "rename": "重命名",
+    "renameAria": "重命名会议",
+    "regenerateSummary": "重新生成摘要",
+    "summarize": "摘要",
+    "confirmDeleteTitle": "再次点击确认",
+    "deleteTitle": "删除会议",
+    "confirmDelete": "确认删除",
+    "delete": "删除",
+    "cancel": "取消",
+    "export": "导出",
+    "exportLanguageAria": "导出语言",
+    "exportOriginal": "原文",
+    "exportTranslation": "翻译",
+    "exportBoth": "两者",
+    "exportTitle": "导出会议记忆",
+    "exported": "已导出",
+    "summary": "摘要",
+    "summaryPending": "摘要待生成",
+    "actionItems": "行动项",
+    "live": "实时"
   },
   "ask": {
     "tab": {
-      "title": "Ask your meetings",
-      "meetingCount": "{{count}} meetings",
-      "newChat": "New chat"
+      "title": "向你的会议提问",
+      "meetingCount": "{{count}}场会议",
+      "newChat": "新聊天"
     },
     "empty": {
-      "title": "Ask anything about your past meetings",
-      "noMeetings": "No meetings yet. Start a meeting to build your searchable memory.",
-      "exampleOkr": "\"What were our Q4 OKR conclusions?\"",
-      "examplePushback": "\"Who pushed back on the migration timeline?\"",
-      "examplePricing": "\"Summarize all decisions about pricing\""
+      "title": "询问任何关于过去会议的问题",
+      "noMeetings": "还没有会议。开始会议以构建可搜索的记忆。",
+      "exampleOkr": "\"我们对Q4 OKR的结论是什么？\"",
+      "examplePushback": "\"谁对迁移时间表提出了反对？\"",
+      "examplePricing": "\"总结所有关于定价的决定\""
     },
     "input": {
-      "streaming": "Streaming...",
-      "placeholder": "Ask anything about your past meetings...",
-      "stop": "Stop",
-      "send": "Send"
+      "streaming": "流式输出中...",
+      "placeholder": "询问任何关于过去会议的问题...",
+      "stop": "停止",
+      "send": "发送"
     },
     "message": {
-      "you": "You",
-      "assistant": "Assistant",
-      "creatingMindMap": "Creating mind map...",
-      "sendToMindMap": "Send to Mind Map"
+      "you": "你",
+      "assistant": "助手",
+      "creatingMindMap": "正在创建思维导图...",
+      "sendToMindMap": "发送到思维导图"
     },
     "sources": {
-      "title": "Sources"
+      "title": "来源"
     }
   },
   "deepAsk": {
     "toggle": {
-      "title": "Deep research - slower but explores multiple angles (~10x tokens)",
+      "title": "Deep research - 更慢，但会从多个角度探索（约10倍token）",
       "label": "⚡ Deep"
     },
     "progress": {
-      "decomposing": "Decomposing...",
-      "plan": "Plan",
-      "subagent": "Subagent {{index}}: {{objective}}",
-      "toolCalls": "({{count}} tool calls)",
-      "synthesizing": "Synthesizing..."
+      "decomposing": "拆解中...",
+      "plan": "计划",
+      "subagent": "子代理 {{index}}：{{objective}}",
+      "toolCalls": "（{{count}}次工具调用）",
+      "synthesizing": "综合中..."
     },
     "footer": {
-      "format": "⚡ Deep · {{agents}} agents · {{toolCalls}} tool calls · ~{{usd}} · {{seconds}}s"
+      "format": "⚡ Deep · {{agents}}个代理 · {{toolCalls}}次工具调用 · 约 {{usd}} · {{seconds}}秒"
     }
   },
   "answerAssist": {
-    "title": "Answer Assist",
-    "translation": "Translation",
-    "close": "Close",
-    "preparing": "Preparing answer...",
-    "searching": "Searching \"{{query}}\"...",
-    "copied": "Copied!",
-    "copySource": "Copy Source",
-    "copyTarget": "Copy {{target}}"
+    "title": "回答辅助",
+    "translation": "翻译",
+    "close": "关闭",
+    "preparing": "正在准备回答...",
+    "searching": "正在搜索\"{{query}}\"...",
+    "copied": "已复制！",
+    "copySource": "复制原文",
+    "copyTarget": "复制{{target}}"
   },
   "actions": {
     "empty": {
-      "title": "No action items yet.",
-      "hint": "Suggested tasks will appear here as the meeting transcript accumulates."
+      "title": "还没有行动项。",
+      "hint": "随着会议转录累积，建议任务会显示在这里。"
     },
     "sections": {
-      "suggested": "Suggested",
-      "suggestedEmpty": "No suggestions right now.",
-      "accepted": "Accepted",
-      "acceptedEmpty": "Accepted items appear here.",
-      "done": "Done",
-      "doneEmpty": "Completed items appear here."
+      "suggested": "建议",
+      "suggestedEmpty": "目前没有建议。",
+      "accepted": "已接受",
+      "acceptedEmpty": "已接受的项目会显示在这里。",
+      "done": "已完成",
+      "doneEmpty": "已完成的项目会显示在这里。"
     },
     "card": {
-      "titleAria": "Action item title",
-      "owner": "Owner",
-      "due": "Due",
-      "dueDate": "Due date",
-      "accept": "Accept",
-      "done": "Done",
-      "dismiss": "Dismiss"
+      "titleAria": "行动项标题",
+      "owner": "负责人",
+      "due": "截止",
+      "dueDate": "截止日期",
+      "accept": "接受",
+      "done": "完成",
+      "dismiss": "忽略"
     }
   },
   "glossary": {
     "panel": {
-      "dialogAria": "Glossary",
-      "title": "Glossary",
-      "preserve": "Preserve",
-      "edit": "Edit",
-      "delete": "Delete",
-      "deleteConfirm": "Delete \"{{term}}\"?",
-      "showHighlights": "Show highlights",
-      "closeAria": "Close glossary",
-      "suggestionsTab": "Suggestions",
-      "globalTab": "Global",
-      "thisMeeting": "This meeting",
-      "noLiveMeeting": "No live meeting",
-      "searchPlaceholder": "Search source or translation",
-      "addTerm": "+ Add term",
-      "acceptAll": "Accept all ({{count}})",
-      "noPendingSuggestions": "No pending suggestions - autoMeetic suggests new terms after each meeting ends.",
-      "noSuggestionMatches": "No suggestions match your search.",
-      "loadingTerms": "Loading terms...",
-      "noEntries": "No glossary entries",
-      "suggestionCount": "{{count}} suggestions",
-      "entryCount": "{{count}} entries",
-      "reviewQueue": "Review queue",
-      "globalScope": "Global scope",
-      "meetingScope": "Meeting scope"
+      "dialogAria": "术语表",
+      "title": "术语表",
+      "preserve": "保留",
+      "edit": "编辑",
+      "delete": "删除",
+      "deleteConfirm": "删除\"{{term}}\"？",
+      "showHighlights": "显示高亮",
+      "closeAria": "关闭术语表",
+      "suggestionsTab": "建议",
+      "globalTab": "全局",
+      "thisMeeting": "本次会议",
+      "noLiveMeeting": "没有实时会议",
+      "searchPlaceholder": "搜索原文或翻译",
+      "addTerm": "+ 添加术语",
+      "acceptAll": "全部接受（{{count}}）",
+      "noPendingSuggestions": "没有待处理建议 - autoMeetic会在每次会议结束后建议新术语。",
+      "noSuggestionMatches": "没有与搜索匹配的建议。",
+      "loadingTerms": "正在加载术语...",
+      "noEntries": "没有术语表条目",
+      "suggestionCount": "{{count}}条建议",
+      "entryCount": "{{count}}个条目",
+      "reviewQueue": "审核队列",
+      "globalScope": "全局范围",
+      "meetingScope": "会议范围"
     },
     "editor": {
-      "sourceTerm": "Source term",
-      "sourcePlaceholder": "e.g. autoMeetic",
-      "preserveVerbatim": "Preserve verbatim in all output",
-      "translations": "Translations",
-      "removeTranslation": "Remove {{lang}} translation",
-      "translationLanguage": "Translation language",
-      "renderedForm": "rendered form",
-      "add": "+ Add",
-      "noteOptional": "Note (optional)",
-      "variantsLabel": "Variants (STT mishearings / spacing differences)",
-      "removeVariant": "Remove variant",
-      "variantPlaceholder": "Enter variant manually",
-      "addVariant": "+ Add",
-      "scanning": "Searching...",
-      "findVariants": "Find variants",
-      "cancel": "Cancel",
-      "saving": "Saving...",
-      "save": "Save"
+      "sourceTerm": "源术语",
+      "sourcePlaceholder": "例如 autoMeetic",
+      "preserveVerbatim": "在所有输出中原样保留",
+      "translations": "翻译",
+      "removeTranslation": "移除{{lang}}翻译",
+      "translationLanguage": "翻译语言",
+      "renderedForm": "显示形式",
+      "add": "+ 添加",
+      "noteOptional": "备注（可选）",
+      "variantsLabel": "变体（STT误听 / 空格差异）",
+      "removeVariant": "移除变体",
+      "variantPlaceholder": "手动输入变体",
+      "addVariant": "+ 添加",
+      "scanning": "搜索中...",
+      "findVariants": "查找变体",
+      "cancel": "取消",
+      "saving": "保存中...",
+      "save": "保存"
     },
     "suggestions": {
-      "accept": "Accept",
-      "dismiss": "Dismiss",
-      "meetingTime": "Meeting {{time}}"
+      "accept": "接受",
+      "dismiss": "忽略",
+      "meetingTime": "会议 {{time}}"
     },
     "variantPicker": {
-      "empty": "No similar expressions found.",
-      "close": "Close",
-      "title": "Similar expressions found (may be STT mishearings)",
-      "frequency": "({{count}} times)",
-      "cancel": "Cancel",
-      "addSelected": "Add {{count}} selected"
+      "empty": "未找到相似表达。",
+      "close": "关闭",
+      "title": "发现相似表达（可能是STT误听）",
+      "frequency": "（{{count}}次）",
+      "cancel": "取消",
+      "addSelected": "添加选中的{{count}}项"
     },
     "success": {
-      "saved": "✓ {{term}} saved",
-      "variants": "Registered variants: {{variants}}",
-      "shortWarning": "Live highlighting is not applied to very short words (preserve rules still work).",
-      "pastMatches": "Appeared {{count}} times in past meetings.",
-      "example": "Example: \"{{example}}\"",
-      "futurePrefix": "From now on it will be preserved as ✨",
-      "futureSuffix": ".",
-      "newTerm": "This is a new term that did not appear in past meetings. It will be preserved automatically from the next meeting."
+      "saved": "✓ 已保存 {{term}}",
+      "variants": "已注册变体：{{variants}}",
+      "shortWarning": "很短的词不会应用实时高亮（保留规则仍会生效）。",
+      "pastMatches": "在过去会议中出现了{{count}}次。",
+      "example": "示例：\"{{example}}\"",
+      "futurePrefix": "从现在起会保留为 ✨",
+      "futureSuffix": "。",
+      "newTerm": "这是未在过去会议中出现的新术语。它会从下一次会议开始自动保留。"
     },
     "mark": {
-      "myGlossary": "My glossary",
-      "preserve": "Preserve"
+      "myGlossary": "我的术语表",
+      "preserve": "保留"
     }
   },
   "whiteboard": {
     "modal": {
-      "aria": "Whiteboard",
-      "title": "Whiteboard",
-      "agentThinking": "Agent thinking",
-      "agentError": "Agent error",
-      "closeAria": "Close whiteboard",
-      "closeTitle": "Close (ESC)"
+      "aria": "白板",
+      "title": "白板",
+      "agentThinking": "代理正在思考",
+      "agentError": "代理错误",
+      "closeAria": "关闭白板",
+      "closeTitle": "关闭 (ESC)"
     },
     "labelLang": {
-      "title": "Diagram label language",
-      "prefix": "LABELS",
-      "aria": "Diagram label language",
-      "auto": "Auto",
+      "title": "图表标签语言",
+      "prefix": "标签",
+      "aria": "图表标签语言",
+      "auto": "自动",
       "ko": "KO",
       "en": "EN",
       "ja": "JA",
@@ -358,7 +358,7 @@
       "de": "DE"
     },
     "canvas": {
-      "expand": "Expand whiteboard"
+      "expand": "展开白板"
     }
   }
 }
