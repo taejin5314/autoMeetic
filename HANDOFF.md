@@ -17,7 +17,7 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 |---|---|---|---|
 | 1 — PipelineBus + event types (TDD) | ✅ COMPLETE | `5160a66` → `ad73e48` (2 commits) | 340/340 (`npm run verify:phase 1`); typecheck/lint clean |
 | 2 — Subscriber adapters + rewire transcriptPostProcessor + index wiring (TDD) | ✅ COMPLETE | `3270b89` → `45eaa2e` (2 commits) | 344/344 (`npm run verify:phase 2`); typecheck/lint clean |
-| 3 — Regression + handoff + push | ⏳ PENDING | — | — |
+| 3 — Regression + handoff + push | ✅ COMPLETE | `HEAD` (docs/final) | 344/344 (`npm run verify:phase 3`, `npm run verify`, `npx vitest run`); build passed; `npm test` blocked by Windows `better_sqlite3.node` EBUSY |
 
 **Phase 1 verification (`npm run verify:phase 1`):**
 
@@ -86,6 +86,92 @@ Git context (last 5 commits):
 
 VERDICT: ✅ Phase 2 verified
 ```
+
+**Phase 3 verification (`npm run verify:phase 3`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 3
+
+
+🔍 autoMeetic verification — 2026-05-28 01:34
+
+  Plan: docs/superpowers/plans/2026-05-28-pipeline-orchestration.md
+  Verifying Phase 3
+
+  ⚠️  Could not extract expected files for Phase 3 from plan. Continuing with general checks only.
+
+Checks:
+  ✅ typecheck (0 errors, 1.5s)
+  ✅ lint (0 errors, 43.3s)
+  ✅ vitest (344 / 344 passed, 8.3s)
+
+Git context (last 5 commits):
+  23c40a0 docs(pipeline): mark phase 2 verified
+  45eaa2e feat(pipeline): emit events from transcriptPostProcessor + register subscribers
+  3270b89 feat(pipeline): memory + whiteboard + actionItems subscriber adapters
+  654ac12 docs(pipeline): mark phase 1 verified
+  ad73e48 feat(pipeline): PipelineBus with per-subscriber error isolation
+
+VERDICT: ✅ Phase 3 verified
+```
+
+**Final general verification (`npm run verify`):**
+
+```text
+> automeetic@0.0.0 verify
+> node scripts/verify.mjs
+
+
+🔍 autoMeetic verification — 2026-05-28 01:33
+
+Checks:
+  ✅ typecheck (0 errors, 1.2s)
+  ✅ lint (0 errors, 14.2s)
+  ✅ vitest (344 / 344 passed, 8.7s)
+
+Git context (last 5 commits):
+  23c40a0 docs(pipeline): mark phase 2 verified
+  45eaa2e feat(pipeline): emit events from transcriptPostProcessor + register subscribers
+  3270b89 feat(pipeline): memory + whiteboard + actionItems subscriber adapters
+  654ac12 docs(pipeline): mark phase 1 verified
+  ad73e48 feat(pipeline): PipelineBus with per-subscriber error isolation
+
+VERDICT: ✅ Verified clean
+```
+
+**Phase 3 additional checks:**
+
+```text
+npm run build
+✓ built in 3.48s
+
+npm test
+prebuild-install warn install EBUSY: resource busy or locked, open 'C:\Users\taeji\OneDrive\바탕 화면\ai-projects\autoMeetic\node_modules\better-sqlite3\build\Release\better_sqlite3.node'
+
+npx vitest run
+Test Files  55 passed (55)
+Tests       344 passed (344)
+Duration    8.06s
+
+rg -n "actionItemService|whiteboardService|memory/transcriptHook|enqueueActionTranscript|enqueueWhiteboardTranscript|notifyTurnFinalized|notifyTranslation|notifySourceTextUpdate" src/main/transcriptPostProcessor.ts
+(no matches)
+
+rg -n "pipelineBus.register\(|makeWhiteboardSubscriber|makeActionItemsSubscriber|makeMemorySubscriber|meeting-began|meeting-ended" src/main/index.ts
+8:import { makeActionItemsSubscriber } from './pipeline/subscribers/actionItemsSubscriber'
+9:import { makeMemorySubscriber } from './pipeline/subscribers/memorySubscriber'
+10:import { makeWhiteboardSubscriber } from './pipeline/subscribers/whiteboardSubscriber'
+139:  pipelineBus.register(makeWhiteboardSubscriber())
+140:  pipelineBus.register(makeActionItemsSubscriber())
+141:  pipelineBus.register(makeMemorySubscriber())
+154:          pipelineBus.emit({ type: 'meeting-began', meetingId: evt.meetingId })
+160:          pipelineBus.emit({ type: 'meeting-ended', meetingId: evt.meetingId })
+```
+
+**Manual smoke deferred to user:**
+
+- Live meeting → feed, translation, whiteboard, action items, memory all behave as before.
+- No pipeline-bus console errors.
 
 ## ✅ Completed stream — STT Sentence Boundary Fix
 
