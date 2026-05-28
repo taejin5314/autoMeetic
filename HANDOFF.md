@@ -16,7 +16,7 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 | Phase | Status | Commits | Tests passing |
 |---|---|---|---|
 | 1 — PipelineBus + event types (TDD) | ✅ COMPLETE | `5160a66` → `ad73e48` (2 commits) | 340/340 (`npm run verify:phase 1`); typecheck/lint clean |
-| 2 — Subscriber adapters + rewire transcriptPostProcessor + index wiring (TDD) | ⏳ PENDING | — | — |
+| 2 — Subscriber adapters + rewire transcriptPostProcessor + index wiring (TDD) | ✅ COMPLETE | `3270b89` → `45eaa2e` (2 commits) | 344/344 (`npm run verify:phase 2`); typecheck/lint clean |
 | 3 — Regression + handoff + push | ⏳ PENDING | — | — |
 
 **Phase 1 verification (`npm run verify:phase 1`):**
@@ -49,6 +49,42 @@ Git context (last 5 commits):
   7777c44 feat(stt): merge standalone trailing punctuation into previous turn
 
 VERDICT: ✅ Phase 1 verified
+```
+
+**Phase 2 verification (`npm run verify:phase 2`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 2
+
+
+🔍 autoMeetic verification — 2026-05-28 01:32
+
+  Plan: docs/superpowers/plans/2026-05-28-pipeline-orchestration.md
+  Verifying Phase 2
+
+  Expected files (referenced in Phase 2 body):
+    ✅ src/main/pipeline/subscribers/memorySubscriber.ts
+    ✅ src/main/pipeline/subscribers/whiteboardSubscriber.ts
+    ✅ src/main/pipeline/subscribers/actionItemsSubscriber.ts
+    ✅ src/test/pipeline-subscribers.test.ts
+    ✅ src/main/transcriptPostProcessor.ts
+    ✅ src/main/index.ts
+    ✅ src/test/memory-postprocessor-regression.test.ts
+
+Checks:
+  ✅ typecheck (0 errors, 0.9s)
+  ✅ lint (0 errors, 11.3s)
+  ✅ vitest (344 / 344 passed, 8.2s)
+
+Git context (last 5 commits):
+  45eaa2e feat(pipeline): emit events from transcriptPostProcessor + register subscribers
+  3270b89 feat(pipeline): memory + whiteboard + actionItems subscriber adapters
+  654ac12 docs(pipeline): mark phase 1 verified
+  ad73e48 feat(pipeline): PipelineBus with per-subscriber error isolation
+  5160a66 feat(pipeline): add PipelineEvent + subscriber types
+
+VERDICT: ✅ Phase 2 verified
 ```
 
 ## ✅ Completed stream — STT Sentence Boundary Fix
