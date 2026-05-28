@@ -4,14 +4,66 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 
 ## 🚀 Next active stream
 
-> **Pipeline Orchestration — Decouple Live Transcript Consumers via PipelineBus.** Behavior-preserving architectural refactor in a high-risk area (live feed pipeline). 3 phases. Introduces a typed `PipelineBus` (emit + subscribe with per-subscriber error isolation) and converts the three direct-import consumers (memory persistence, whiteboard agent, action items) into registered subscribers. `transcriptPostProcessor` emits `turn-finalized` / `translation-updated` / `turn-source-updated` instead of calling consumers directly, so a new consumer (e.g., a future live-coaching agent) is added by writing a subscriber + one `register(...)` line in `index.ts` — never by editing `transcriptPostProcessor`. Renderer feed IPC stays direct (latency-sensitive UI, not a pluggable consumer). Direction #2 (service pipeline) from the orchestration brainstorm; #1 (multi-agent → Deep Ask) already shipped. See:
+> **Slack Huddle Detection — Auto-Capture on Huddle Start.** Net-new feature; first external meeting-app integration. 4 phases. Adds a Slack connection (app-level + bot token + member ID, stored encrypted via Electron `safeStorage`) and a "Huddle Arm" mode. Arm shares an audio source once (the required `getDisplayMedia` gesture) and opens a Slack **Socket Mode** WebSocket listening for `user_huddle_changed` (Events-API compatible, scope `users:read`, no public URL needed). When the authenticated user (filtered by member ID) enters a Huddle → auto-begin transcription on the held stream; on leave → auto-finalize. Core constraint: `getDisplayMedia` needs a gesture, so **Arm owns the one-time share; detection only toggles transcription**. v1 = detection + auto-capture; participant/speaker labels via `call_id` correlation deferred to v2. See:
+>
+> - **Spec:** `docs/superpowers/specs/2026-05-28-slack-huddle-detection-design.md`
+> - **Plan:** `docs/superpowers/plans/2026-05-28-slack-huddle-detection.md`
+>
+> Start at Phase 1 (Task 1.1). TDD on the pure transition classifier + token store + detector shell (injectable transport). Phase 1 tokens + classifier; Phase 2 Socket Mode detector; Phase 3 IPC + renderer Arm orchestration + settings UI (reuse existing begin/end-session logic, don't duplicate); Phase 4 regression + push. Manual Slack smoke requires a real workspace → deferred to user. Onboarding needs a Slack app manifest (scopes `users:read`, Socket Mode on, event sub `user_huddle_changed`, app-level token `connections:write`).
+
+## Active stream state — Slack Huddle Detection
+
+| Phase | Status | Commits | Tests passing |
+|---|---|---|---|
+| 1 — Tokens (safeStorage) + pure transition classifier (TDD) | ✅ COMPLETE | `41b587e` → `6045087` (4 commits) | 355/355 (`npm run verify:phase 1`); typecheck/lint clean |
+| 2 — Socket Mode huddle detector (TDD, injectable transport) | ⏳ PENDING | — | — |
+| 3 — IPC + preload + renderer Arm orchestration + settings UI | ⏳ PENDING | — | — |
+| 4 — Regression + handoff + push | ⏳ PENDING | — | — |
+
+**Phase 1 verification (`npm run verify:phase 1`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 1
+
+
+🔍 autoMeetic verification — 2026-05-28 19:52
+
+  Plan: docs/superpowers/plans/2026-05-28-slack-huddle-detection.md
+  Verifying Phase 1
+
+  Expected files (referenced in Phase 1 body):
+    ✅ src/main/slack/types.ts
+    ✅ src/main/slack/huddleTransition.ts
+    ✅ src/test/slack-huddle-transition.test.ts
+    ✅ src/main/slack/slackTokens.ts
+    ✅ src/test/slack-tokens.test.ts
+
+Checks:
+  ✅ typecheck (0 errors, 1.0s)
+  ✅ lint (0 errors, 11.1s)
+  ✅ vitest (355 / 355 passed, 8.7s)
+
+Git context (last 5 commits):
+  6045087 feat(slack): encrypted token store + auth.test connection check
+  7057afe feat(slack): pure huddle transition classifier
+  6059331 feat(slack): add slack module types
+  41b587e chore(slack): add @slack/socket-mode dependency
+  4711944 docs(pipeline): complete orchestration handoff
+
+VERDICT: ✅ Phase 1 verified
+```
+
+## ✅ Completed stream — Pipeline Orchestration (PipelineBus)
+
+> Implemented and pushed to `origin/master`. See:
 >
 > - **Spec:** `docs/superpowers/specs/2026-05-28-pipeline-orchestration-design.md`
 > - **Plan:** `docs/superpowers/plans/2026-05-28-pipeline-orchestration.md`
 >
-> Start at Phase 1 (Task 1.1). TDD throughout (high-risk area). Phase 1 PipelineBus + types; Phase 2 subscriber adapters + rewire transcriptPostProcessor + index wiring; Phase 3 regression + push. Prime directive: behavior preservation — `memory-postprocessor-regression.test.ts` must stay green; subscriber order = whiteboard → actions → memory.
+> `transcriptPostProcessor` now emits events to a `PipelineBus`; memory/whiteboard/action-items are registered subscribers (order whiteboard → actions → memory). Renderer feed IPC stayed direct. Behavior-preserving; regression green. A new consumer = subscriber + one `register(...)` line in `index.ts`.
 
-## Active stream state — Pipeline Orchestration
+## Completed stream state — Pipeline Orchestration
 
 | Phase | Status | Commits | Tests passing |
 |---|---|---|---|
