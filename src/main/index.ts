@@ -4,6 +4,10 @@ import { join } from 'path'
 import { registerIpcHandlers, registerWindowNotifiers, setMemoryServicePromise } from './ipc'
 import { init as initActionItems } from './actionItemService'
 import { MemoryService, defaultWorkerPath } from './memory/memoryService'
+import { PipelineBus } from './pipeline/pipelineBus'
+import { makeActionItemsSubscriber } from './pipeline/subscribers/actionItemsSubscriber'
+import { makeMemorySubscriber } from './pipeline/subscribers/memorySubscriber'
+import { makeWhiteboardSubscriber } from './pipeline/subscribers/whiteboardSubscriber'
 import { init as initTranscriptPostProcessor } from './transcriptPostProcessor'
 import { init as initWhiteboard, onMeetingBegin as onWhiteboardMeetingBegin } from './whiteboardService'
 import { init as initSttService } from './sttService'
@@ -130,6 +134,11 @@ function registerGlobalShortcuts(): void {
 
 app.whenReady().then(() => {
   createWindow()
+  const pipelineBus = new PipelineBus()
+  // Order MUST match today's finalize order: whiteboard → actions → memory.
+  pipelineBus.register(makeWhiteboardSubscriber())
+  pipelineBus.register(makeActionItemsSubscriber())
+  pipelineBus.register(makeMemorySubscriber())
   const userData = app.getPath('userData')
   const memoryServicePromise = MemoryService.initialize({
     dbPath: join(userData, 'memory.db'),
@@ -142,11 +151,13 @@ app.whenReady().then(() => {
       const pendingGlossaryExtractions = new Set<string>()
       memoryService.onMeetingUpdated((evt) => {
         if (evt.kind === 'began') {
+          pipelineBus.emit({ type: 'meeting-began', meetingId: evt.meetingId })
           const detail = memoryService.getMeeting(evt.meetingId)
           if (detail) onWhiteboardMeetingBegin(detail.meeting.title)
           return
         }
         if (evt.kind === 'ended') {
+          pipelineBus.emit({ type: 'meeting-ended', meetingId: evt.meetingId })
           pendingGlossaryExtractions.add(evt.meetingId)
           return
         }
@@ -168,7 +179,7 @@ app.whenReady().then(() => {
   registerIpcHandlers(mainWindow!)
   registerWindowNotifiers(mainWindow!)
   initWhiteboard(mainWindow!, memoryServicePromise)
-  initTranscriptPostProcessor(mainWindow!, memoryServicePromise)
+  initTranscriptPostProcessor(mainWindow!, memoryServicePromise, pipelineBus)
   initSttService(memoryServicePromise)
   initActionItems(mainWindow!)
   createTray()

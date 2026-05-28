@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { notifyTranslation, notifyTurnFinalized } from '../main/memory/transcriptHook'
+import { PipelineBus } from '../main/pipeline/pipelineBus'
+import { makeMemorySubscriber } from '../main/pipeline/subscribers/memorySubscriber'
+import type { PipelineEvent } from '../main/pipeline/types'
 import {
   enqueueRoughTranscript,
   flushPendingTranscript,
@@ -7,26 +9,37 @@ import {
   resetTranscriptPostProcessor,
 } from '../main/transcriptPostProcessor'
 
-vi.mock('../main/memory/transcriptHook', () => ({
-  notifyTurnFinalized: vi.fn(),
-  notifyTranslation: vi.fn(),
-}))
-
-vi.mock('../main/actionItemService', () => ({
-  enqueueTranscript: vi.fn(),
-}))
-
-vi.mock('../main/whiteboardService', () => ({
-  enqueueTranscript: vi.fn(),
-}))
-
 describe('transcript postprocessor memory bridge', () => {
+  function makeBusCapture(): {
+    bus: PipelineBus
+    events: PipelineEvent[]
+    memoryDeps: {
+      notifyTurnFinalized: ReturnType<typeof vi.fn>
+      notifyTranslation: ReturnType<typeof vi.fn>
+      notifySourceTextUpdate: ReturnType<typeof vi.fn>
+    }
+  } {
+    const bus = new PipelineBus()
+    const events: PipelineEvent[] = []
+    const memoryDeps = {
+      notifyTurnFinalized: vi.fn(),
+      notifyTranslation: vi.fn(),
+      notifySourceTextUpdate: vi.fn(),
+    }
+    bus.register({ name: 'capture', onEvent: (event) => void events.push(event) })
+    bus.register(makeMemorySubscriber(memoryDeps))
+    return { bus, events, memoryDeps }
+  }
+
   beforeEach(() => {
     vi.clearAllMocks()
     resetTranscriptPostProcessor()
   })
 
-  it('notifies memory when a source turn is finalized', async () => {
+  it('emits a turn-finalized event that preserves the memory payload', async () => {
+    const { bus, events, memoryDeps } = makeBusCapture()
+    init({ webContents: { send: vi.fn() } } as never, undefined, bus)
+
     enqueueRoughTranscript('hello from the meeting', {
       sourceLanguageHint: 'en',
       targetLanguage: 'ko',
@@ -34,7 +47,19 @@ describe('transcript postprocessor memory bridge', () => {
 
     await flushPendingTranscript({ force: true })
 
-    expect(notifyTurnFinalized).toHaveBeenCalledWith(
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: 'turn-finalized',
+        turn: expect.objectContaining({
+          text: 'hello from the meeting',
+          sourceLanguage: 'en',
+          targetLanguage: 'ko',
+          speakerId: 'unknown',
+          speakerLabel: 'Unknown',
+        }),
+      })
+    )
+    expect(memoryDeps.notifyTurnFinalized).toHaveBeenCalledWith(
       expect.objectContaining({
         text: 'hello from the meeting',
         sourceLanguage: 'en',
@@ -50,6 +75,7 @@ describe('transcript postprocessor memory bridge', () => {
     const previousApiKey = process.env.OPENAI_API_KEY
     process.env.OPENAI_API_KEY = 'test-key'
     try {
+      const { bus, events, memoryDeps } = makeBusCapture()
       const send = vi.fn()
       const activeGlossary = vi.fn().mockReturnValue([
         {
@@ -69,7 +95,8 @@ describe('transcript postprocessor memory bridge', () => {
         Promise.resolve({
           getCurrentMeetingId: () => 'mtg_live',
           activeGlossary,
-        } as never)
+        } as never),
+        bus
       )
       vi.stubGlobal(
         'fetch',
@@ -105,7 +132,13 @@ describe('transcript postprocessor memory bridge', () => {
       await vi.runAllTimersAsync()
 
       expect(activeGlossary).toHaveBeenCalledWith('mtg_live')
-      expect(notifyTranslation).toHaveBeenCalledWith(expect.any(String), 'GPU 벤치마크')
+      expect(events).toContainEqual(
+        expect.objectContaining({
+          type: 'translation-updated',
+          translation: 'GPU 벤치마크',
+        })
+      )
+      expect(memoryDeps.notifyTranslation).toHaveBeenCalledWith(expect.any(String), 'GPU 벤치마크')
     } finally {
       if (typeof previousApiKey === 'undefined') {
         delete process.env.OPENAI_API_KEY

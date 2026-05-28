@@ -1,15 +1,13 @@
 import type { BrowserWindow } from 'electron'
-import { enqueueTranscript as enqueueActionTranscript } from './actionItemService'
 import { ensureFreshGlossary, getCachedGlossary } from './glossary/cache'
 import {
   formatGlossaryPromptSection,
   normalizePreserveTerms,
 } from './glossary/promptInjection'
-import { notifySourceTextUpdate, notifyTranslation, notifyTurnFinalized } from './memory/transcriptHook'
 import type { MemoryService } from './memory/memoryService'
 import type { GlossaryEntry } from './memory/types'
+import type { PipelineBus } from './pipeline/pipelineBus'
 import type { ProcessedTranscriptTurn } from './stt/types'
-import { enqueueTranscript as enqueueWhiteboardTranscript } from './whiteboardService'
 
 const STT_POSTPROCESS_MODEL = process.env.STT_POSTPROCESS_MODEL ?? 'gpt-4.1-nano'
 const STT_POSTPROCESS_MIN_CHARS = Number(process.env.STT_POSTPROCESS_MIN_CHARS ?? 1)
@@ -72,7 +70,6 @@ interface ActiveSourceTurn {
   finalizeTimer: ReturnType<typeof setTimeout> | null
   translationTimer: ReturnType<typeof setTimeout> | null
   translationVersion: number
-  downstreamSent: boolean
 }
 
 interface TranslationResponse {
@@ -81,6 +78,7 @@ interface TranslationResponse {
 }
 
 let mainWindowRef: BrowserWindow | null = null
+let pipelineBusRef: PipelineBus | null = null
 let memoryServicePromiseRef: Promise<Pick<
   MemoryService,
   'activeGlossary' | 'getCurrentMeetingId'
@@ -105,9 +103,11 @@ let lastFinalizedTurn: {
 
 export function init(
   mainWindow: BrowserWindow,
-  memoryServicePromise?: Promise<Pick<MemoryService, 'activeGlossary' | 'getCurrentMeetingId'>>
+  memoryServicePromise?: Promise<Pick<MemoryService, 'activeGlossary' | 'getCurrentMeetingId'>>,
+  pipelineBus?: PipelineBus
 ): void {
   mainWindowRef = mainWindow
+  if (pipelineBus) pipelineBusRef = pipelineBus
   if (memoryServicePromise) memoryServicePromiseRef = memoryServicePromise
 }
 
@@ -208,7 +208,7 @@ function emitSourceFragment(text: string, hints: LanguageHints): void {
       const merged = joinSourceFragments(lastFinalizedTurn.text, fragment)
       lastFinalizedTurn.text = merged
       emitSourcePatch(lastFinalizedTurn.id, merged)
-      notifySourceTextUpdate(lastFinalizedTurn.id, merged)
+      pipelineBusRef?.emit({ type: 'turn-source-updated', id: lastFinalizedTurn.id, text: merged })
       scheduleMergedTranslation(lastFinalizedTurn)
     }
     return
@@ -252,7 +252,6 @@ function startActiveSourceTurn(text: string, hints: LanguageHints): void {
     finalizeTimer: null,
     translationTimer: null,
     translationVersion: 0,
-    downstreamSent: false,
   }
 
   const turn = buildTurn({
@@ -264,7 +263,7 @@ function startActiveSourceTurn(text: string, hints: LanguageHints): void {
     createdAtMs,
   })
 
-  emitProcessedTurn(turn, { sendDownstream: false })
+  emitProcessedTurn(turn)
 }
 
 function appendActiveSourceTurn(fragment: string): void {
@@ -280,16 +279,20 @@ function finalizeActiveSourceTurn(options: { translateImmediately: boolean }): v
   activeSourceTurn = null
   clearActiveTimers(active)
   emitSourcePatch(active.id, active.text)
-  emitFinalDownstream(active)
-  notifyTurnFinalized({
-    id: active.id,
-    text: active.text.trim(),
-    sourceLanguage: active.hints.sourceLanguageHint,
-    targetLanguage: active.hints.targetLanguage,
-    createdAtMs: active.createdAtMs,
-    speakerId: 'unknown',
-    speakerLabel: 'Unknown',
-  })
+  if (active.text.trim()) {
+    pipelineBusRef?.emit({
+      type: 'turn-finalized',
+      turn: {
+        id: active.id,
+        text: active.text.trim(),
+        sourceLanguage: active.hints.sourceLanguageHint,
+        targetLanguage: active.hints.targetLanguage,
+        createdAtMs: active.createdAtMs,
+        speakerId: 'unknown',
+        speakerLabel: 'Unknown',
+      },
+    })
+  }
   lastFinalizedTurn = {
     id: active.id,
     text: active.text,
@@ -403,7 +406,11 @@ async function drainTranslationQueue(): Promise<void> {
     const response = await callTranslationApi(next.text, next.hints, apiKey)
     if (translationVersionsById.get(next.id) === next.version && response.translation) {
       emitTranslationPatch(next.id, response.translation)
-      notifyTranslation(next.id, response.translation)
+      pipelineBusRef?.emit({
+        type: 'translation-updated',
+        id: next.id,
+        translation: response.translation,
+      })
     }
   } catch (err) {
     console.warn(
@@ -550,24 +557,9 @@ function makeTurnId(createdAtMs: number): string {
   return `turn_${createdAtMs}_${Math.random().toString(36).slice(2, 8)}`
 }
 
-function emitProcessedTurn(
-  turn: ProcessedTranscriptTurn,
-  options: { sendDownstream: boolean } = { sendDownstream: true }
-): void {
+function emitProcessedTurn(turn: ProcessedTranscriptTurn): void {
   if (!turn.text.trim()) return
   mainWindowRef?.webContents.send('stt:processed', { turns: [turn] })
-  if (!options.sendDownstream) return
-  const downstream = `${turn.speakerLabel}: ${turn.text}`
-  enqueueWhiteboardTranscript(downstream)
-  enqueueActionTranscript(downstream)
-}
-
-function emitFinalDownstream(active: ActiveSourceTurn): void {
-  if (active.downstreamSent || !active.text.trim()) return
-  active.downstreamSent = true
-  const downstream = `Unknown: ${active.text.trim()}`
-  enqueueWhiteboardTranscript(downstream)
-  enqueueActionTranscript(downstream)
 }
 
 function emitSourcePatch(id: string, text: string): void {

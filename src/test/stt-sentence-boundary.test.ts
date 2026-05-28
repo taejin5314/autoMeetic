@@ -6,6 +6,8 @@ import {
   resetTranscriptPostProcessor,
 } from '../main/transcriptPostProcessor'
 import { notifySourceTextUpdate, notifyTranslation } from '../main/memory/transcriptHook'
+import { PipelineBus } from '../main/pipeline/pipelineBus'
+import { makeMemorySubscriber } from '../main/pipeline/subscribers/memorySubscriber'
 
 vi.mock('../main/memory/transcriptHook', () => ({
   notifyTurnFinalized: vi.fn(),
@@ -33,13 +35,15 @@ type SentMessage = {
 
 function initCapture(): SentMessage[] {
   const messages: SentMessage[] = []
+  const bus = new PipelineBus()
+  bus.register(makeMemorySubscriber())
   init({
     webContents: {
       send: (channel: string, payload: SentMessage['payload']) => {
         messages.push({ channel, payload })
       },
     },
-  } as never)
+  } as never, undefined, bus)
   return messages
 }
 
