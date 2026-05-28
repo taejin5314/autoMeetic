@@ -13,6 +13,7 @@ import type {
 import type { DeepAskEvent } from '../main/memory/agents/types'
 import type { ExportLanguageMode } from '../main/memory/markdownExporter'
 import type { AskMindMapPayload, AskMindMapResult } from '../main/whiteboard/askMindMap'
+import type { SlackStatus, SlackTokens } from '../main/slack/types'
 
 export interface TranslationPatchEvent {
   id: string
@@ -60,12 +61,37 @@ export interface GlossaryAPI {
   }
 }
 
+export interface SlackLoadStatus {
+  hasTokens: boolean
+  memberId: string | null
+}
+
+export interface SlackTestResult {
+  ok: boolean
+  team?: string
+  user?: string
+  error?: string
+}
+
+export interface SlackAPI {
+  saveTokens(tokens: SlackTokens): Promise<void>
+  loadStatus(): Promise<SlackLoadStatus>
+  test(botToken: string): Promise<SlackTestResult>
+  clearTokens(): Promise<void>
+  arm(): Promise<void>
+  disarm(): Promise<void>
+  onHuddleStarted(callback: (event: { callId?: string }) => void): () => void
+  onHuddleEnded(callback: () => void): () => void
+  onStatus(callback: (status: SlackStatus) => void): () => void
+}
+
 export interface ElectronAPI {
   system: {
     getLocale(): Promise<string>
   }
   memory: MemoryAPI
   glossary: GlossaryAPI
+  slack: SlackAPI
 
   // Actions
   translate(text: string, targetLang: string): Promise<{ translation: string }>

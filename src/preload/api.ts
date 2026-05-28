@@ -58,6 +58,17 @@ export function buildPreloadApi(ipcRenderer: IpcRendererLike): ElectronAPI {
         ) as ElectronAPI['glossary']['suggestions']['onUpdated'],
       },
     },
+    slack: {
+      saveTokens: (tokens) => ipcRenderer.invoke('slack:save-tokens', tokens),
+      loadStatus: () => ipcRenderer.invoke('slack:load-status'),
+      test: (botToken) => ipcRenderer.invoke('slack:test', { botToken }),
+      clearTokens: () => ipcRenderer.invoke('slack:clear-tokens'),
+      arm: () => ipcRenderer.invoke('slack:arm'),
+      disarm: () => ipcRenderer.invoke('slack:disarm'),
+      onHuddleStarted: listen('slack:huddle-started') as ElectronAPI['slack']['onHuddleStarted'],
+      onHuddleEnded: listen('slack:huddle-ended') as ElectronAPI['slack']['onHuddleEnded'],
+      onStatus: listen('slack:status') as ElectronAPI['slack']['onStatus'],
+    },
 
     translate: (text, targetLang) => ipcRenderer.invoke('translate', { text, targetLang }),
     startAnswerAssist: (transcript, sourceLang, targetLang, glossary) =>

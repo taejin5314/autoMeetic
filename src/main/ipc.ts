@@ -7,6 +7,13 @@ import type { ChatMessage, GlossaryEntry, SearchHit } from './memory/types'
 import { log } from './telemetry/logger'
 import type { WhiteboardMode } from './whiteboard/types'
 import type { AskMindMapPayload } from './whiteboard/askMindMap'
+import {
+  createHuddleDetector,
+  createSocketModeHuddleTransport,
+  type HuddleDetector,
+} from './slack/slackHuddleDetector'
+import { loadTokenStore, testConnection } from './slack/slackTokens'
+import type { SlackStatus, SlackTokens } from './slack/types'
 
 // Electron exposes its runtime APIs through CommonJS in main/preload.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -17,6 +24,7 @@ let memoryServiceRef: MemoryService | null = null
 let memoryServicePromise: Promise<MemoryService> | null = null
 let unsubscribeMemoryUpdates: (() => void) | null = null
 let transcriptLanguages: TranscriptLanguageState = { sourceLanguage: 'auto', targetLanguage: 'off' }
+let slackHuddleDetector: HuddleDetector | null = null
 
 export function setMemoryService(svc: MemoryService): void {
   memoryServiceRef = svc
@@ -40,6 +48,17 @@ async function getMemoryService(): Promise<MemoryService> {
   if (memoryServiceRef) return memoryServiceRef
   if (!memoryServicePromise) throw new Error('Memory service startup was not scheduled')
   return memoryServicePromise
+}
+
+function redactSlackDetail(detail: string | undefined): string | undefined {
+  return detail?.replace(/x(?:app|oxb)-[A-Za-z0-9-]+/g, '[redacted]')
+}
+
+function sendSlackStatus(status: SlackStatus): void {
+  mainWindowRef?.webContents.send('slack:status', {
+    ...status,
+    detail: redactSlackDetail(status.detail),
+  })
 }
 
 interface MemoryChatService {
@@ -77,6 +96,61 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   // Health
   ipcMain.handle('check-health', () => {
     return { status: 'ok', ts: Date.now() }
+  })
+
+  // Slack Huddle Detection
+  ipcMain.handle('slack:save-tokens', (_event, args: SlackTokens) => {
+    loadTokenStore().save(args)
+  })
+
+  ipcMain.handle('slack:load-status', () => {
+    const tokens = loadTokenStore().load()
+    return {
+      hasTokens: tokens !== null,
+      memberId: tokens?.memberId ?? null,
+    }
+  })
+
+  ipcMain.handle('slack:test', (_event, args: { botToken: string }) => {
+    return testConnection(args.botToken)
+  })
+
+  ipcMain.handle('slack:clear-tokens', () => {
+    loadTokenStore().clear()
+  })
+
+  ipcMain.handle('slack:arm', async () => {
+    const tokens = loadTokenStore().load()
+    if (!tokens) {
+      sendSlackStatus({ state: 'error', detail: 'Slack tokens are not configured.' })
+      throw new Error('Slack tokens are not configured.')
+    }
+
+    await slackHuddleDetector?.stop()
+    const transport = createSocketModeHuddleTransport(tokens.appToken)
+    slackHuddleDetector = createHuddleDetector({
+      transport,
+      memberId: tokens.memberId,
+      onTransition: (transition) => {
+        if (transition.kind === 'started') {
+          sendSlackStatus({ state: 'transcribing', detail: transition.callId })
+          mainWindowRef?.webContents.send('slack:huddle-started', { callId: transition.callId })
+        }
+        if (transition.kind === 'ended') {
+          sendSlackStatus({ state: 'listening' })
+          mainWindowRef?.webContents.send('slack:huddle-ended', {})
+        }
+      },
+      onStatus: sendSlackStatus,
+    })
+    await slackHuddleDetector.start()
+    sendSlackStatus({ state: 'listening', detail: `Listening for ${tokens.memberId}` })
+  })
+
+  ipcMain.handle('slack:disarm', async () => {
+    await slackHuddleDetector?.stop()
+    slackHuddleDetector = null
+    sendSlackStatus({ state: 'not-connected' })
   })
 
   // Vocabulary
