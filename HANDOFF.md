@@ -4,14 +4,63 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 
 ## 🚀 Next active stream
 
-> **STT Sentence Boundary Fix.** Bug fix in a high-risk area (live feed sentence grouping). 3 phases. Fixes two user-reported defects in `transcriptPostProcessor.ts`: (1) "Opus 4.7" splitting at "Opus 4" because the decimal period is treated as a sentence end, and (2) a lone "?" occupying its own line. Replaces the single `SENTENCE_END_RE` check with a 3-state `classifySentenceEnd` (hard/soft/none): hard enders finalize immediately (unchanged), soft enders (digit-period, ellipsis, abbreviations) wait a ~700ms grace so trailing fragments join, and standalone-punctuation fragments merge back into the just-finalized turn. See:
+> **Pipeline Orchestration — Decouple Live Transcript Consumers via PipelineBus.** Behavior-preserving architectural refactor in a high-risk area (live feed pipeline). 3 phases. Introduces a typed `PipelineBus` (emit + subscribe with per-subscriber error isolation) and converts the three direct-import consumers (memory persistence, whiteboard agent, action items) into registered subscribers. `transcriptPostProcessor` emits `turn-finalized` / `translation-updated` / `turn-source-updated` instead of calling consumers directly, so a new consumer (e.g., a future live-coaching agent) is added by writing a subscriber + one `register(...)` line in `index.ts` — never by editing `transcriptPostProcessor`. Renderer feed IPC stays direct (latency-sensitive UI, not a pluggable consumer). Direction #2 (service pipeline) from the orchestration brainstorm; #1 (multi-agent → Deep Ask) already shipped. See:
+>
+> - **Spec:** `docs/superpowers/specs/2026-05-28-pipeline-orchestration-design.md`
+> - **Plan:** `docs/superpowers/plans/2026-05-28-pipeline-orchestration.md`
+>
+> Start at Phase 1 (Task 1.1). TDD throughout (high-risk area). Phase 1 PipelineBus + types; Phase 2 subscriber adapters + rewire transcriptPostProcessor + index wiring; Phase 3 regression + push. Prime directive: behavior preservation — `memory-postprocessor-regression.test.ts` must stay green; subscriber order = whiteboard → actions → memory.
+
+## Active stream state — Pipeline Orchestration
+
+| Phase | Status | Commits | Tests passing |
+|---|---|---|---|
+| 1 — PipelineBus + event types (TDD) | ✅ COMPLETE | `5160a66` → `ad73e48` (2 commits) | 340/340 (`npm run verify:phase 1`); typecheck/lint clean |
+| 2 — Subscriber adapters + rewire transcriptPostProcessor + index wiring (TDD) | ⏳ PENDING | — | — |
+| 3 — Regression + handoff + push | ⏳ PENDING | — | — |
+
+**Phase 1 verification (`npm run verify:phase 1`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 1
+
+
+🔍 autoMeetic verification — 2026-05-28 01:25
+
+  Plan: docs/superpowers/plans/2026-05-28-pipeline-orchestration.md
+  Verifying Phase 1
+
+  Expected files (referenced in Phase 1 body):
+    ✅ src/main/pipeline/types.ts
+    ✅ src/main/pipeline/pipelineBus.ts
+    ✅ src/test/pipeline-bus.test.ts
+
+Checks:
+  ✅ typecheck (0 errors, 1.0s)
+  ✅ lint (0 errors, 11.9s)
+  ✅ vitest (340 / 340 passed, 8.9s)
+
+Git context (last 5 commits):
+  ad73e48 feat(pipeline): PipelineBus with per-subscriber error isolation
+  5160a66 feat(pipeline): add PipelineEvent + subscriber types
+  3e08b3c docs(stt): complete sentence boundary handoff
+  2c35ed4 docs(stt): mark phase 2 verified
+  7777c44 feat(stt): merge standalone trailing punctuation into previous turn
+
+VERDICT: ✅ Phase 1 verified
+```
+
+## ✅ Completed stream — STT Sentence Boundary Fix
+
+> Implemented and pushed to `origin/master`. See:
 >
 > - **Spec:** `docs/superpowers/specs/2026-05-27-stt-sentence-boundary-design.md`
 > - **Plan:** `docs/superpowers/plans/2026-05-27-stt-sentence-boundary.md`
 >
-> Start at Phase 1 (Task 1.1). TDD throughout (high-risk area — `classifySentenceEnd` pure tests + fake-timer integration tests). Phase 1 classifier + soft grace; Phase 2 merge-back + repo `updateSourceText`; Phase 3 regression + push.
+> 3-state `classifySentenceEnd` + soft-grace finalization + standalone-punctuation merge-back (`updateSourceText`). Automated regression passed (335/335). Manual smoke deferred to user; timing tunable via `STT_LIVE_SOFT_END_GRACE_MS` / `STT_PUNCT_MERGE_WINDOW_MS`.
 
-## Active stream state — STT Sentence Boundary Fix
+## Completed stream state — STT Sentence Boundary Fix
 
 | Phase | Status | Commits | Tests passing |
 |---|---|---|---|
