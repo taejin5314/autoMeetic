@@ -16,7 +16,6 @@ import '@excalidraw/excalidraw/index.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SystemAudioCaptureService } from '../main/audio/capture'
-import { PipelineHealthStore } from '../main/health/pipelineHealth'
 import { RealtimeSttClient } from '../main/stt/realtimeClient'
 import { TranscriptBus } from '../main/stt/transcriptBus'
 import type { ViewportCommand, WhiteboardElement } from '../main/whiteboard/types'
@@ -43,6 +42,7 @@ import { useAnswerAssistHotkey } from './shell/useAnswerAssistHotkey'
 import { useClockMs } from './shell/useClockMs'
 import { useFullscreenState } from './shell/useFullscreenState'
 import { usePanels } from './shell/usePanels'
+import { usePipelineHealth } from './shell/usePipelineHealth'
 import { useTranscriptScrollSync } from './shell/useTranscriptScrollSync'
 import { useThemeStore, type Theme } from './theme/useThemeStore'
 import { WhiteboardModal } from './whiteboard/WhiteboardModal'
@@ -235,7 +235,6 @@ function App() {
   const [canvasResetVersion, setCanvasResetVersion] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [resetConfirming, setResetConfirming] = useState(false)
-  const [healthTick, setHealthTick] = useState(0)
   const [activeAudioMs, setActiveAudioMs] = useState(0)
   const [sessionStartMs, setSessionStartMs] = useState<number | null>(null)
   const [runStartMs, setRunStartMs] = useState<number | null>(null)
@@ -306,19 +305,7 @@ function App() {
     () => (isElectron ? new ElectronSttClient(bus) : new RealtimeSttClient(bus)),
     [bus]
   )
-  const health = useMemo(() => new PipelineHealthStore(), [])
-
-  const updateHealth = useCallback(
-    (
-      stage: 'capture' | 'stt' | 'translation',
-      status: 'connected' | 'degraded' | 'disconnected',
-      message?: string
-    ) => {
-      health.update(stage, status, message)
-      setHealthTick((v) => v + 1)
-    },
-    [health]
-  )
+  const { updateHealth, healthSnapshot } = usePipelineHealth()
 
   useEffect(() => {
     const offCapture = capture.subscribe((chunk) => sttClient.ingest(chunk))
@@ -572,7 +559,6 @@ function App() {
     }
   }, [])
 
-  const healthSnapshot = health.getSnapshot()
   const snapshot = {
     ...healthSnapshot,
     translation: {
@@ -584,7 +570,6 @@ function App() {
           : t('shell.health.toLanguage', { language: translationTarget }),
     },
   } as const
-  void healthTick
 
   const transcriptCount = items.length
   const sourceWordCount = useMemo(
