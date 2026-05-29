@@ -18,7 +18,7 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 | 1 — Tokens (safeStorage) + pure transition classifier (TDD) | ✅ COMPLETE | `41b587e` → `6045087` (4 commits) | 355/355 (`npm run verify:phase 1`); typecheck/lint clean |
 | 2 — Socket Mode huddle detector (TDD, injectable transport) | ✅ COMPLETE | `556171c` | 359/359 (`npm run verify:phase 2`); typecheck/lint clean |
 | 3 — IPC + preload + renderer Arm orchestration + settings UI | ✅ COMPLETE | `bf1752f` → `1bd62df` (3 commits) | 359/359 (`npm run verify:phase 3`); typecheck/lint/build clean |
-| 4 — Regression + handoff + push | ⏳ PENDING | — | — |
+| 4 — Regression + handoff + push | ✅ COMPLETE | `HEAD` (docs/final) | 359/359 (`npm run verify`, `npm test`); build passed |
 
 **Phase 1 verification (`npm run verify:phase 1`):**
 
@@ -127,6 +127,63 @@ VERDICT: ✅ Phase 3 verified
 npm run build
 ✓ built in 12.55s
 ```
+
+**Final general verification (`npm run verify`):**
+
+```text
+> automeetic@0.0.0 verify
+> node scripts/verify.mjs
+
+
+🔍 autoMeetic verification — 2026-05-28 20:06
+
+Checks:
+  ✅ typecheck (0 errors, 0.9s)
+  ✅ lint (0 errors, 11.3s)
+  ✅ vitest (359 / 359 passed, 8.6s)
+
+Git context (last 5 commits):
+  955406a docs(slack): mark phase 3 verified
+  1bd62df feat(slack): settings panel (tokens + member id + test) with i18n
+  72293af feat(slack): renderer Arm orchestration (share + huddle-driven session)
+  bf1752f feat(slack): IPC handlers + preload bridge for arm/detect/status
+  159d75f docs(slack): mark phase 2 verified
+
+VERDICT: ✅ Verified clean
+```
+
+**Phase 4 additional checks:**
+
+```text
+npm run build
+✓ built in 2.61s
+
+npm test
+Test Files  58 passed (58)
+Tests       359 passed (359)
+Duration    6.88s
+```
+
+**Slack app setup essentials:**
+
+- Create a Slack app for the target workspace.
+- Enable Socket Mode.
+- Create an app-level token starting with `xapp-` with `connections:write`.
+- Add bot OAuth scope `users:read`.
+- Subscribe to the `user_huddle_changed` event.
+- Install the app to the workspace and copy the bot token starting with `xoxb-`.
+- Copy your own Slack member ID (`U...`) from your Slack profile.
+- In autoMeetic desktop, open Slack settings, paste app token + bot token + member ID, then run Test before arming.
+
+**Manual smoke deferred to user:**
+
+- Create Slack app → paste tokens/member ID → Test succeeds.
+- Toggle Arm → share Slack/system audio once.
+- Start a Huddle → autoMeetic auto-starts transcription.
+- Leave the Huddle → autoMeetic ends the session and returns to listening.
+- Different member Huddle events do not trigger capture.
+- Network drop shows reconnecting/error status and recovers.
+- Toggle Arm off → capture and socket stop.
 
 ## ✅ Completed stream — Pipeline Orchestration (PipelineBus)
 
