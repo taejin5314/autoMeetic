@@ -4,14 +4,32 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 
 ## 🚀 Next active stream
 
-> **Slack Huddle Detection — Auto-Capture on Huddle Start.** Net-new feature; first external meeting-app integration. 4 phases. Adds a Slack connection (app-level + bot token + member ID, stored encrypted via Electron `safeStorage`) and a "Huddle Arm" mode. Arm shares an audio source once (the required `getDisplayMedia` gesture) and opens a Slack **Socket Mode** WebSocket listening for `user_huddle_changed` (Events-API compatible, scope `users:read`, no public URL needed). When the authenticated user (filtered by member ID) enters a Huddle → auto-begin transcription on the held stream; on leave → auto-finalize. Core constraint: `getDisplayMedia` needs a gesture, so **Arm owns the one-time share; detection only toggles transcription**. v1 = detection + auto-capture; participant/speaker labels via `call_id` correlation deferred to v2. See:
+> **App.tsx Split — Behavior-Preserving Decomposition.** Refactor stream (#1 of 3 sequenced refactors: App.tsx split → dead-code opportunistic → error/logging consistency). 4 phases. Decomposes the 1243-line renderer god-component `src/renderer/App.tsx` into focused custom hooks (`usePanels`, `usePipelineHealth`, `useSttLanguageState`, `useWhiteboardController`, `useListeningSession`) + presentational components (`AppHeader`, `CaptureControls`, `AppModals`), leaving App.tsx a thin composition root (~150–250 lines). **Strictly behavior-preserving — move code verbatim, add only wiring.** App.tsx has NO direct test coverage → typecheck/lint/build are the automated net + `npm run build` each phase; manual smoke is the behavioral check (deferred to user). See:
+>
+> - **Spec:** `docs/superpowers/specs/2026-05-28-app-tsx-split-design.md`
+> - **Plan:** `docs/superpowers/plans/2026-05-28-app-tsx-split.md`
+>
+> Start at Phase 1. Extraction order = self-contained first (panels → health → language → whiteboard), entangled `useListeningSession` last (Phase 2), then JSX components (Phase 3). Critical: `useSlackArm` must keep consuming `beginSession`/`endSession`/`sessionActive` from `useListeningSession` — manual + huddle sessions share ONE begin/end path, no duplication. Preserve the early-return guards in App.tsx verbatim.
+
+## Active stream state — App.tsx Split
+
+| Phase | Status | Commits | Tests passing |
+|---|---|---|---|
+| 1 — Self-contained hooks (panels, health, language, whiteboard) | ⏳ PENDING | — | — |
+| 2 — useListeningSession (entangled, last) | ⏳ PENDING | — | — |
+| 3 — Presentational components (AppHeader, CaptureControls, AppModals) | ⏳ PENDING | — | — |
+| 4 — Regression + handoff + push | ⏳ PENDING | — | — |
+
+## ✅ Completed stream — Slack Huddle Detection
+
+> Implemented and pushed to `origin/master`. See:
 >
 > - **Spec:** `docs/superpowers/specs/2026-05-28-slack-huddle-detection-design.md`
 > - **Plan:** `docs/superpowers/plans/2026-05-28-slack-huddle-detection.md`
 >
-> Start at Phase 1 (Task 1.1). TDD on the pure transition classifier + token store + detector shell (injectable transport). Phase 1 tokens + classifier; Phase 2 Socket Mode detector; Phase 3 IPC + renderer Arm orchestration + settings UI (reuse existing begin/end-session logic, don't duplicate); Phase 4 regression + push. Manual Slack smoke requires a real workspace → deferred to user. Onboarding needs a Slack app manifest (scopes `users:read`, Socket Mode on, event sub `user_huddle_changed`, app-level token `connections:write`).
+> Socket Mode `user_huddle_changed` detection (members-filtered) → auto begin/end transcription on the Arm-held stream. Tokens via `safeStorage`. 359/359 tests; build clean. Manual Slack smoke (real workspace) deferred to user; needs a Slack app manifest (scopes `users:read`, Socket Mode, event sub `user_huddle_changed`, app-level token `connections:write`). Participants/speaker labels = v2.
 
-## Active stream state — Slack Huddle Detection
+## Completed stream state — Slack Huddle Detection
 
 | Phase | Status | Commits | Tests passing |
 |---|---|---|---|
