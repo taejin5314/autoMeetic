@@ -124,6 +124,7 @@
       "clear": "清除",
       "save": "保存",
       "saved": "已保存",
+      "saveFailed": "保存失败：{{error}}",
       "cleared": "已清除",
       "testSuccess": "已连接到 {{team}}",
       "testFailed": "连接失败：{{error}}"

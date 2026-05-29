@@ -124,6 +124,7 @@
       "clear": "지우기",
       "save": "저장",
       "saved": "저장됨",
+      "saveFailed": "저장 실패: {{error}}",
       "cleared": "삭제됨",
       "testSuccess": "{{team}}에 연결됨",
       "testFailed": "연결 실패: {{error}}"

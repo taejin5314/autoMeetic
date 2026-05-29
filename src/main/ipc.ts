@@ -100,7 +100,8 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   // Slack Huddle Detection
   ipcMain.handle('slack:save-tokens', (_event, args: SlackTokens) => {
-    loadTokenStore().save(args)
+    const ok = loadTokenStore().save(args)
+    return ok ? { ok: true } : { ok: false, error: 'secure_storage_unavailable' }
   })
 
   ipcMain.handle('slack:load-status', () => {

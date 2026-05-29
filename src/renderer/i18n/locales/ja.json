@@ -124,6 +124,7 @@
       "clear": "クリア",
       "save": "保存",
       "saved": "保存しました",
+      "saveFailed": "保存に失敗しました: {{error}}",
       "cleared": "削除しました",
       "testSuccess": "{{team}} に接続しました",
       "testFailed": "接続失敗: {{error}}"

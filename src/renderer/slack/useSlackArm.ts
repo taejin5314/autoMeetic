@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SystemAudioCaptureService } from '../../main/audio/capture'
 import type { SlackStatus } from '../../main/slack/types'
+import { createSlackHuddleSessionGate } from './slackArmController'
 
 export interface UseSlackArmOptions {
   enabled: boolean
@@ -28,6 +29,15 @@ export function useSlackArm({
 }: UseSlackArmOptions): SlackArmState {
   const [armed, setArmed] = useState(false)
   const [status, setStatus] = useState<SlackStatus>({ state: 'not-connected' })
+  const sessionActiveRef = useRef(sessionActive)
+  const beginSessionRef = useRef(beginSession)
+  const endSessionRef = useRef(endSession)
+
+  useEffect(() => {
+    sessionActiveRef.current = sessionActive
+    beginSessionRef.current = beginSession
+    endSessionRef.current = endSession
+  }, [beginSession, endSession, sessionActive])
 
   const disarm = useCallback(async () => {
     capture.stop()
@@ -58,14 +68,17 @@ export function useSlackArm({
     if (!enabled) return undefined
     const api = window.electronAPI?.slack
     if (!api) return undefined
+    const sessionGate = createSlackHuddleSessionGate({
+      isSessionActive: () => sessionActiveRef.current,
+      beginSession: () => beginSessionRef.current(),
+      endSession: () => endSessionRef.current(),
+    })
 
     const offStarted = api.onHuddleStarted(() => {
-      if (sessionActive) return
-      void beginSession()
+      void sessionGate.handleHuddleStarted()
     })
     const offEnded = api.onHuddleEnded(() => {
-      if (!sessionActive) return
-      endSession()
+      sessionGate.handleHuddleEnded()
     })
     const offStatus = api.onStatus((nextStatus) => {
       setStatus(nextStatus)
@@ -76,7 +89,7 @@ export function useSlackArm({
       offEnded()
       offStatus()
     }
-  }, [beginSession, enabled, endSession, sessionActive])
+  }, [enabled])
 
   useEffect(() => {
     const offEnded = capture.onEnded(() => {

@@ -666,10 +666,6 @@ function App() {
     setRunning(false)
   }, [capture, runStartMs, sttClient, t, updateHealth])
 
-  const onStop = useCallback(() => {
-    endListeningSession({ stopCapture: true })
-  }, [endListeningSession])
-
   const beginSlackHuddleSession = useCallback(
     () => beginListeningSession({ startCapture: false }),
     [beginListeningSession]
@@ -687,6 +683,13 @@ function App() {
     endSession: endSlackHuddleSession,
     onError: setError,
   })
+
+  const onStop = useCallback(() => {
+    endListeningSession({ stopCapture: true })
+    if (slackArm.armed) {
+      void slackArm.disarm()
+    }
+  }, [endListeningSession, slackArm])
 
   const resetSession = useCallback(() => {
     if (!resetConfirming) {

@@ -16,7 +16,7 @@ export interface TokenCipher {
 }
 
 export interface TokenStore {
-  save(tokens: SlackTokens): void
+  save(tokens: SlackTokens): boolean
   load(): SlackTokens | null
   clear(): void
 }
@@ -53,9 +53,10 @@ type FetchFn = (input: string, init: { method: 'POST'; headers: Record<string, s
 export function makeTokenStore(cipher: TokenCipher): TokenStore {
   return {
     save(tokens) {
-      if (!cipher.available) return
+      if (!cipher.available) return false
       const encrypted = cipher.encrypt(JSON.stringify(tokens)).toString('base64')
       cipher.write(encrypted)
+      return true
     },
     load() {
       if (!cipher.available) return null

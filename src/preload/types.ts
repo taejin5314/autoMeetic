@@ -73,8 +73,13 @@ export interface SlackTestResult {
   error?: string
 }
 
+export interface SlackSaveResult {
+  ok: boolean
+  error?: string
+}
+
 export interface SlackAPI {
-  saveTokens(tokens: SlackTokens): Promise<void>
+  saveTokens(tokens: SlackTokens): Promise<SlackSaveResult>
   loadStatus(): Promise<SlackLoadStatus>
   test(botToken: string): Promise<SlackTestResult>
   clearTokens(): Promise<void>

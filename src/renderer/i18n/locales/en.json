@@ -124,6 +124,7 @@
       "clear": "Clear",
       "save": "Save",
       "saved": "Saved",
+      "saveFailed": "Save failed: {{error}}",
       "cleared": "Cleared",
       "testSuccess": "Connected to {{team}}",
       "testFailed": "Connection failed: {{error}}"

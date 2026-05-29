@@ -52,11 +52,15 @@ export function SlackSettingsPanel({ open, onClose }: SlackSettingsPanelProps) {
     setBusy(true)
     setMessage(null)
     try {
-      await api.saveTokens({
+      const result = await api.saveTokens({
         appToken: appToken.trim(),
         botToken: botToken.trim(),
         memberId: memberId.trim(),
       })
+      if (!result.ok) {
+        setMessage(t('slack.settings.saveFailed', { error: result.error ?? 'unknown' }))
+        return
+      }
       setHasTokens(true)
       setAppToken('')
       setBotToken('')

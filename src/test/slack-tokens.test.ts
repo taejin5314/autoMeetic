@@ -20,7 +20,7 @@ function memoryCipher() {
 describe('token store', () => {
   it('save then load round-trips', () => {
     const store = makeTokenStore(memoryCipher())
-    store.save({ appToken: 'xapp-1', botToken: 'xoxb-1', memberId: 'U1' })
+    expect(store.save({ appToken: 'xapp-1', botToken: 'xoxb-1', memberId: 'U1' })).toBe(true)
     expect(store.load()).toEqual({ appToken: 'xapp-1', botToken: 'xoxb-1', memberId: 'U1' })
   })
 
@@ -34,6 +34,12 @@ describe('token store', () => {
 
   it('load returns null when encryption unavailable', () => {
     const store = makeTokenStore({ ...memoryCipher(), available: false })
+    expect(store.load()).toBeNull()
+  })
+
+  it('save reports false when encryption unavailable', () => {
+    const store = makeTokenStore({ ...memoryCipher(), available: false })
+    expect(store.save({ appToken: 'xapp-1', botToken: 'xoxb-1', memberId: 'U1' })).toBe(false)
     expect(store.load()).toBeNull()
   })
 })
