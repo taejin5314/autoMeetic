@@ -34,6 +34,7 @@ import { LanguagePicker } from './i18n/LanguagePicker'
 import { MemoryLibraryPanel } from './library/MemoryLibraryPanel'
 import { CaptionOverlay } from './overlay/CaptionOverlay'
 import { useCaptionStore } from './overlay/useCaptionStore'
+import { useSlackArm } from './slack/useSlackArm'
 import { RightShelf } from './shell/RightShelf'
 import { SourceBar } from './shell/SourceBar'
 import { TranscriptColumns } from './shell/TranscriptColumns'
@@ -599,7 +600,7 @@ function App() {
    * Start listening — connect STT proxy, then start capture.
    * Mirrors autopreso/public/app.js startListening() flow.
    */
-  const onStart = useCallback(async () => {
+  const beginListeningSession = useCallback(async (options: { startCapture: boolean }) => {
     if (running || starting) return
     setError(null)
     setStarting(true)
@@ -610,9 +611,11 @@ function App() {
       await sttClient.connect(sttLanguage)
       updateHealth('stt', 'connected', t('shell.health.realtimeReady', { language: sttLanguage }))
 
-      // 2. Start system audio capture (prompts user to share tab/window)
-      updateHealth('capture', 'degraded', t('shell.health.requestingDisplayMedia'))
-      await capture.start()
+      // 2. Start system audio capture, or reuse the stream held by Slack Arm.
+      if (options.startCapture) {
+        updateHealth('capture', 'degraded', t('shell.health.requestingDisplayMedia'))
+        await capture.start()
+      }
       updateHealth('capture', 'connected', t('shell.health.systemAudioActive'))
       if (sessionStartMs === null) setSessionStartMs(Date.now())
       setRunStartMs(Date.now())
@@ -631,16 +634,22 @@ function App() {
     }
   }, [capture, running, sessionStartMs, starting, sttClient, sttLanguage, t, updateHealth])
 
+  const onStart = useCallback(async () => {
+    await beginListeningSession({ startCapture: true })
+  }, [beginListeningSession])
+
   /**
    * Stop listening — mirrors autopreso/public/app.js stopListening().
    */
-  const onStop = useCallback(() => {
+  const endListeningSession = useCallback((options: { stopCapture: boolean }) => {
     if (runStartMs !== null) {
       const startedAt = runStartMs
       setActiveAudioMs((ms) => ms + (Date.now() - startedAt))
       setRunStartMs(null)
     }
-    capture.stop()
+    if (options.stopCapture) {
+      capture.stop()
+    }
     sttClient.disconnect()
     if (captionTimerRef.current !== null) {
       window.clearTimeout(captionTimerRef.current)
@@ -648,10 +657,34 @@ function App() {
     }
     setCaptionText('')
     setAnalyser(null)
-    updateHealth('capture', 'disconnected', t('shell.health.stopped'))
+    if (options.stopCapture) {
+      updateHealth('capture', 'disconnected', t('shell.health.stopped'))
+    }
     updateHealth('stt', 'disconnected', t('shell.health.stopped'))
     setRunning(false)
   }, [capture, runStartMs, sttClient, t, updateHealth])
+
+  const onStop = useCallback(() => {
+    endListeningSession({ stopCapture: true })
+  }, [endListeningSession])
+
+  const beginSlackHuddleSession = useCallback(
+    () => beginListeningSession({ startCapture: false }),
+    [beginListeningSession]
+  )
+
+  const endSlackHuddleSession = useCallback(() => {
+    endListeningSession({ stopCapture: false })
+  }, [endListeningSession])
+
+  const slackArm = useSlackArm({
+    enabled: isElectron,
+    capture,
+    sessionActive: running,
+    beginSession: beginSlackHuddleSession,
+    endSession: endSlackHuddleSession,
+    onError: setError,
+  })
 
   const resetSession = useCallback(() => {
     if (!resetConfirming) {
@@ -907,6 +940,28 @@ function App() {
               {running ? t('shell.record.stop') : starting ? t('shell.record.starting') : t('shell.record.start')}
             </span>
           </button>
+
+          {isElectron ? (
+            <div className="v4p-slack-arm" data-state={slackArm.status.state}>
+              <button
+                className={`v4p-iconbtn ${slackArm.armed ? 'on' : ''}`}
+                type="button"
+                onClick={() => {
+                  if (slackArm.armed) void slackArm.disarm()
+                  else void slackArm.arm()
+                }}
+                disabled={starting}
+                title={slackArm.armed ? t('slack.arm.disarmTitle') : t('slack.arm.armTitle')}
+                aria-label={slackArm.armed ? t('slack.arm.disarmAria') : t('slack.arm.armAria')}
+                aria-pressed={slackArm.armed}
+              >
+                <span aria-hidden="true">S</span>
+              </button>
+              <span className="v4p-slack-arm-status">
+                {slackArm.armed ? t('slack.arm.armed') : t('slack.arm.disarmed')}
+              </span>
+            </div>
+          ) : null}
 
           <button
             className={`v4p-iconbtn ghost ${shelf !== 'closed' ? 'on' : ''}`}

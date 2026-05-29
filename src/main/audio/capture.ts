@@ -2,6 +2,7 @@ import { log } from '../telemetry/logger'
 import type { AudioChunk, CaptureConfig } from './types'
 
 type ChunkListener = (chunk: AudioChunk) => void
+type EndedListener = () => void
 
 const TARGET_SAMPLE_RATE = 24000
 
@@ -65,6 +66,7 @@ export class SystemAudioCaptureService {
   private analyserNode: AnalyserNode | undefined
   private stream: MediaStream | undefined
   private readonly listeners = new Set<ChunkListener>()
+  private readonly endedListeners = new Set<EndedListener>()
   private resampleCarry = new Float32Array(0)
 
   private emitResampledChunk(input: Float32Array, nativeRate: number): void {
@@ -91,6 +93,11 @@ export class SystemAudioCaptureService {
   subscribe(listener: ChunkListener): () => void {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
+  }
+
+  onEnded(listener: EndedListener): () => void {
+    this.endedListeners.add(listener)
+    return () => this.endedListeners.delete(listener)
   }
 
   /** Get the AnalyserNode for waveform visualization (available after start). Ported from autopreso. */
@@ -135,6 +142,7 @@ export class SystemAudioCaptureService {
 
     audioTracks[0].onended = () => {
       log('warn', 'capture', 'audio track ended by browser/user; stopping capture')
+      for (const listener of this.endedListeners) listener()
       this.stop()
     }
 
