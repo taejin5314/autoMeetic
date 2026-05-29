@@ -28,12 +28,9 @@ import { isElectron } from './api'
 import './App.css'
 import { ElectronSttClient } from './electronSttClient'
 import { useFeedTypewriter } from './feed/useFeedTypewriter'
-import { GlossaryPanel } from './glossary/GlossaryPanel'
 import { LanguagePicker } from './i18n/LanguagePicker'
-import { MemoryLibraryPanel } from './library/MemoryLibraryPanel'
 import { CaptionOverlay } from './overlay/CaptionOverlay'
 import { useCaptionStore } from './overlay/useCaptionStore'
-import { SlackSettingsPanel } from './slack/SlackSettingsPanel'
 import { useSlackArm } from './slack/useSlackArm'
 import { RightShelf } from './shell/RightShelf'
 import { SourceBar } from './shell/SourceBar'
@@ -44,8 +41,8 @@ import { useFullscreenState } from './shell/useFullscreenState'
 import { usePanels } from './shell/usePanels'
 import { usePipelineHealth } from './shell/usePipelineHealth'
 import { useTranscriptScrollSync } from './shell/useTranscriptScrollSync'
+import { AppModals } from './shell/AppModals'
 import { useThemeStore, type Theme } from './theme/useThemeStore'
-import { WhiteboardModal } from './whiteboard/WhiteboardModal'
 
 const LANGUAGE_OPTIONS = [
   { code: 'auto', labelKey: 'shell.language.autoDetect' },
@@ -1210,24 +1207,23 @@ function App() {
       {/* Caption overlay for screen sharing — kept for fullscreen presenters */}
       {isFullscreen && <CaptionOverlay currentPartial={captionText} />}
 
-      <WhiteboardModal
-        open={whiteboardMaximized}
-        elements={whiteboardElements}
+      <AppModals
+        whiteboardMaximized={whiteboardMaximized}
+        whiteboardElements={whiteboardElements}
         viewportCommand={viewportCommand}
         agentStatus={agentStatus}
         canvasResetVersion={canvasResetVersion}
-        onElementsChange={handleWhiteboardChange}
-        onScreenshot={handleWhiteboardScreenshot}
-        onClose={() => setWhiteboardMaximized(false)}
-      />
-
-      <MemoryLibraryPanel
-        open={memoryLibraryOpen}
-        onClose={() => setMemoryLibraryOpen(false)}
+        onWhiteboardElementsChange={handleWhiteboardChange}
+        onWhiteboardScreenshot={handleWhiteboardScreenshot}
+        onWhiteboardClose={() => setWhiteboardMaximized(false)}
+        memoryLibraryOpen={memoryLibraryOpen}
+        onMemoryLibraryClose={() => setMemoryLibraryOpen(false)}
         onSendAskToMindMap={handleSendAskToMindMap}
+        slackSettingsOpen={slackSettingsOpen}
+        onSlackSettingsClose={() => setSlackSettingsOpen(false)}
+        glossaryOpen={glossaryOpen}
+        onGlossaryClose={() => setGlossaryOpen(false)}
       />
-      <SlackSettingsPanel open={slackSettingsOpen} onClose={() => setSlackSettingsOpen(false)} />
-      <GlossaryPanel open={glossaryOpen} meetingId={null} onClose={() => setGlossaryOpen(false)} />
     </main>
   )
 }
