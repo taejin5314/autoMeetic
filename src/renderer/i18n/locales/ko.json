@@ -96,6 +96,39 @@
       "mindMapDesktopOnly": "마인드맵 생성은 데스크톱 앱에서 사용할 수 있습니다."
     }
   },
+  "slack": {
+    "arm": {
+      "armTitle": "Slack Huddle 감지 준비",
+      "disarmTitle": "Slack Huddle 감지 해제",
+      "armAria": "Slack Huddle 감지 준비",
+      "disarmAria": "Slack Huddle 감지 해제"
+    },
+    "status": {
+      "not-connected": "Slack 꺼짐",
+      "connected": "연결됨",
+      "listening": "대기 중",
+      "transcribing": "Huddle 라이브",
+      "reconnecting": "재연결 중",
+      "error": "오류"
+    },
+    "settings": {
+      "dialogAria": "Slack 설정",
+      "title": "Slack",
+      "connected": "토큰 저장됨",
+      "notConnected": "연결 안 됨",
+      "closeAria": "Slack 설정 닫기",
+      "appToken": "앱 레벨 토큰",
+      "botToken": "봇 토큰",
+      "memberId": "멤버 ID",
+      "test": "테스트",
+      "clear": "지우기",
+      "save": "저장",
+      "saved": "저장됨",
+      "cleared": "삭제됨",
+      "testSuccess": "{{team}}에 연결됨",
+      "testFailed": "연결 실패: {{error}}"
+    }
+  },
   "sourceBar": {
     "system": "시스템",
     "systemDetail": "탭 / 창 오디오",

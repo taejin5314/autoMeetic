@@ -378,6 +378,129 @@ body,
   color: #1a1d29;
 }
 
+.v4p-slack-arm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 94px;
+}
+
+.v4p-slack-arm .v4p-iconbtn.on {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #fff;
+}
+
+.v4p-slack-arm-status {
+  max-width: 86px;
+  overflow: hidden;
+  color: var(--p-muted);
+  font-size: 11px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.v4p-slack-arm[data-state='error'] .v4p-slack-arm-status {
+  color: #dc2626;
+}
+
+.slack-settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.slack-settings-panel {
+  width: min(460px, calc(100vw - 32px));
+  max-height: min(680px, calc(100vh - 32px));
+  overflow: auto;
+  border: 1px solid var(--p-border-strong);
+  border-radius: 8px;
+  background: var(--p-bg-card);
+  color: var(--p-ink);
+  box-shadow: var(--p-shadow-card);
+}
+
+.slack-settings-head,
+.slack-settings-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid var(--p-border);
+}
+
+.slack-settings-head span {
+  color: var(--p-muted);
+  font-size: 11px;
+}
+
+.slack-settings-head h2 {
+  margin: 2px 0 0;
+  font-size: 18px;
+}
+
+.slack-settings-fields {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.slack-settings-fields label {
+  display: grid;
+  gap: 6px;
+  color: var(--p-muted);
+  font-size: 12px;
+}
+
+.slack-settings-fields input {
+  width: 100%;
+  border: 1px solid var(--p-border-strong);
+  border-radius: 7px;
+  background: var(--p-bg);
+  color: var(--p-ink);
+  font: inherit;
+  padding: 9px 10px;
+}
+
+.slack-settings-message {
+  margin: 0 16px 12px;
+  color: var(--p-muted);
+  font-size: 12px;
+}
+
+.slack-settings-actions {
+  border-top: 1px solid var(--p-border);
+  border-bottom: 0;
+}
+
+.slack-settings-actions button {
+  border: 1px solid var(--p-border-strong);
+  border-radius: 7px;
+  background: var(--p-bg);
+  color: var(--p-ink);
+  cursor: pointer;
+  font: inherit;
+  padding: 8px 11px;
+}
+
+.slack-settings-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.slack-settings-actions .slack-settings-save {
+  background: var(--p-ink);
+  color: var(--p-bg);
+}
+
 .language-picker {
   font-size: 12px;
   height: 28px;

@@ -96,6 +96,39 @@
       "mindMapDesktopOnly": "マインドマップ作成はデスクトップアプリで利用できます。"
     }
   },
+  "slack": {
+    "arm": {
+      "armTitle": "Slack Huddle 検出をアーム",
+      "disarmTitle": "Slack Huddle 検出を解除",
+      "armAria": "Slack Huddle 検出をアーム",
+      "disarmAria": "Slack Huddle 検出を解除"
+    },
+    "status": {
+      "not-connected": "Slack オフ",
+      "connected": "接続済み",
+      "listening": "待機中",
+      "transcribing": "Huddle ライブ",
+      "reconnecting": "再接続中",
+      "error": "エラー"
+    },
+    "settings": {
+      "dialogAria": "Slack 設定",
+      "title": "Slack",
+      "connected": "トークン保存済み",
+      "notConnected": "未接続",
+      "closeAria": "Slack 設定を閉じる",
+      "appToken": "アプリレベルトークン",
+      "botToken": "Bot トークン",
+      "memberId": "メンバー ID",
+      "test": "テスト",
+      "clear": "クリア",
+      "save": "保存",
+      "saved": "保存しました",
+      "cleared": "削除しました",
+      "testSuccess": "{{team}} に接続しました",
+      "testFailed": "接続失敗: {{error}}"
+    }
+  },
   "sourceBar": {
     "system": "システム",
     "systemDetail": "タブ / ウィンドウ音声",

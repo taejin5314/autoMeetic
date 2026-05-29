@@ -96,6 +96,39 @@
       "mindMapDesktopOnly": "Mind map creation is available in the desktop app."
     }
   },
+  "slack": {
+    "arm": {
+      "armTitle": "Arm Slack Huddle detection",
+      "disarmTitle": "Disarm Slack Huddle detection",
+      "armAria": "Arm Slack Huddle detection",
+      "disarmAria": "Disarm Slack Huddle detection"
+    },
+    "status": {
+      "not-connected": "Slack off",
+      "connected": "connected",
+      "listening": "listening",
+      "transcribing": "huddle live",
+      "reconnecting": "reconnecting",
+      "error": "error"
+    },
+    "settings": {
+      "dialogAria": "Slack settings",
+      "title": "Slack",
+      "connected": "Tokens saved",
+      "notConnected": "Not connected",
+      "closeAria": "Close Slack settings",
+      "appToken": "App-level token",
+      "botToken": "Bot token",
+      "memberId": "Member ID",
+      "test": "Test",
+      "clear": "Clear",
+      "save": "Save",
+      "saved": "Saved",
+      "cleared": "Cleared",
+      "testSuccess": "Connected to {{team}}",
+      "testFailed": "Connection failed: {{error}}"
+    }
+  },
   "sourceBar": {
     "system": "System",
     "systemDetail": "tab / window audio",

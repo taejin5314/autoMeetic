@@ -96,6 +96,39 @@
       "mindMapDesktopOnly": "思维导图创建仅在桌面应用中可用。"
     }
   },
+  "slack": {
+    "arm": {
+      "armTitle": "启用 Slack Huddle 检测",
+      "disarmTitle": "关闭 Slack Huddle 检测",
+      "armAria": "启用 Slack Huddle 检测",
+      "disarmAria": "关闭 Slack Huddle 检测"
+    },
+    "status": {
+      "not-connected": "Slack 关闭",
+      "connected": "已连接",
+      "listening": "监听中",
+      "transcribing": "Huddle 直播中",
+      "reconnecting": "重新连接中",
+      "error": "错误"
+    },
+    "settings": {
+      "dialogAria": "Slack 设置",
+      "title": "Slack",
+      "connected": "令牌已保存",
+      "notConnected": "未连接",
+      "closeAria": "关闭 Slack 设置",
+      "appToken": "应用级令牌",
+      "botToken": "Bot 令牌",
+      "memberId": "成员 ID",
+      "test": "测试",
+      "clear": "清除",
+      "save": "保存",
+      "saved": "已保存",
+      "cleared": "已清除",
+      "testSuccess": "已连接到 {{team}}",
+      "testFailed": "连接失败：{{error}}"
+    }
+  },
   "sourceBar": {
     "system": "系统",
     "systemDetail": "标签页 / 窗口音频",

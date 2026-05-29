@@ -34,6 +34,7 @@ import { LanguagePicker } from './i18n/LanguagePicker'
 import { MemoryLibraryPanel } from './library/MemoryLibraryPanel'
 import { CaptionOverlay } from './overlay/CaptionOverlay'
 import { useCaptionStore } from './overlay/useCaptionStore'
+import { SlackSettingsPanel } from './slack/SlackSettingsPanel'
 import { useSlackArm } from './slack/useSlackArm'
 import { RightShelf } from './shell/RightShelf'
 import { SourceBar } from './shell/SourceBar'
@@ -250,6 +251,7 @@ function App() {
   const [whiteboardMaximized, setWhiteboardMaximized] = useState(false)
   const [memoryLibraryOpen, setMemoryLibraryOpen] = useState(false)
   const [glossaryOpen, setGlossaryOpen] = useState(false)
+  const [slackSettingsOpen, setSlackSettingsOpen] = useState(false)
   const glossarySuggestionCount = useGlossarySuggestionCount()
   const {
     items,
@@ -958,7 +960,7 @@ function App() {
                 <span aria-hidden="true">S</span>
               </button>
               <span className="v4p-slack-arm-status">
-                {slackArm.armed ? t('slack.arm.armed') : t('slack.arm.disarmed')}
+                {t(`slack.status.${slackArm.status.state}`)}
               </span>
             </div>
           ) : null}
@@ -1033,6 +1035,19 @@ function App() {
               <span className="v4p-iconbtn-badge amw-mono">{glossarySuggestionCount}</span>
             )}
           </button>
+
+          {isElectron ? (
+            <button
+              className={`v4p-iconbtn ghost ${slackSettingsOpen ? 'on' : ''}`}
+              type="button"
+              onClick={() => setSlackSettingsOpen(true)}
+              title={t('slack.settings.title')}
+              aria-label={t('slack.settings.title')}
+              aria-pressed={slackSettingsOpen}
+            >
+              <span aria-hidden="true">S</span>
+            </button>
+          ) : null}
 
           <button
             className="v4p-iconbtn ghost"
@@ -1216,6 +1231,7 @@ function App() {
         onClose={() => setMemoryLibraryOpen(false)}
         onSendAskToMindMap={handleSendAskToMindMap}
       />
+      <SlackSettingsPanel open={slackSettingsOpen} onClose={() => setSlackSettingsOpen(false)} />
       <GlossaryPanel open={glossaryOpen} meetingId={null} onClose={() => setGlossaryOpen(false)} />
     </main>
   )
