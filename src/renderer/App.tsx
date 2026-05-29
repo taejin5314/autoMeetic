@@ -42,6 +42,7 @@ import { TranscriptColumns } from './shell/TranscriptColumns'
 import { useAnswerAssistHotkey } from './shell/useAnswerAssistHotkey'
 import { useClockMs } from './shell/useClockMs'
 import { useFullscreenState } from './shell/useFullscreenState'
+import { usePanels } from './shell/usePanels'
 import { useTranscriptScrollSync } from './shell/useTranscriptScrollSync'
 import { useThemeStore, type Theme } from './theme/useThemeStore'
 import { WhiteboardModal } from './whiteboard/WhiteboardModal'
@@ -246,12 +247,18 @@ function App() {
   const [translationTarget, setTranslationTarget] = useState(getInitialTranslationTarget)
   const [languageLock, setLanguageLock] = useState<string | null>(null)
   const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null)
-  // V4: collapsible right shelf — 'whiteboard' | 'actions' | 'closed'
-  const [shelf, setShelf] = useState<'whiteboard' | 'actions' | 'closed'>('whiteboard')
-  const [whiteboardMaximized, setWhiteboardMaximized] = useState(false)
-  const [memoryLibraryOpen, setMemoryLibraryOpen] = useState(false)
-  const [glossaryOpen, setGlossaryOpen] = useState(false)
-  const [slackSettingsOpen, setSlackSettingsOpen] = useState(false)
+  const {
+    shelf,
+    setShelf,
+    whiteboardMaximized,
+    setWhiteboardMaximized,
+    memoryLibraryOpen,
+    setMemoryLibraryOpen,
+    glossaryOpen,
+    setGlossaryOpen,
+    slackSettingsOpen,
+    setSlackSettingsOpen,
+  } = usePanels()
   const glossarySuggestionCount = useGlossarySuggestionCount()
   const {
     items,
@@ -746,7 +753,7 @@ function App() {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'whiteboard:reset' }))
     }
-  }, [clear, onStop, resetActionItems, resetConfirming, running, t, updateHealth])
+  }, [clear, onStop, resetActionItems, resetConfirming, running, setWhiteboardMaximized, t, updateHealth])
 
   const triggerAnswerAssist = useCallback(() => {
     if (answerAssist.status === 'loading' || answerAssist.status === 'streaming') return
@@ -774,7 +781,7 @@ function App() {
     await api.createMindMapFromAsk(payload)
     setShelf('whiteboard')
     setWhiteboardMaximized(true)
-  }, [t])
+  }, [setShelf, setWhiteboardMaximized, t])
 
   // ── V4 Bilingual Editorial layout ────────────────────────────────────────
   const sourceLang =
