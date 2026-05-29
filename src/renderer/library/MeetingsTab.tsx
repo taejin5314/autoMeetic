@@ -153,6 +153,12 @@ export function MeetingsTab({
   }, [api, loadDetail, selectedId])
 
   useEffect(() => {
+    if (!exportMessage) return
+    const timeout = window.setTimeout(() => setExportMessage(null), 4000)
+    return () => window.clearTimeout(timeout)
+  }, [exportMessage])
+
+  useEffect(() => {
     if (!api) return undefined
     return api.onMeetingUpdated(() => {
       void loadMeetings()
