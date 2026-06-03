@@ -16,7 +16,7 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 | Phase | Status | Commits | Tests passing |
 |---|---|---|---|
 | 1 — Memory Tree schema + repository + builder (TDD) | ✅ COMPLETE | `54f911a` → `4947bb7` (5 commits) | 372/372 (`npm run verify:phase 1`); build passed |
-| 2 — normalizePreserveTerms extension + glossary-normalize-applied event (TDD) | ⏳ PENDING | — | — |
+| 2 — normalizePreserveTerms extension + glossary-normalize-applied event (TDD) | ✅ COMPLETE | `9c1e9b9` → `e5b314c` (2 commits) | 375/375 (`npm run verify:phase 2`); build passed |
 | 3 — CoachSubscriber + coachService (TDD) | ⏳ PENDING | — | — |
 | 4 — Preload bridge + i18n keys (en/ko/ja/zh) | ⏳ PENDING | — | — |
 | 5 — Renderer: useCoachFeed + CoachFeed + RightShelf 3rd mode | ⏳ PENDING | — | — |
@@ -58,6 +58,43 @@ VERDICT: ✅ Phase 1 verified
 ```text
 npm run build
 ✓ built in 4.77s
+```
+
+**Phase 2 verification (`npm run verify:phase 2`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 2
+
+
+🔍 autoMeetic verification — 2026-06-03 16:20
+
+  Plan: docs/superpowers/plans/2026-05-28-live-coach-memory-tree.md
+  Verifying Phase 2
+
+  Expected files (referenced in Phase 2 body):
+    ✅ src/test/coach-glossary-extension.test.ts
+
+Checks:
+  ✅ typecheck (0 errors, 1.0s)
+  ✅ lint (0 errors, 12.1s)
+  ✅ vitest (375 / 375 passed, 11.5s)
+
+Git context (last 5 commits):
+  e5b314c feat(coach): emit glossary-normalize-applied pipeline event
+  9c1e9b9 feat(coach): normalizePreserveTerms returns variant→canonical pairs
+  b802077 docs(coach): mark phase 1 verified
+  4947bb7 test(coach): update schema version expectations for v6
+  2bdf999 feat(coach): memory tree builder (cluster assign + LLM summary)
+
+VERDICT: ✅ Phase 2 verified
+```
+
+**Phase 2 additional check:**
+
+```text
+npm run build
+✓ built in 2.81s
 ```
 
 ## ⏸ Paused stream — App.tsx Split (partial)
