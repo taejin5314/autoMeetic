@@ -4,14 +4,9 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 
 ## 🚀 Next active stream
 
-> **Live Coach + Memory Tree — Proactive In-Meeting Context Surfacing.** Net-new feature; first proactive/agentic surface in autoMeetic. 6 phases. Adds a `CoachSubscriber` on the `PipelineBus` (zero `transcriptPostProcessor` edits — proves the orchestration stream) that emits two card types to a new right-shelf **Coach** feed: (a) **past-context** (regex-triggered on phrases like "지난번"/"last time" → embed turn → look up nearest **Memory Tree cluster** → surface cluster title + summary snippet); (b) **glossary-mismatch** (free, hooks the existing `normalizePreserveTerms` to report variant → canonical normalizations). **Memory Tree v1** = one cluster level: meetings grouped by cosine-similarity (≥0.6) with LLM-regenerated cluster summaries on `meeting-ended`. Right shelf gains a 3rd mode (whiteboard → actions → coach → closed). Strict rate limits (past-context 1/min, total 5/min, cluster dedup 5min, canonical dedup 1min). Calm sidebar feed — no popups/audio/mascot. Competitive context: this is autoMeetic's vertical-deep answer to OpenHuman's general "always-on background thinking" — bot-free, meeting-only, professional/quiet. See:
->
-> - **Spec:** `docs/superpowers/specs/2026-05-28-live-coach-memory-tree-design.md`
-> - **Plan:** `docs/superpowers/plans/2026-05-28-live-coach-memory-tree.md`
->
-> Start at Phase 1 (Memory Tree schema + repository + builder, TDD). Phase 2 = `normalizePreserveTerms` extension to return `{ text, pairs }` (behavior-preserving for `.text`) + new pipeline event. Phase 3 = CoachSubscriber + service (TDD). Phase 4 = preload + i18n. Phase 5 = renderer (CoachFeed + RightShelf 'coach' mode). Phase 6 = regression + push. Coach disabled (shelf elsewhere) MUST be a 0-difference experience to current users.
+> ⏳ PENDING. Candidate follow-up streams from the Live Coach plan: Meeting Action Integrations, CJK depth, or Local LLM. Pick one before starting the next implementation stream.
 
-## Active stream state — Live Coach + Memory Tree
+## Completed stream state — Live Coach + Memory Tree
 
 | Phase | Status | Commits | Tests passing |
 |---|---|---|---|
@@ -20,7 +15,7 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 | 3 — CoachSubscriber + coachService (TDD) | ✅ COMPLETE | `6699432` → `393a148` (4 commits) | 384/384 (`npm run verify:phase 3`); build passed |
 | 4 — Preload bridge + i18n keys (en/ko/ja/zh) | ✅ COMPLETE | `3d2c394` → `2e28cfa` (2 commits) | 384/384 (`npm run verify:phase 4`); build passed |
 | 5 — Renderer: useCoachFeed + CoachFeed + RightShelf 3rd mode | ✅ COMPLETE | `58ae79b` → `179ae5a` (4 commits) | 384/384 (`npm run verify:phase 5`); build passed |
-| 6 — Regression + handoff + push | ⏳ PENDING | — | — |
+| 6 — Regression + handoff + push | ✅ COMPLETE | `49a124c` → `HEAD` (final docs) | 384/384 (`npm run verify`, fallback `npx vitest run` after Windows `npm test` EBUSY); build passed |
 
 **Phase 1 verification (`npm run verify:phase 1`):**
 
@@ -216,6 +211,67 @@ VERDICT: ✅ Phase 5 verified
 npm run build
 ✓ built in 3.16s
 ```
+
+**Phase 6 verification (`npm run verify`):**
+
+```text
+> automeetic@0.0.0 verify
+> node scripts/verify.mjs
+
+🔍 autoMeetic verification — 2026-06-03 16:41
+
+Checks:
+  ✅ typecheck (0 errors, 0.8s)
+  ✅ lint (0 errors, 10.6s)
+  ✅ vitest (384 / 384 passed, 9.2s)
+
+Git context (last 5 commits):
+  49a124c docs(coach): mark phase 5 verified
+  179ae5a feat(coach): styles for Coach cards + feed
+  65fdbf3 feat(coach): mount Coach feed in RightShelf with 3rd shelf mode
+  3444490 feat(coach): CoachFeed component
+  58ae79b feat(coach): useCoachFeed renderer hook
+
+VERDICT: ✅ Verified clean
+```
+
+**Phase 6 additional checks:**
+
+```text
+npm run build
+✓ built in 2.61s
+```
+
+```text
+npm test
+prebuild-install warn install EBUSY: resource busy or locked, open 'C:\Users\taeji\OneDrive\바탕 화면\ai-projects\autoMeetic\node_modules\better-sqlite3\build\Release\better_sqlite3.node'
+```
+
+```text
+npx vitest run
+Test Files  63 passed (63)
+Tests  384 passed (384)
+```
+
+```text
+rg -n "actionItemService|whiteboardService|memory/transcriptHook|enqueueActionTranscript|enqueueWhiteboardTranscript|notifyTurnFinalized|notifyTranslation|notifySourceTextUpdate" src/main/transcriptPostProcessor.ts
+No matches (exit code 1).
+```
+
+```text
+git diff origin/master...HEAD -- src/main/transcriptPostProcessor.ts
+Only TranslationResponse.glossaryPairs plumbing, normalizePreserveTerms(...).text extraction, and one glossary-normalize-applied PipelineBus emit line.
+```
+
+**Manual smoke checklist (deferred to user):**
+
+- [ ] Keyword phrase ("last time" / "지난번") during a live meeting surfaces one `past-context` card in Coach.
+- [ ] Glossary variant normalization surfaces one `glossary-mismatch` card in Coach.
+- [ ] Rate limits hold: past-context 1/min, total 5/min, same cluster 5min dedup, same canonical 1min dedup.
+- [ ] Shelf toggle cycles whiteboard → actions → coach → closed and existing whiteboard/actions behavior remains unchanged.
+- [ ] Locale switches show Coach strings in en/ko/ja/zh.
+- [ ] No renderer/main console errors while receiving Coach cards.
+- [ ] Coach disabled (shelf mode ≠ coach) has no observable change to transcription, translation, whiteboard, memory, glossary, or actions.
 
 ## ⏸ Paused stream — App.tsx Split (partial)
 
