@@ -17,8 +17,8 @@ describe('MemoryRepository — glossary variants', () => {
     repo = freshRepo()
   })
 
-  it('schema version is 5 after fresh init', () => {
-    expect(repo.getSchemaVersion()).toBe(5)
+  it('schema version is 6 after fresh init', () => {
+    expect(repo.getSchemaVersion()).toBe(6)
   })
 
   it('upsert + list round-trips variants', () => {
@@ -119,18 +119,18 @@ describe('MemoryRepository — glossary variants', () => {
     expect(rows[0].sourceText).toBe('text 4')
   })
 
-  it('migrateToV5 is idempotent: ALTER does not throw when re-applied via fresh init', () => {
+  it('migrations are idempotent: ALTER does not throw when re-applied via fresh init', () => {
     const dir = mkdtempSync(join(tmpdir(), 'autometic-gv2-'))
     const dbPath = join(dir, 'memory.db')
     const r1 = new MemoryRepository(dbPath)
-    expect(r1.getSchemaVersion()).toBe(5)
+    expect(r1.getSchemaVersion()).toBe(6)
     r1.close()
     // Re-init same DB; migrate should be a no-op
     const r2 = new MemoryRepository(dbPath)
-    expect(r2.getSchemaVersion()).toBe(5)
+    expect(r2.getSchemaVersion()).toBe(6)
   })
 
-  it('migrateToV5 adds the column to a pre-v5 DB without data loss', () => {
+  it('migrates a pre-v5 DB without data loss', () => {
     const dir = mkdtempSync(join(tmpdir(), 'autometic-gv3-'))
     const dbPath = join(dir, 'memory.db')
     // Manually create a v4-shaped DB with a glossary_entries row that has no variants column
@@ -155,7 +155,7 @@ describe('MemoryRepository — glossary variants', () => {
     raw.close()
     // Re-open with the production repo — migration should run
     const repo = new MemoryRepository(dbPath)
-    expect(repo.getSchemaVersion()).toBe(5)
+    expect(repo.getSchemaVersion()).toBe(6)
     const entries = repo.listGlossary('global')
     expect(entries).toHaveLength(1)
     expect(entries[0].sourceTerm).toBe('OldTerm')

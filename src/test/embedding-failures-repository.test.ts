@@ -45,8 +45,8 @@ describe('MemoryRepository — embedding_failures + backfill derivation', () => 
     seedMeeting(repo)
   })
 
-  it('schema version is 5 after fresh init', () => {
-    expect(repo.getSchemaVersion()).toBe(5)
+  it('schema version is 6 after fresh init', () => {
+    expect(repo.getSchemaVersion()).toBe(6)
   })
 
   it('getSegmentsNeedingEmbedding returns segments without embedding or failure', () => {
