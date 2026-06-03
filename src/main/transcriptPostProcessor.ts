@@ -75,6 +75,7 @@ interface ActiveSourceTurn {
 interface TranslationResponse {
   translation: string | null
   sourceLanguage: string
+  glossaryPairs: { variant: string; canonical: string }[]
 }
 
 let mainWindowRef: BrowserWindow | null = null
@@ -411,6 +412,7 @@ async function drainTranslationQueue(): Promise<void> {
         id: next.id,
         translation: response.translation,
       })
+      if (response.glossaryPairs.length > 0) pipelineBusRef?.emit({ type: 'glossary-normalize-applied', id: next.id, pairs: response.glossaryPairs })
     }
   } catch (err) {
     console.warn(
@@ -493,14 +495,13 @@ async function callTranslationApi(
     typeof parsed.translation === 'string' && parsed.translation.trim()
       ? parsed.translation.trim()
       : null
-  const normalizedTranslation = translation
-    ? normalizePreserveTerms(translation, activeGlossary).text
-    : null
+  const normalized = translation ? normalizePreserveTerms(translation, activeGlossary) : null
+  const normalizedTranslation = normalized?.text ?? null
   const sourceLanguage =
     typeof parsed.sourceLanguage === 'string' && parsed.sourceLanguage.length === 2
       ? parsed.sourceLanguage
       : hints.sourceLanguageHint
-  return { translation: normalizedTranslation, sourceLanguage }
+  return { translation: normalizedTranslation, sourceLanguage, glossaryPairs: normalized?.pairs ?? [] }
 }
 
 async function getTranslationGlossaryContext(

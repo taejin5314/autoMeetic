@@ -86,6 +86,7 @@ describe('transcript postprocessor memory bridge', () => {
           translations: {},
           preserve: true,
           note: null,
+          variants: ['graphics processor'],
           createdAt: 1,
           updatedAt: 1,
         },
@@ -114,7 +115,7 @@ describe('transcript postprocessor memory bridge', () => {
                 {
                   message: {
                     content: JSON.stringify({
-                      translation: 'gpu 벤치마크',
+                      translation: 'graphics processor benchmark',
                       sourceLanguage: 'en',
                     }),
                   },
@@ -135,10 +136,16 @@ describe('transcript postprocessor memory bridge', () => {
       expect(events).toContainEqual(
         expect.objectContaining({
           type: 'translation-updated',
-          translation: 'GPU 벤치마크',
+          translation: 'GPU benchmark',
         })
       )
-      expect(memoryDeps.notifyTranslation).toHaveBeenCalledWith(expect.any(String), 'GPU 벤치마크')
+      expect(events).toContainEqual(
+        expect.objectContaining({
+          type: 'glossary-normalize-applied',
+          pairs: [{ variant: 'graphics processor', canonical: 'GPU' }],
+        })
+      )
+      expect(memoryDeps.notifyTranslation).toHaveBeenCalledWith(expect.any(String), 'GPU benchmark')
     } finally {
       if (typeof previousApiKey === 'undefined') {
         delete process.env.OPENAI_API_KEY
