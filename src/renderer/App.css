@@ -1574,6 +1574,127 @@ body,
   color: var(--p-ink);
 }
 
+.v4p-coach-empty {
+  padding: 18px 8px;
+}
+
+.v4p-coach-empty p {
+  margin: 0;
+  font-family: var(--p-serif);
+  font-size: 14px;
+  color: var(--p-mute);
+  line-height: 1.55;
+}
+
+.v4p-coach-empty em {
+  color: var(--p-ink);
+  font-style: italic;
+}
+
+.v4p-coach-panel {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.v4p-coach-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--p-border);
+}
+
+.v4p-coach-head span {
+  font-size: 11px;
+  color: var(--p-faint);
+}
+
+.v4p-coach-head button,
+.v4p-coach-card-hd button,
+.v4p-coach-card-actions button {
+  border: 1px solid var(--p-border);
+  border-radius: 5px;
+  background: var(--p-bg-card);
+  color: var(--p-mute);
+  cursor: pointer;
+  font-size: 11.5px;
+  padding: 4px 7px;
+}
+
+.v4p-coach-head button:hover,
+.v4p-coach-card-hd button:hover,
+.v4p-coach-card-actions button:hover {
+  border-color: var(--p-border-strong);
+  color: var(--p-ink);
+}
+
+.v4p-coach-list {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 4px;
+}
+
+.v4p-coach-card {
+  border: 1px solid var(--p-border);
+  border-radius: 8px;
+  background: var(--p-bg-sub);
+  padding: 10px;
+}
+
+.v4p-coach-card.past-context {
+  border-left: 3px solid var(--p-primary);
+}
+
+.v4p-coach-card.glossary-mismatch {
+  border-left: 3px solid var(--p-warning);
+}
+
+.v4p-coach-card-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-family: var(--p-serif);
+  font-size: 13px;
+  color: var(--p-mute);
+}
+
+.v4p-coach-card-hd em {
+  color: var(--p-ink);
+  font-style: italic;
+}
+
+.v4p-coach-card h3 {
+  margin: 0 0 7px;
+  color: var(--p-ink);
+  font-family: var(--p-sans);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.v4p-coach-card p {
+  margin: 0;
+  color: var(--p-mute);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.v4p-coach-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 9px;
+}
+
 /* ── Answer Assist overlay positioning ─────────────────────────────────── */
 
 .v4p-aa-overlay {
