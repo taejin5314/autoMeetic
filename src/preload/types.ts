@@ -14,6 +14,7 @@ import type { DeepAskEvent } from '../main/memory/agents/types'
 import type { ExportLanguageMode } from '../main/memory/markdownExporter'
 import type { AskMindMapPayload, AskMindMapResult } from '../main/whiteboard/askMindMap'
 import type { SlackStatus, SlackTokens } from '../main/slack/types'
+import type { CoachEvent } from '../main/coach/types'
 
 export interface TranslationPatchEvent {
   id: string
@@ -90,6 +91,10 @@ export interface SlackAPI {
   onStatus(callback: (status: SlackStatus) => void): () => void
 }
 
+export interface CoachAPI {
+  onEvent(handler: (event: CoachEvent) => void): () => void
+}
+
 export interface ElectronAPI {
   system: {
     getLocale(): Promise<string>
@@ -97,6 +102,7 @@ export interface ElectronAPI {
   memory: MemoryAPI
   glossary: GlossaryAPI
   slack: SlackAPI
+  coach: CoachAPI
 
   // Actions
   translate(text: string, targetLang: string): Promise<{ translation: string }>

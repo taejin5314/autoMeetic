@@ -69,6 +69,9 @@ export function buildPreloadApi(ipcRenderer: IpcRendererLike): ElectronAPI {
       onHuddleEnded: listen('slack:huddle-ended') as ElectronAPI['slack']['onHuddleEnded'],
       onStatus: listen('slack:status') as ElectronAPI['slack']['onStatus'],
     },
+    coach: {
+      onEvent: listen('coach:event') as ElectronAPI['coach']['onEvent'],
+    },
 
     translate: (text, targetLang) => ipcRenderer.invoke('translate', { text, targetLang }),
     startAnswerAssist: (transcript, sourceLang, targetLang, glossary) =>
