@@ -7,6 +7,7 @@ import type {
   GlossarySuggestion,
   GlossarySuggestionInput,
   Meeting,
+  MeetingCluster,
   MeetingStatus,
   PendingEmbedding,
   SearchHit,
@@ -25,6 +26,58 @@ function parseVariants(json: string): string[] {
     return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : []
   } catch {
     return []
+  }
+}
+
+function vectorToBuffer(vector: Float32Array): Buffer {
+  return Buffer.from(vector.buffer, vector.byteOffset, vector.byteLength)
+}
+
+function bufferToVector(buffer: Buffer): Float32Array {
+  return new Float32Array(buffer.buffer, buffer.byteOffset, buffer.byteLength / 4).slice()
+}
+
+function cosineSimilarity(a: Float32Array, b: Float32Array): number {
+  const len = Math.min(a.length, b.length)
+  if (len === 0) return 0
+  let dot = 0
+  let magA = 0
+  let magB = 0
+  for (let i = 0; i < len; i += 1) {
+    dot += a[i] * b[i]
+    magA += a[i] * a[i]
+    magB += b[i] * b[i]
+  }
+  if (magA === 0 || magB === 0) return 0
+  return dot / (Math.sqrt(magA) * Math.sqrt(magB))
+}
+
+function averageVectors(vectors: Float32Array[]): Float32Array | null {
+  const [first] = vectors
+  if (!first) return null
+  const sums = new Float32Array(first.length)
+  let count = 0
+  for (const vector of vectors) {
+    if (vector.length !== first.length) continue
+    for (let i = 0; i < vector.length; i += 1) sums[i] += vector[i]
+    count += 1
+  }
+  if (count === 0) return null
+  for (let i = 0; i < sums.length; i += 1) sums[i] /= count
+  return sums
+}
+
+type ClusterRow = Omit<MeetingCluster, 'centroid' | 'memberCount' | 'createdAt' | 'updatedAt'> & {
+  centroid: Buffer
+  memberCount: number
+  createdAt: number
+  updatedAt: number
+}
+
+function mapCluster(row: ClusterRow): MeetingCluster {
+  return {
+    ...row,
+    centroid: bufferToVector(row.centroid),
   }
 }
 
@@ -296,9 +349,110 @@ export class MemoryRepository {
       .all() as { segmentId: string; vector: Buffer; model: string }[]
     return rows.map((r) => ({
       segmentId: r.segmentId,
-      vector: new Float32Array(r.vector.buffer, r.vector.byteOffset, r.vector.byteLength / 4).slice(),
+      vector: bufferToVector(r.vector),
       model: r.model,
     }))
+  }
+
+  getMeetingEmbeddings(meetingId: string): SegmentEmbedding[] {
+    const rows = this.db
+      .prepare(
+        `SELECT e.segment_id AS segmentId, e.vector, e.model
+         FROM segment_embeddings e
+         JOIN segments s ON s.id = e.segment_id
+         WHERE s.meeting_id = ?
+         ORDER BY s.seq ASC, s.created_at ASC`
+      )
+      .all(meetingId) as { segmentId: string; vector: Buffer; model: string }[]
+    return rows.map((r) => ({
+      segmentId: r.segmentId,
+      vector: bufferToVector(r.vector),
+      model: r.model,
+    }))
+  }
+
+  insertCluster(cluster: Omit<MeetingCluster, 'updatedAt'>): void {
+    this.db
+      .prepare(
+        `INSERT INTO meeting_clusters(id, title, summary, centroid, member_count, created_at, updated_at)
+         VALUES (@id, @title, @summary, @centroidBuffer, @memberCount, @createdAt, @createdAt)`
+      )
+      .run({
+        ...cluster,
+        centroidBuffer: vectorToBuffer(cluster.centroid),
+      })
+  }
+
+  updateClusterSummary(id: string, title: string, summary: string, updatedAt: number): void {
+    this.db
+      .prepare(`UPDATE meeting_clusters SET title = ?, summary = ?, updated_at = ? WHERE id = ?`)
+      .run(title, summary, updatedAt, id)
+  }
+
+  addClusterMember(clusterId: string, meetingId: string): void {
+    this.db
+      .prepare(`INSERT OR IGNORE INTO meeting_cluster_members(cluster_id, meeting_id) VALUES (?, ?)`)
+      .run(clusterId, meetingId)
+    const row = this.db
+      .prepare(`SELECT COUNT(*) AS n FROM meeting_cluster_members WHERE cluster_id = ?`)
+      .get(clusterId) as { n: number }
+    this.db.prepare(`UPDATE meeting_clusters SET member_count = ? WHERE id = ?`).run(row.n, clusterId)
+  }
+
+  getClusterByMeeting(meetingId: string): MeetingCluster | null {
+    const row = this.db
+      .prepare(
+        `SELECT c.id, c.title, c.summary, c.centroid,
+                c.member_count AS memberCount, c.created_at AS createdAt, c.updated_at AS updatedAt
+         FROM meeting_clusters c
+         JOIN meeting_cluster_members m ON m.cluster_id = c.id
+         WHERE m.meeting_id = ?`
+      )
+      .get(meetingId) as ClusterRow | undefined
+    return row ? mapCluster(row) : null
+  }
+
+  listClusters(limit = 100): MeetingCluster[] {
+    const rows = this.db
+      .prepare(
+        `SELECT id, title, summary, centroid,
+                member_count AS memberCount, created_at AS createdAt, updated_at AS updatedAt
+         FROM meeting_clusters
+         ORDER BY updated_at DESC, created_at DESC
+         LIMIT ?`
+      )
+      .all(limit) as ClusterRow[]
+    return rows.map(mapCluster)
+  }
+
+  findNearestClusterToCentroid(
+    centroid: Float32Array,
+    threshold: number
+  ): { cluster: MeetingCluster; similarity: number } | null {
+    let best: { cluster: MeetingCluster; similarity: number } | null = null
+    for (const cluster of this.listClusters()) {
+      const similarity = cosineSimilarity(centroid, cluster.centroid)
+      if (similarity < threshold) continue
+      if (!best || similarity > best.similarity) {
+        best = { cluster, similarity }
+      }
+    }
+    return best
+  }
+
+  recalcClusterCentroid(clusterId: string): Float32Array | null {
+    const members = this.db
+      .prepare(`SELECT meeting_id AS meetingId FROM meeting_cluster_members WHERE cluster_id = ?`)
+      .all(clusterId) as Array<{ meetingId: string }>
+    const meetingCentroids = members
+      .map((member) => averageVectors(this.getMeetingEmbeddings(member.meetingId).map((e) => e.vector)))
+      .filter((centroid): centroid is Float32Array => centroid !== null)
+    const centroid = averageVectors(meetingCentroids)
+    if (!centroid) return null
+    this.db
+      .prepare(`UPDATE meeting_clusters SET centroid = ?, member_count = ?, updated_at = ? WHERE id = ?`)
+      .run(vectorToBuffer(centroid), members.length, Date.now(), clusterId)
+    return centroid
   }
 
   getMissingEmbeddings(meetingId?: string): { segmentId: string; text: string }[] {
