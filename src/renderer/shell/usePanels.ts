@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-export type Shelf = 'whiteboard' | 'actions' | 'closed'
+export type Shelf = 'whiteboard' | 'actions' | 'coach' | 'closed'
 
 export interface PanelsState {
   shelf: Shelf
@@ -20,7 +20,7 @@ export interface PanelsState {
  * Pure local state — no side effects.
  */
 export function usePanels(): PanelsState {
-  // V4: collapsible right shelf — 'whiteboard' | 'actions' | 'closed'
+  // V4: collapsible right shelf — 'whiteboard' | 'actions' | 'coach' | 'closed'
   const [shelf, setShelf] = useState<Shelf>('whiteboard')
   const [whiteboardMaximized, setWhiteboardMaximized] = useState(false)
   const [memoryLibraryOpen, setMemoryLibraryOpen] = useState(false)

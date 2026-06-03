@@ -38,7 +38,7 @@ import { TranscriptColumns } from './shell/TranscriptColumns'
 import { useAnswerAssistHotkey } from './shell/useAnswerAssistHotkey'
 import { useClockMs } from './shell/useClockMs'
 import { useFullscreenState } from './shell/useFullscreenState'
-import { usePanels } from './shell/usePanels'
+import { usePanels, type Shelf } from './shell/usePanels'
 import { usePipelineHealth } from './shell/usePipelineHealth'
 import { useTranscriptScrollSync } from './shell/useTranscriptScrollSync'
 import { AppModals } from './shell/AppModals'
@@ -193,6 +193,13 @@ function useGlossarySuggestionCount(): number {
   }, [])
 
   return count
+}
+
+function getNextShelf(current: Shelf): Shelf {
+  if (current === 'closed') return 'whiteboard'
+  if (current === 'whiteboard') return 'actions'
+  if (current === 'actions') return 'coach'
+  return 'closed'
 }
 
 type PipelineStatus = 'connected' | 'degraded' | 'disconnected'
@@ -765,6 +772,10 @@ function App() {
     setWhiteboardMaximized(true)
   }, [setShelf, setWhiteboardMaximized, t])
 
+  const toggleShelf = useCallback(() => {
+    setShelf((current) => getNextShelf(current))
+  }, [setShelf])
+
   // ── V4 Bilingual Editorial layout ────────────────────────────────────────
   const sourceLang =
     sttLanguage === 'auto' ? (languageLock ?? detectedLanguage ?? 'auto') : sttLanguage
@@ -960,7 +971,7 @@ function App() {
           <button
             className={`v4p-iconbtn ghost ${shelf !== 'closed' ? 'on' : ''}`}
             type="button"
-            onClick={() => setShelf(shelf === 'closed' ? 'whiteboard' : 'closed')}
+            onClick={toggleShelf}
             title={shelf === 'closed' ? t('shell.panel.show') : t('shell.panel.hide')}
             aria-label={t('shell.panel.toggleAria')}
             aria-pressed={shelf !== 'closed'}
@@ -1133,6 +1144,7 @@ function App() {
           onDismissActionItem={dismissActionItem}
           onDoneActionItem={markActionItemDone}
           onUpdateActionItem={updateActionItem}
+          onOpenCluster={() => setMemoryLibraryOpen(true)}
         />
       </div>
 

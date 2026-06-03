@@ -2,10 +2,12 @@ import { useTranslation } from 'react-i18next'
 import type { ViewportCommand, WhiteboardElement } from '../../main/whiteboard/types'
 import { ActionItemsPanel } from '../actions/ActionItemsPanel'
 import type { ActionItem } from '../actions/types'
+import { CoachFeed } from '../coach/CoachFeed'
+import { useCoachFeed } from '../coach/useCoachFeed'
 import { ExcalidrawCanvas } from '../whiteboard/ExcalidrawCanvas'
 import { WhiteboardLabelLangSelect } from '../whiteboard/WhiteboardLabelLangSelect'
+import type { Shelf } from './usePanels'
 
-type Shelf = 'whiteboard' | 'actions' | 'closed'
 type AgentStatus = 'idle' | 'thinking' | 'error'
 type ActionItemPatch = Partial<Pick<ActionItem, 'title' | 'owner' | 'due'>>
 
@@ -22,6 +24,7 @@ type RightShelfProps = {
   onDismissActionItem: (id: string) => void
   onDoneActionItem: (id: string) => void
   onUpdateActionItem: (id: string, patch: ActionItemPatch) => void
+  onOpenCluster: (clusterId: string) => void
 }
 
 export function RightShelf({
@@ -37,6 +40,7 @@ export function RightShelf({
   onDismissActionItem,
   onDoneActionItem,
   onUpdateActionItem,
+  onOpenCluster,
 }: RightShelfProps) {
   const { t } = useTranslation()
   if (shelf === 'closed') return null
@@ -63,6 +67,12 @@ export function RightShelf({
           {actionItemList.length > 0 && (
             <span className="v4p-shelf-tab-badge amw-mono">{actionItemList.length}</span>
           )}
+        </button>
+        <button
+          className={`v4p-shelf-tab ${shelf === 'coach' ? 'on' : ''}`}
+          onClick={() => onShelfChange('coach')}
+        >
+          {t('coach.tabLabel')}
         </button>
         {shelf === 'whiteboard' && <WhiteboardLabelLangSelect />}
         <button
@@ -125,7 +135,25 @@ export function RightShelf({
             onUpdate={onUpdateActionItem}
           />
         </div>
+        <div
+          className={`v4p-shelf-panel ${shelf === 'coach' ? 'on' : ''}`}
+          aria-hidden={shelf !== 'coach'}
+        >
+          {shelf === 'coach' && <CoachShelfPanel onOpenCluster={onOpenCluster} />}
+        </div>
       </div>
     </aside>
+  )
+}
+
+function CoachShelfPanel({ onOpenCluster }: { onOpenCluster: (clusterId: string) => void }) {
+  const { cards, dismiss, clearAll } = useCoachFeed()
+  return (
+    <CoachFeed
+      cards={cards}
+      dismiss={dismiss}
+      clearAll={clearAll}
+      onOpenCluster={onOpenCluster}
+    />
   )
 }
