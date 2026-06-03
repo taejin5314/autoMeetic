@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { makeWhiteboardSubscriber } from '../main/pipeline/subscribers/whiteboardSubscriber'
 import { makeActionItemsSubscriber } from '../main/pipeline/subscribers/actionItemsSubscriber'
 import { makeMemorySubscriber } from '../main/pipeline/subscribers/memorySubscriber'
+import { makeCoachSubscriber } from '../main/pipeline/subscribers/coachSubscriber'
 import type { FinalizedTurn } from '../main/pipeline/types'
 
 const turn: FinalizedTurn = {
@@ -50,5 +51,32 @@ describe('memorySubscriber', () => {
     expect(deps.notifyTranslation).toHaveBeenCalledWith('t1', '안녕')
     s.onEvent({ type: 'turn-source-updated', id: 't1', text: 'hello world?' })
     expect(deps.notifySourceTextUpdate).toHaveBeenCalledWith('t1', 'hello world?')
+  })
+})
+
+describe('coachSubscriber', () => {
+  it('routes finalized turns, glossary normalization events, and meeting-ended resets', () => {
+    const service = {
+      onTurnFinalized: vi.fn(),
+      onGlossaryNormalize: vi.fn(),
+      onMeetingEnded: vi.fn(),
+    }
+    const s = makeCoachSubscriber(service)
+    s.onEvent({ type: 'turn-finalized', turn })
+    s.onEvent({
+      type: 'glossary-normalize-applied',
+      id: 't1',
+      pairs: [{ variant: 'real time orchestrator', canonical: 'RealtimeOrchestrator' }],
+    })
+    s.onEvent({ type: 'meeting-ended', meetingId: 'mtg_1' })
+    s.onEvent({ type: 'translation-updated', id: 't1', translation: 'x' })
+
+    expect(service.onTurnFinalized).toHaveBeenCalledWith(turn)
+    expect(service.onGlossaryNormalize).toHaveBeenCalledWith({
+      type: 'glossary-normalize-applied',
+      id: 't1',
+      pairs: [{ variant: 'real time orchestrator', canonical: 'RealtimeOrchestrator' }],
+    })
+    expect(service.onMeetingEnded).toHaveBeenCalledTimes(1)
   })
 })
