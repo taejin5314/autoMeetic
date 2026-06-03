@@ -78,6 +78,16 @@ export interface SegmentEmbedding {
   model: string
 }
 
+export interface MeetingCluster {
+  id: string
+  title: string
+  summary: string
+  centroid: Float32Array
+  memberCount: number
+  createdAt: number
+  updatedAt: number
+}
+
 export interface EmbeddingFailure {
   segmentId: string
   attempts: number
