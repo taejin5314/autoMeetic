@@ -17,7 +17,7 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 |---|---|---|---|
 | 1 — Memory Tree schema + repository + builder (TDD) | ✅ COMPLETE | `54f911a` → `4947bb7` (5 commits) | 372/372 (`npm run verify:phase 1`); build passed |
 | 2 — normalizePreserveTerms extension + glossary-normalize-applied event (TDD) | ✅ COMPLETE | `9c1e9b9` → `e5b314c` (2 commits) | 375/375 (`npm run verify:phase 2`); build passed |
-| 3 — CoachSubscriber + coachService (TDD) | ⏳ PENDING | — | — |
+| 3 — CoachSubscriber + coachService (TDD) | ✅ COMPLETE | `6699432` → `393a148` (4 commits) | 384/384 (`npm run verify:phase 3`); build passed |
 | 4 — Preload bridge + i18n keys (en/ko/ja/zh) | ⏳ PENDING | — | — |
 | 5 — Renderer: useCoachFeed + CoachFeed + RightShelf 3rd mode | ⏳ PENDING | — | — |
 | 6 — Regression + handoff + push | ⏳ PENDING | — | — |
@@ -95,6 +95,45 @@ VERDICT: ✅ Phase 2 verified
 ```text
 npm run build
 ✓ built in 2.81s
+```
+
+**Phase 3 verification (`npm run verify:phase 3`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 3
+
+
+🔍 autoMeetic verification — 2026-06-03 16:26
+
+  Plan: docs/superpowers/plans/2026-05-28-live-coach-memory-tree.md
+  Verifying Phase 3
+
+  Expected files (referenced in Phase 3 body):
+    ✅ src/main/coach/types.ts
+    ✅ src/test/coach-service.test.ts
+    ✅ src/main/pipeline/subscribers/coachSubscriber.ts
+
+Checks:
+  ✅ typecheck (0 errors, 0.8s)
+  ✅ lint (0 errors, 10.4s)
+  ✅ vitest (384 / 384 passed, 9.2s)
+
+Git context (last 5 commits):
+  393a148 feat(coach): register coach subscriber + tree builder in index
+  965e4d1 feat(coach): pipeline subscriber adapter
+  e935b05 feat(coach): coach service (past-context + glossary-mismatch detection)
+  6699432 feat(coach): add CoachEvent types
+  25090f0 docs(coach): mark phase 2 verified
+
+VERDICT: ✅ Phase 3 verified
+```
+
+**Phase 3 additional check:**
+
+```text
+npm run build
+✓ built in 3.22s
 ```
 
 ## ⏸ Paused stream — App.tsx Split (partial)
