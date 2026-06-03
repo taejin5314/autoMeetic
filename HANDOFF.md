@@ -15,12 +15,50 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 
 | Phase | Status | Commits | Tests passing |
 |---|---|---|---|
-| 1 — Memory Tree schema + repository + builder (TDD) | ⏳ PENDING | — | — |
+| 1 — Memory Tree schema + repository + builder (TDD) | ✅ COMPLETE | `54f911a` → `4947bb7` (5 commits) | 372/372 (`npm run verify:phase 1`); build passed |
 | 2 — normalizePreserveTerms extension + glossary-normalize-applied event (TDD) | ⏳ PENDING | — | — |
 | 3 — CoachSubscriber + coachService (TDD) | ⏳ PENDING | — | — |
 | 4 — Preload bridge + i18n keys (en/ko/ja/zh) | ⏳ PENDING | — | — |
 | 5 — Renderer: useCoachFeed + CoachFeed + RightShelf 3rd mode | ⏳ PENDING | — | — |
 | 6 — Regression + handoff + push | ⏳ PENDING | — | — |
+
+**Phase 1 verification (`npm run verify:phase 1`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 1
+
+
+🔍 autoMeetic verification — 2026-06-03 16:12
+
+  Plan: docs/superpowers/plans/2026-05-28-live-coach-memory-tree.md
+  Verifying Phase 1
+
+  Expected files (referenced in Phase 1 body):
+    ✅ src/test/memory-cluster-repository.test.ts
+    ✅ src/test/memory-tree-builder.test.ts
+
+Checks:
+  ✅ typecheck (0 errors, 1.0s)
+  ✅ lint (0 errors, 11.8s)
+  ✅ vitest (372 / 372 passed, 8.8s)
+
+Git context (last 5 commits):
+  4947bb7 test(coach): update schema version expectations for v6
+  2bdf999 feat(coach): memory tree builder (cluster assign + LLM summary)
+  1da2adc feat(coach): cluster CRUD + cosine-similarity lookup
+  b8dcc03 feat(coach): add MeetingCluster type
+  54f911a feat(coach): add meeting_clusters tables (schema v6)
+
+VERDICT: ✅ Phase 1 verified
+```
+
+**Phase 1 additional check:**
+
+```text
+npm run build
+✓ built in 4.77s
+```
 
 ## ⏸ Paused stream — App.tsx Split (partial)
 
