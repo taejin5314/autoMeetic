@@ -249,6 +249,10 @@ export class MemoryService {
     return this.repo
   }
 
+  get embeddings(): Pick<EmbeddingService, 'embedQuery'> {
+    return this.embeddingService
+  }
+
   async dispose(): Promise<void> {
     this.repo.close()
     await this.embeddingService.dispose()

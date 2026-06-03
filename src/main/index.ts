@@ -3,9 +3,12 @@ import type { BrowserWindow as BrowserWindowType, Tray as TrayType } from 'elect
 import { join } from 'path'
 import { registerIpcHandlers, registerWindowNotifiers, setMemoryServicePromise } from './ipc'
 import { init as initActionItems } from './actionItemService'
+import { createCoachService } from './coach/coachService'
 import { MemoryService, defaultWorkerPath } from './memory/memoryService'
+import { MemoryTreeBuilder } from './memory/memoryTreeBuilder'
 import { PipelineBus } from './pipeline/pipelineBus'
 import { makeActionItemsSubscriber } from './pipeline/subscribers/actionItemsSubscriber'
+import { makeCoachSubscriber } from './pipeline/subscribers/coachSubscriber'
 import { makeMemorySubscriber } from './pipeline/subscribers/memorySubscriber'
 import { makeWhiteboardSubscriber } from './pipeline/subscribers/whiteboardSubscriber'
 import { init as initTranscriptPostProcessor } from './transcriptPostProcessor'
@@ -148,6 +151,23 @@ app.whenReady().then(() => {
     .then((memoryService) => {
       const recovered = memoryService.recoverInterruptedMeetings()
       if (recovered > 0) console.log(`[memory] recovered ${recovered} interrupted meeting(s)`)
+      const memoryTreeBuilder = new MemoryTreeBuilder({ repo: memoryService.repository })
+      const coachService = createCoachService({
+        repo: memoryService.repository,
+        embedder: memoryService.embeddings,
+        currentMeetingClusterId: () => {
+          const meetingId = memoryService.getCurrentMeetingId()
+          return meetingId ? (memoryService.repository.getClusterByMeeting(meetingId)?.id ?? null) : null
+        },
+        emit: (event) => mainWindow?.webContents.send('coach:event', event),
+      })
+      pipelineBus.register(makeCoachSubscriber(coachService))
+      pipelineBus.register({
+        name: 'memoryTreeBuilder',
+        onEvent: (event) => {
+          if (event.type === 'meeting-ended') void memoryTreeBuilder.rebuildForMeeting(event.meetingId)
+        },
+      })
       const pendingGlossaryExtractions = new Set<string>()
       memoryService.onMeetingUpdated((evt) => {
         if (evt.kind === 'began') {
