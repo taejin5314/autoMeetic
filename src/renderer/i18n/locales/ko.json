@@ -159,6 +159,20 @@
     "agentThinking": "에이전트 생각 중",
     "diagramFailed": "다이어그램 실패"
   },
+  "coach": {
+    "tabLabel": "코치",
+    "empty": "듣는 중 - 필요한 맥락이 여기에 표시됩니다.",
+    "pastContext": {
+      "title": "관련된 과거 맥락",
+      "openAction": "열기"
+    },
+    "glossaryMismatch": {
+      "title": "용어집 불일치",
+      "body": "\"{{variant}}\"로 들렸지만 \"{{canonical}}\"로 보존합니다."
+    },
+    "dismiss": "닫기",
+    "clearAll": "모두 지우기"
+  },
   "feed": {
     "console": {
       "nowSpeaking": "현재 발화",

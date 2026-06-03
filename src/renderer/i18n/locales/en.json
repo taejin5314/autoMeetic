@@ -159,6 +159,20 @@
     "agentThinking": "Agent thinking",
     "diagramFailed": "Diagram failed"
   },
+  "coach": {
+    "tabLabel": "Coach",
+    "empty": "Listening - proactive context appears here.",
+    "pastContext": {
+      "title": "Related past context",
+      "openAction": "Open"
+    },
+    "glossaryMismatch": {
+      "title": "Glossary mismatch",
+      "body": "Heard \"{{variant}}\"; preserving \"{{canonical}}\"."
+    },
+    "dismiss": "Dismiss",
+    "clearAll": "Clear all"
+  },
   "feed": {
     "console": {
       "nowSpeaking": "Now speaking",

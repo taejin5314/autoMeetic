@@ -159,6 +159,20 @@
     "agentThinking": "エージェントが思考中",
     "diagramFailed": "図の作成に失敗"
   },
+  "coach": {
+    "tabLabel": "コーチ",
+    "empty": "リスニング中 - 必要な文脈がここに表示されます。",
+    "pastContext": {
+      "title": "関連する過去の文脈",
+      "openAction": "開く"
+    },
+    "glossaryMismatch": {
+      "title": "用語集の不一致",
+      "body": "\"{{variant}}\" と聞こえましたが、\"{{canonical}}\" として保持します。"
+    },
+    "dismiss": "閉じる",
+    "clearAll": "すべてクリア"
+  },
   "feed": {
     "console": {
       "nowSpeaking": "現在の発話",

@@ -159,6 +159,20 @@
     "agentThinking": "代理正在思考",
     "diagramFailed": "图表生成失败"
   },
+  "coach": {
+    "tabLabel": "教练",
+    "empty": "正在聆听 - 主动上下文会显示在这里。",
+    "pastContext": {
+      "title": "相关历史上下文",
+      "openAction": "打开"
+    },
+    "glossaryMismatch": {
+      "title": "术语表不匹配",
+      "body": "听到的是“{{variant}}”；将保留为“{{canonical}}”。"
+    },
+    "dismiss": "关闭",
+    "clearAll": "全部清除"
+  },
   "feed": {
     "console": {
       "nowSpeaking": "当前发言",
