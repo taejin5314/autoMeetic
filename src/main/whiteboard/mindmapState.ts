@@ -55,7 +55,7 @@ export function applyOperations(
   for (const op of operations) {
     if (op.type === 'upgrade_root') {
       if (state.topicSource !== 'meeting-title') continue
-      const label = normalizePreserveTerms(op.newLabel.trim(), glossary).slice(0, MAX_LABEL_CHARS)
+      const label = normalizePreserveTerms(op.newLabel.trim(), glossary).text.slice(0, MAX_LABEL_CHARS)
       if (!label) continue
       state.nodes[0].label = label
       state.topicSource = 'llm-detected'
@@ -67,7 +67,7 @@ export function applyOperations(
       const parent = findNodeByLabel(op.parentLabel)
       if (!parent) continue
       if (parent.depth >= 2) continue
-      const normalized = normalizePreserveTerms(op.label.trim(), glossary).slice(0, MAX_LABEL_CHARS)
+      const normalized = normalizePreserveTerms(op.label.trim(), glossary).text.slice(0, MAX_LABEL_CHARS)
       if (!normalized) continue
       const siblings = state.nodes.filter((n) => n.parentId === parent.id)
       if (siblings.some((s) => s.label.toLowerCase() === normalized.toLowerCase())) continue

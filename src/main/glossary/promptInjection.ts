@@ -62,9 +62,11 @@ export function formatGlossaryPromptSection(
 export function normalizePreserveTerms(
   output: string,
   entries: GlossaryEntry[]
-): string {
-  if (entries.length === 0) return output
+): { text: string; pairs: { variant: string; canonical: string }[] } {
+  if (entries.length === 0) return { text: output, pairs: [] }
   let result = output
+  const pairs: { variant: string; canonical: string }[] = []
+  const seenPairs = new Set<string>()
   for (const e of entries) {
     if (!e.preserve) continue
     const canonicalText = e.sourceTerm.trim().toLowerCase()
@@ -74,10 +76,20 @@ export function normalizePreserveTerms(
     ]
     for (const form of allForms) {
       const re = new RegExp(`\\b${escapeRegex(form)}\\b`, 'gi')
-      result = result.replace(re, e.sourceTerm)
+      const reportsPair = form.trim().toLowerCase() !== canonicalText
+      result = result.replace(re, () => {
+        if (reportsPair) {
+          const key = `${form.toLowerCase()}\u0000${e.sourceTerm.toLowerCase()}`
+          if (!seenPairs.has(key)) {
+            seenPairs.add(key)
+            pairs.push({ variant: form, canonical: e.sourceTerm })
+          }
+        }
+        return e.sourceTerm
+      })
     }
   }
-  return result
+  return { text: result, pairs }
 }
 
 export function buildLabelLanguageBlock(langCode: string): string {

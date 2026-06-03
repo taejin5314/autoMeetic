@@ -196,7 +196,7 @@ export async function runChat(
     sendEvent({ type: 'delta', content: delta })
   }
 
-  const normalized = normalizePreserveTerms(fullText, glossary)
+  const normalized = normalizePreserveTerms(fullText, glossary).text
   log('info', 'memory-chat', 'memory.chat.completed', {
     answerChars: normalized.length,
     llmDurationMs: Date.now() - llmStartedAt,

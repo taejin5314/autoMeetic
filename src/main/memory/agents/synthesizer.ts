@@ -92,7 +92,7 @@ export async function runSynthesizer(args: {
   for (const line of buffer.split('\n')) consumeLine(line)
 
   const glossary = args.memory.activeGlossary(null)
-  const normalized = normalizePreserveTerms(fullText, glossary)
+  const normalized = normalizePreserveTerms(fullText, glossary).text
   return {
     answer: normalized,
     inputTokens: usage?.prompt_tokens ?? 0,

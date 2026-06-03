@@ -494,7 +494,7 @@ async function callTranslationApi(
       ? parsed.translation.trim()
       : null
   const normalizedTranslation = translation
-    ? normalizePreserveTerms(translation, activeGlossary)
+    ? normalizePreserveTerms(translation, activeGlossary).text
     : null
   const sourceLanguage =
     typeof parsed.sourceLanguage === 'string' && parsed.sourceLanguage.length === 2

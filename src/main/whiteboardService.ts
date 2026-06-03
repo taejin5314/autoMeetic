@@ -132,10 +132,10 @@ function applyGlossaryPostPass(
   return elements.map((el) => {
     const next = { ...el }
     if (next.label && typeof next.label.text === 'string') {
-      next.label = { ...next.label, text: normalizePreserveTerms(next.label.text, glossary) }
+      next.label = { ...next.label, text: normalizePreserveTerms(next.label.text, glossary).text }
     }
     if (typeof next.text === 'string') {
-      next.text = normalizePreserveTerms(next.text, glossary)
+      next.text = normalizePreserveTerms(next.text, glossary).text
     }
     return next
   })

@@ -259,11 +259,11 @@ export async function startAnswerAssist(
           answer: normalizePreserveTerms(
             (parts[0] ?? '').trim(),
             glossary as GlossaryEntry[]
-          ),
+          ).text,
           answer_ko: normalizePreserveTerms(
             (parts[1] ?? '').trim(),
             glossary as GlossaryEntry[]
-          ),
+          ).text,
         })
         return
       }
@@ -273,8 +273,8 @@ export async function startAnswerAssist(
   const parts = fullText.split(/\n---\n/)
   sendEvent({
     type: 'done',
-    answer: normalizePreserveTerms((parts[0] ?? '').trim(), glossary as GlossaryEntry[]),
-    answer_ko: normalizePreserveTerms((parts[1] ?? '').trim(), glossary as GlossaryEntry[]),
+    answer: normalizePreserveTerms((parts[0] ?? '').trim(), glossary as GlossaryEntry[]).text,
+    answer_ko: normalizePreserveTerms((parts[1] ?? '').trim(), glossary as GlossaryEntry[]).text,
   })
 }
 

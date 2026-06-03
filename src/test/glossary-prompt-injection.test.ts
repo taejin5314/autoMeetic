@@ -77,14 +77,14 @@ describe('formatGlossaryPromptSection', () => {
 describe('normalizePreserveTerms', () => {
   it('normalizes casing for preserve=true terms', () => {
     const entries = [entry({ sourceTerm: 'GPU', preserve: true })]
-    expect(normalizePreserveTerms('uses gpu and Gpu daily', entries)).toBe(
+    expect(normalizePreserveTerms('uses gpu and Gpu daily', entries).text).toBe(
       'uses GPU and GPU daily'
     )
   })
 
   it('respects word boundaries (does not touch GPUS)', () => {
     const entries = [entry({ sourceTerm: 'GPU', preserve: true })]
-    expect(normalizePreserveTerms('multiple GPUS at once', entries)).toBe(
+    expect(normalizePreserveTerms('multiple GPUS at once', entries).text).toBe(
       'multiple GPUS at once'
     )
   })
@@ -93,11 +93,11 @@ describe('normalizePreserveTerms', () => {
     const entries = [
       entry({ sourceTerm: 'kunchen', preserve: false, translations: { ko: '쿤 첸' } }),
     ]
-    expect(normalizePreserveTerms('Kunchen said hi', entries)).toBe('Kunchen said hi')
+    expect(normalizePreserveTerms('Kunchen said hi', entries).text).toBe('Kunchen said hi')
   })
 
   it('returns input unchanged when entries is empty', () => {
-    expect(normalizePreserveTerms('anything goes', [])).toBe('anything goes')
+    expect(normalizePreserveTerms('anything goes', []).text).toBe('anything goes')
   })
 })
 
@@ -151,26 +151,26 @@ describe('normalizePreserveTerms — variants', () => {
 
   it('rewrites variants to the canonical form', () => {
     expect(
-      normalizePreserveTerms('the real time orchestrator runs', [entry])
+      normalizePreserveTerms('the real time orchestrator runs', [entry]).text
     ).toBe('the RealtimeOrchestrator runs')
   })
 
   it('is case-insensitive across variants', () => {
     expect(
-      normalizePreserveTerms('REAL TIME ORCHESTRATOR', [entry])
+      normalizePreserveTerms('REAL TIME ORCHESTRATOR', [entry]).text
     ).toBe('RealtimeOrchestrator')
   })
 
   it('leaves unrelated text alone', () => {
     expect(
-      normalizePreserveTerms('the architect went home', [entry])
+      normalizePreserveTerms('the architect went home', [entry]).text
     ).toBe('the architect went home')
   })
 
   it('dedupes variants identical to the canonical (no-op)', () => {
     const dup = { ...entry, variants: ['RealtimeOrchestrator'] }
     expect(
-      normalizePreserveTerms('the RealtimeOrchestrator runs', [dup])
+      normalizePreserveTerms('the RealtimeOrchestrator runs', [dup]).text
     ).toBe('the RealtimeOrchestrator runs')
   })
 })
