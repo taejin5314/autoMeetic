@@ -42,6 +42,7 @@ export class MemoryRepository {
   private initialize(): void {
     this.db.exec(SCHEMA_SQL)
     this.migrateToV5IfNeeded()
+    this.migrateToV6IfNeeded()
     const row = this.db.prepare('SELECT version FROM schema_version LIMIT 1').get() as
       | { version: number }
       | undefined
@@ -56,6 +57,31 @@ export class MemoryRepository {
     const cols = this.db.pragma('table_info(glossary_entries)') as Array<{ name: string }>
     if (cols.some((c) => c.name === 'variants')) return
     this.db.exec(`ALTER TABLE glossary_entries ADD COLUMN variants TEXT NOT NULL DEFAULT '[]'`)
+  }
+
+  private migrateToV6IfNeeded(): void {
+    const row = this.db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'meeting_clusters'")
+      .get() as { name: string } | undefined
+    if (row) return
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS meeting_clusters (
+        id           TEXT PRIMARY KEY,
+        title        TEXT NOT NULL,
+        summary      TEXT NOT NULL,
+        centroid     BLOB NOT NULL,
+        member_count INTEGER NOT NULL DEFAULT 0,
+        created_at   INTEGER NOT NULL,
+        updated_at   INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS meeting_cluster_members (
+        cluster_id TEXT NOT NULL REFERENCES meeting_clusters(id) ON DELETE CASCADE,
+        meeting_id TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+        PRIMARY KEY (cluster_id, meeting_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_meeting_cluster_members_meeting
+        ON meeting_cluster_members(meeting_id);
+    `)
   }
 
   getSchemaVersion(): number {

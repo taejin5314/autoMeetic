@@ -2,9 +2,19 @@ import { describe, expect, it } from 'vitest'
 import { MemoryRepository } from '../main/memory/repository'
 
 describe('MemoryRepository init', () => {
-  it('creates schema and reports version 5 on a fresh in-memory db', () => {
+  it('creates schema and reports version 6 on a fresh in-memory db', () => {
     const repo = new MemoryRepository(':memory:')
-    expect(repo.getSchemaVersion()).toBe(5)
+    expect(repo.getSchemaVersion()).toBe(6)
+    expect(
+      repo.raw
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'meeting_clusters'")
+        .get()
+    ).toBeTruthy()
+    expect(
+      repo.raw
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'meeting_cluster_members'")
+        .get()
+    ).toBeTruthy()
     repo.close()
   })
 
@@ -12,7 +22,7 @@ describe('MemoryRepository init', () => {
     const repo = new MemoryRepository(':memory:')
     repo.close()
     const repo2 = new MemoryRepository(':memory:')
-    expect(repo2.getSchemaVersion()).toBe(5)
+    expect(repo2.getSchemaVersion()).toBe(6)
     repo2.close()
   })
 
