@@ -18,7 +18,7 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 | 1 — Memory Tree schema + repository + builder (TDD) | ✅ COMPLETE | `54f911a` → `4947bb7` (5 commits) | 372/372 (`npm run verify:phase 1`); build passed |
 | 2 — normalizePreserveTerms extension + glossary-normalize-applied event (TDD) | ✅ COMPLETE | `9c1e9b9` → `e5b314c` (2 commits) | 375/375 (`npm run verify:phase 2`); build passed |
 | 3 — CoachSubscriber + coachService (TDD) | ✅ COMPLETE | `6699432` → `393a148` (4 commits) | 384/384 (`npm run verify:phase 3`); build passed |
-| 4 — Preload bridge + i18n keys (en/ko/ja/zh) | ⏳ PENDING | — | — |
+| 4 — Preload bridge + i18n keys (en/ko/ja/zh) | ✅ COMPLETE | `3d2c394` → `2e28cfa` (2 commits) | 384/384 (`npm run verify:phase 4`); build passed |
 | 5 — Renderer: useCoachFeed + CoachFeed + RightShelf 3rd mode | ⏳ PENDING | — | — |
 | 6 — Regression + handoff + push | ⏳ PENDING | — | — |
 
@@ -134,6 +134,44 @@ VERDICT: ✅ Phase 3 verified
 ```text
 npm run build
 ✓ built in 3.22s
+```
+
+**Phase 4 verification (`npm run verify:phase 4`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 4
+
+
+🔍 autoMeetic verification — 2026-06-03 16:30
+
+  Plan: docs/superpowers/plans/2026-05-28-live-coach-memory-tree.md
+  Verifying Phase 4
+
+  Expected files (referenced in Phase 4 body):
+    ✅ src/preload/index.ts
+    ✅ src/preload/types.ts
+
+Checks:
+  ✅ typecheck (0 errors, 0.8s)
+  ✅ lint (0 errors, 11.3s)
+  ✅ vitest (384 / 384 passed, 7.2s)
+
+Git context (last 5 commits):
+  2e28cfa feat(coach): i18n keys for Coach feed (en/ko/ja/zh)
+  3d2c394 feat(coach): preload bridge for coach events
+  6e36427 docs(coach): mark phase 3 verified
+  393a148 feat(coach): register coach subscriber + tree builder in index
+  965e4d1 feat(coach): pipeline subscriber adapter
+
+VERDICT: ✅ Phase 4 verified
+```
+
+**Phase 4 additional check:**
+
+```text
+npm run build
+✓ built in 7.99s
 ```
 
 ## ⏸ Paused stream — App.tsx Split (partial)
