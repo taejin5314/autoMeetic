@@ -4,21 +4,32 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 
 ## 🚀 Next active stream
 
-> **App.tsx Split — Behavior-Preserving Decomposition.** Refactor stream (#1 of 3 sequenced refactors: App.tsx split → dead-code opportunistic → error/logging consistency). 4 phases. Decomposes the 1243-line renderer god-component `src/renderer/App.tsx` into focused custom hooks (`usePanels`, `usePipelineHealth`, `useSttLanguageState`, `useWhiteboardController`, `useListeningSession`) + presentational components (`AppHeader`, `CaptureControls`, `AppModals`), leaving App.tsx a thin composition root (~150–250 lines). **Strictly behavior-preserving — move code verbatim, add only wiring.** App.tsx has NO direct test coverage → typecheck/lint/build are the automated net + `npm run build` each phase; manual smoke is the behavioral check (deferred to user). See:
+> **Live Coach + Memory Tree — Proactive In-Meeting Context Surfacing.** Net-new feature; first proactive/agentic surface in autoMeetic. 6 phases. Adds a `CoachSubscriber` on the `PipelineBus` (zero `transcriptPostProcessor` edits — proves the orchestration stream) that emits two card types to a new right-shelf **Coach** feed: (a) **past-context** (regex-triggered on phrases like "지난번"/"last time" → embed turn → look up nearest **Memory Tree cluster** → surface cluster title + summary snippet); (b) **glossary-mismatch** (free, hooks the existing `normalizePreserveTerms` to report variant → canonical normalizations). **Memory Tree v1** = one cluster level: meetings grouped by cosine-similarity (≥0.6) with LLM-regenerated cluster summaries on `meeting-ended`. Right shelf gains a 3rd mode (whiteboard → actions → coach → closed). Strict rate limits (past-context 1/min, total 5/min, cluster dedup 5min, canonical dedup 1min). Calm sidebar feed — no popups/audio/mascot. Competitive context: this is autoMeetic's vertical-deep answer to OpenHuman's general "always-on background thinking" — bot-free, meeting-only, professional/quiet. See:
+>
+> - **Spec:** `docs/superpowers/specs/2026-05-28-live-coach-memory-tree-design.md`
+> - **Plan:** `docs/superpowers/plans/2026-05-28-live-coach-memory-tree.md`
+>
+> Start at Phase 1 (Memory Tree schema + repository + builder, TDD). Phase 2 = `normalizePreserveTerms` extension to return `{ text, pairs }` (behavior-preserving for `.text`) + new pipeline event. Phase 3 = CoachSubscriber + service (TDD). Phase 4 = preload + i18n. Phase 5 = renderer (CoachFeed + RightShelf 'coach' mode). Phase 6 = regression + push. Coach disabled (shelf elsewhere) MUST be a 0-difference experience to current users.
+
+## Active stream state — Live Coach + Memory Tree
+
+| Phase | Status | Commits | Tests passing |
+|---|---|---|---|
+| 1 — Memory Tree schema + repository + builder (TDD) | ⏳ PENDING | — | — |
+| 2 — normalizePreserveTerms extension + glossary-normalize-applied event (TDD) | ⏳ PENDING | — | — |
+| 3 — CoachSubscriber + coachService (TDD) | ⏳ PENDING | — | — |
+| 4 — Preload bridge + i18n keys (en/ko/ja/zh) | ⏳ PENDING | — | — |
+| 5 — Renderer: useCoachFeed + CoachFeed + RightShelf 3rd mode | ⏳ PENDING | — | — |
+| 6 — Regression + handoff + push | ⏳ PENDING | — | — |
+
+## ⏸ Paused stream — App.tsx Split (partial)
+
+> Partial behavior-preserving decomposition in progress; 3 extractions shipped to `origin/master`. See:
 >
 > - **Spec:** `docs/superpowers/specs/2026-05-28-app-tsx-split-design.md`
 > - **Plan:** `docs/superpowers/plans/2026-05-28-app-tsx-split.md`
 >
-> Start at Phase 1. Extraction order = self-contained first (panels → health → language → whiteboard), entangled `useListeningSession` last (Phase 2), then JSX components (Phase 3). Critical: `useSlackArm` must keep consuming `beginSession`/`endSession`/`sessionActive` from `useListeningSession` — manual + huddle sessions share ONE begin/end path, no duplication. Preserve the early-return guards in App.tsx verbatim.
-
-## Active stream state — App.tsx Split
-
-| Phase | Status | Commits | Tests passing |
-|---|---|---|---|
-| 1 — Self-contained hooks (panels, health, language, whiteboard) | ⏳ PENDING | — | — |
-| 2 — useListeningSession (entangled, last) | ⏳ PENDING | — | — |
-| 3 — Presentational components (AppHeader, CaptureControls, AppModals) | ⏳ PENDING | — | — |
-| 4 — Regression + handoff + push | ⏳ PENDING | — | — |
+> Shipped: `usePanels`, `usePipelineHealth`, `AppModals` (all verified typecheck/lint/build/vitest green). Remaining (`useSttLanguageState` thin, `useWhiteboardController`, `useListeningSession`, `AppHeader`, `CaptureControls`) deferred — strategy pivot to Live Coach. App.tsx is at ~1231 lines (down from 1243); the big remaining reduction is `AppHeader` (~250 lines of JSX with ~28 props, needs careful verbatim move). Resume as a small follow-up stream when convenient.
 
 ## ✅ Completed stream — Slack Huddle Detection
 
