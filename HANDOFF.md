@@ -19,7 +19,7 @@ Live handoff document. Any agent (Claude, Codex, human) can resume from this fil
 | 2 — normalizePreserveTerms extension + glossary-normalize-applied event (TDD) | ✅ COMPLETE | `9c1e9b9` → `e5b314c` (2 commits) | 375/375 (`npm run verify:phase 2`); build passed |
 | 3 — CoachSubscriber + coachService (TDD) | ✅ COMPLETE | `6699432` → `393a148` (4 commits) | 384/384 (`npm run verify:phase 3`); build passed |
 | 4 — Preload bridge + i18n keys (en/ko/ja/zh) | ✅ COMPLETE | `3d2c394` → `2e28cfa` (2 commits) | 384/384 (`npm run verify:phase 4`); build passed |
-| 5 — Renderer: useCoachFeed + CoachFeed + RightShelf 3rd mode | ⏳ PENDING | — | — |
+| 5 — Renderer: useCoachFeed + CoachFeed + RightShelf 3rd mode | ✅ COMPLETE | `58ae79b` → `179ae5a` (4 commits) | 384/384 (`npm run verify:phase 5`); build passed |
 | 6 — Regression + handoff + push | ⏳ PENDING | — | — |
 
 **Phase 1 verification (`npm run verify:phase 1`):**
@@ -172,6 +172,49 @@ VERDICT: ✅ Phase 4 verified
 ```text
 npm run build
 ✓ built in 7.99s
+```
+
+**Phase 5 verification (`npm run verify:phase 5`):**
+
+```text
+> automeetic@0.0.0 verify:phase
+> node scripts/verify.mjs --phase 5
+
+
+🔍 autoMeetic verification — 2026-06-03 16:39
+
+  Plan: docs/superpowers/plans/2026-05-28-live-coach-memory-tree.md
+  Verifying Phase 5
+
+  Expected files (referenced in Phase 5 body):
+    ✅ src/renderer/coach/types.ts
+    ✅ src/renderer/coach/useCoachFeed.ts
+    ✅ src/renderer/coach/CoachFeed.tsx
+    ✅ src/renderer/shell/usePanels.ts
+    ✅ src/renderer/shell/RightShelf.tsx
+    ✅ src/renderer/App.tsx
+    ✅ src/renderer/App.css
+
+Checks:
+  ✅ typecheck (0 errors, 0.8s)
+  ✅ lint (0 errors, 11.8s)
+  ✅ vitest (384 / 384 passed, 11.4s)
+
+Git context (last 5 commits):
+  179ae5a feat(coach): styles for Coach cards + feed
+  65fdbf3 feat(coach): mount Coach feed in RightShelf with 3rd shelf mode
+  3444490 feat(coach): CoachFeed component
+  58ae79b feat(coach): useCoachFeed renderer hook
+  17d2ff9 docs(coach): mark phase 4 verified
+
+VERDICT: ✅ Phase 5 verified
+```
+
+**Phase 5 additional check:**
+
+```text
+npm run build
+✓ built in 3.16s
 ```
 
 ## ⏸ Paused stream — App.tsx Split (partial)
